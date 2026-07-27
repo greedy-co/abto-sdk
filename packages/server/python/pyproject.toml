@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "abto"
+version = "0.1.0"
+description = "ABTO server-side SDK for Python — gateway baseURL + x-abto-* header injection via contextvars and httpx event hooks."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+keywords = ["abto", "llm", "analytics", "autocapture", "observability"]
+
+[project.optional-dependencies]
+httpx = ["httpx>=0.24"]
+openai = ["openai>=1.0", "httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://docs.abto.app/sdk/python/"
+Repository = "https://github.com/greedy-co/abto-sdk"
+Issues = "https://github.com/greedy-co/abto-sdk/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["abto"]

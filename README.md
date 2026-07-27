@@ -1,59 +1,50 @@
-# ABTO Swift SDK
+# ABTO SDKs
 
-ABTO Browser SDK와 동일한 이벤트 계약을 따르는 iOS/macOS용 공개 Swift SDK.
-envelope(`event_id`·`timestamp`·`source: "ios"`·`schema_version`·식별자)를 붙여
-`POST {endpoint} {"batch": […]}` + `Authorization: Bearer <projectKey>` 로 배치 전송한다.
+Public SDKs for connecting product behavior with LLM request cost, latency, and quality.
+This repository contains the installable source for ABTO's six supported SDKs.
 
-## 설치
+## Install
 
-Xcode에서 `File > Add Package Dependencies…`를 열고 다음 URL을 입력한다.
+| Runtime | Package | Install |
+|---|---|---|
+| Browser JavaScript | `@abto-app/event` | `npm install @abto-app/event` |
+| Server JavaScript | `@abto-app/calling` | `npm install @abto-app/calling` |
+| Server Python | `abto` | `pip install abto` |
+| Flutter / Dart | `abto` | `dart pub add abto` |
+| Android / Kotlin | `app.abto:abto-app` | `implementation("app.abto:abto-app:0.1.0")` |
+| iOS / macOS | `AbtoApp` | Swift Package Manager URL: `https://github.com/greedy-co/abto-sdk` |
+
+For Swift packages:
+
+```swift
+.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.1.0")
+```
+
+See [docs.abto.app](https://docs.abto.app/) for setup and API guides.
+
+## Repository layout
 
 ```text
-https://github.com/greedy-co/abto-swift
+packages/
+├── browser/
+│   └── javascript/
+├── server/
+│   ├── javascript/
+│   └── python/
+└── mobile/
+    ├── dart/
+    ├── android/
+    └── swift/
 ```
 
-`Package.swift`에서는 다음처럼 추가한다.
+Browser and Server JavaScript are separate packages with separate dependency and
+security boundaries. Python is server-only. Mobile SDKs share the same event contract
+but are released independently.
 
-```swift
-.package(url: "https://github.com/greedy-co/abto-swift.git", from: "0.0.1")
-```
+All SDKs on the same `major.minor` line implement the same capability contract. Each
+SDK advances its own patch version and release tag, such as `event-js-v0.1.4` or
+`calling-python-v0.1.2`. Swift releases also receive a SemVer `vX.Y.Z` tag for SwiftPM.
 
-## 사용
+## License
 
-```swift
-import AbtoApp
-
-let abto = try AbtoClient(
-    projectKey: "pk_live_…",
-    endpoint: "https://api.abto.ai/v1/events",  // 생략 시 기본값
-    environment: .production
-)
-
-abto.identify(userId: "u_123", tenantId: "t_1")
-
-// LLM call 이전 biz event — 수동 capture
-abto.capture("checkout_started", properties: ["cart_size": 3])
-
-// LLM 호출 생애주기 — request_id 로 게이트웨이 비용/latency 와 조인
-let trace = abto.startLlmTrace(nodeId: "resume.make", taskType: "draft_generation")
-trace.submitPrompt(prompt: "이력서 초안 작성해줘", language: "ko")
-// 게이트웨이 응답을 받으면:
-trace.attachRequestId(fromHeaders: httpResponse.allHeaderFields)  // x-request-id
-trace.markResponseVisible(responseId: "resp_1", timeToVisibleMs: 1200)
-trace.captureOutcome("accepted", responseId: "resp_1")
-
-abto.flush()
-```
-
-- `anonymous_id`는 UserDefaults 에 영속(`AbtoKeyValueStore` 로 교체 가능), `session_id`는 클라이언트 생성마다 갱신.
-- 캡처는 기본 full — 브라우저 SDK 와 동일한 2026-07-02 정책.
-- 전송 실패는 절대 앱으로 throw 되지 않고 내부 버퍼(최대 1000건)로 재적재된다.
-
-## 검증
-
-XCTest 가 없는 Command Line Tools 환경도 지원하기 위해 검증은 실행 파일로 돈다:
-
-```sh
-swift run abto-sdk-checks                # 단위 검증
-ABTO_E2E=1 swift run abto-sdk-checks    # + dev collector(:4870) 실전송 E2E
-```
+The SDK source in this repository is licensed under the MIT License.
