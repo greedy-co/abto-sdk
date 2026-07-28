@@ -173,6 +173,8 @@ jobs:
           fi
 
           git fetch --tags --force origin
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for tag in "${tags[@]}"; do
             if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
               tagged_commit="$(git rev-list -n 1 "${tag}")"
