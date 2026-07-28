@@ -53,6 +53,13 @@ fun main() {
     }
 
     try {
+        AbtoConfig(projectKey = "pk", endpoint = "https:/collector")
+        check(false, "endpoint without authority rejected")
+    } catch (e: AbtoInitException) {
+        check(e.message!!.startsWith("[abto] endpoint is not a valid http(s) URL:"), "endpoint without authority rejected")
+    }
+
+    try {
         AbtoConfig(projectKey = "pk", endpoint = "http://collector.example/v1/collect/events")
         check(false, "production cleartext endpoint rejected")
     } catch (e: AbtoInitException) {
@@ -117,10 +124,42 @@ fun main() {
     val requestBodies = CopyOnWriteArrayList<String>()
     val requestCount = AtomicInteger()
     val oversizedRequestCount = AtomicInteger()
+    val unavailableRequestCount = AtomicInteger()
+    val blockedRequestCount = AtomicInteger()
+    val blockedEventCount = AtomicInteger()
     val secondRetryRequest = CountDownLatch(1)
     val oversizedRetryRequest = CountDownLatch(1)
-    server.executor = Executors.newSingleThreadExecutor { runnable ->
+    val unavailableRetryBudgetReached = CountDownLatch(3)
+    val blockedRequestStarted = CountDownLatch(1)
+    val releaseBlockedRequest = CountDownLatch(1)
+    val boundedBurstRequests = CountDownLatch(11)
+    server.executor = Executors.newCachedThreadPool { runnable ->
         Thread(runnable, "abto-sdk-check-server").apply { isDaemon = true }
+    }
+    server.createContext("/always-unavailable") { exchange ->
+        exchange.requestBody.use { it.readBytes() }
+        unavailableRequestCount.incrementAndGet()
+        unavailableRetryBudgetReached.countDown()
+        exchange.sendResponseHeaders(503, -1)
+        exchange.close()
+    }
+    server.createContext("/blocked-success") { exchange ->
+        val requestBody = exchange.requestBody.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+        val eventIds = Regex(""""event_id":"([^"]+)"""").findAll(requestBody).map { it.groupValues[1] }.toList()
+        val attempt = blockedRequestCount.incrementAndGet()
+        blockedEventCount.addAndGet(eventIds.size)
+        if (attempt == 1) {
+            blockedRequestStarted.countDown()
+            releaseBlockedRequest.await(10, TimeUnit.SECONDS)
+        }
+        val results = eventIds.joinToString(",") { eventId ->
+            """"$eventId":{"result":"ok"}"""
+        }
+        val response = """{"results":{$results}}""".toByteArray(StandardCharsets.UTF_8)
+        exchange.responseHeaders.set("content-type", "application/json")
+        exchange.sendResponseHeaders(202, response.size.toLong())
+        exchange.responseBody.use { it.write(response) }
+        boundedBurstRequests.countDown()
     }
     server.createContext("/v1/collect/events") { exchange ->
         val requestBody = exchange.requestBody.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
@@ -155,6 +194,45 @@ fun main() {
     }
     server.start()
     try {
+        val unavailableClient = AbtoClient(
+            AbtoConfig(
+                projectKey = "pk_unavailable",
+                endpoint = "http://127.0.0.1:${server.address.port}/always-unavailable",
+                environment = AbtoEnvironment.DEVELOPMENT,
+                debug = false,
+                batchSize = 1,
+                flushIntervalMs = 10,
+            ),
+            AbtoInMemoryStore(),
+        )
+        unavailableClient.capture("bounded_retry")
+        check(
+            unavailableRetryBudgetReached.await(5, TimeUnit.SECONDS),
+            "unavailable collector reaches the retry attempt budget",
+        )
+        Thread.sleep(300)
+        check(unavailableRequestCount.get() == 3, "unavailable collector stops after three attempts")
+
+        val burstClient = AbtoClient(
+            AbtoConfig(
+                projectKey = "pk_burst",
+                endpoint = "http://127.0.0.1:${server.address.port}/blocked-success",
+                environment = AbtoEnvironment.DEVELOPMENT,
+                debug = false,
+                batchSize = 100,
+                flushIntervalMs = 10_000,
+            ),
+            AbtoInMemoryStore(),
+        )
+        repeat(100) { burstClient.capture("burst_initial_$it") }
+        check(blockedRequestStarted.await(5, TimeUnit.SECONDS), "burst transport starts one in-flight request")
+        repeat(2_000) { burstClient.capture("burst_buffered_$it") }
+        releaseBlockedRequest.countDown()
+        check(boundedBurstRequests.await(10, TimeUnit.SECONDS), "bounded burst drains the retained buffer")
+        Thread.sleep(300)
+        check(blockedRequestCount.get() == 11, "burst coalesces flush work and caps queued batches")
+        check(blockedEventCount.get() == 1_100, "burst retains at most one thousand buffered events")
+
         val oversizedClient = AbtoClient(
             AbtoConfig(
                 projectKey = "pk_oversized",

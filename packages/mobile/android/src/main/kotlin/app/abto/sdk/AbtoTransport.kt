@@ -7,6 +7,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 
 internal fun readBoundedResponse(
@@ -32,43 +33,87 @@ internal fun readBoundedResponse(
  * 실패는 절대 호스트 앱으로 던지지 않는다 (브라우저 SDK 와 동일 계약).
  */
 class AbtoTransport(private val config: AbtoConfig) {
+    private data class QueuedEvent(
+        val event: Map<String, Any?>,
+        val firstQueuedAtMs: Long = System.currentTimeMillis(),
+        var attempts: Int = 0,
+    )
+
     private val lock = Any()
-    private val buffer = ArrayDeque<Map<String, Any?>>()
+    private val buffer = ArrayDeque<QueuedEvent>()
     private val executor = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "abto-transport").apply { isDaemon = true }
     }
     private var scheduledFlush: ScheduledFuture<*>? = null
+    private var flushRunning = false
+    private var flushRequested = false
+    private val pendingCompletions = ArrayDeque<Runnable>()
 
     fun enqueue(event: Map<String, Any?>) {
-        val shouldFlushNow: Boolean
         synchronized(lock) {
-            buffer.addLast(event)
-            shouldFlushNow = buffer.size >= config.batchSize
-            if (!shouldFlushNow && scheduledFlush == null) {
+            buffer.addLast(QueuedEvent(event))
+            while (buffer.size > MAX_BUFFER) buffer.removeFirst()
+            if (buffer.size >= config.batchSize) {
+                requestFlushLocked(0)
+            } else {
                 scheduleFlushLocked(config.flushIntervalMs)
             }
         }
-        if (shouldFlushNow) flush()
     }
 
     fun flush(onComplete: Runnable? = null) {
-        executor.execute {
-            drainAndSend()
-            onComplete?.run()
+        synchronized(lock) {
+            onComplete?.let(pendingCompletions::addLast)
+            requestFlushLocked(0)
         }
     }
 
-    private fun drainAndSend() {
-        val batch: List<Map<String, Any?>>
+    private fun runScheduledFlush() {
+        val completions: List<Runnable>
         synchronized(lock) {
-            scheduledFlush?.cancel(false)
             scheduledFlush = null
-            if (buffer.isEmpty()) return
-            val count = minOf(buffer.size, config.batchSize, MAX_BATCH_SIZE)
-            batch = List(count) { buffer.removeFirst() }
+            if (flushRunning) {
+                flushRequested = true
+                return
+            }
+            flushRunning = true
+            flushRequested = false
+            completions = pendingCompletions.toList()
+            pendingCompletions.clear()
         }
 
-        val body = AbtoJson.encode(mapOf("batch" to batch)).toByteArray(Charsets.UTF_8)
+        val retryDelayMs = drainAndSend()
+
+        synchronized(lock) {
+            flushRunning = false
+            val requestImmediately = flushRequested || pendingCompletions.isNotEmpty()
+            flushRequested = false
+            when {
+                requestImmediately -> requestFlushLocked(0)
+                retryDelayMs != null -> scheduleFlushLocked(retryDelayMs)
+                buffer.isNotEmpty() -> requestFlushLocked(0)
+            }
+        }
+        completions.forEach { completion ->
+            try {
+                completion.run()
+            } catch (_: Exception) {
+                // Telemetry completion callbacks must not terminate the transport worker.
+            }
+        }
+    }
+
+    private fun drainAndSend(): Long? {
+        val batch: List<QueuedEvent>
+        synchronized(lock) {
+            if (buffer.isEmpty()) return null
+            val count = minOf(buffer.size, config.batchSize, MAX_BATCH_SIZE)
+            batch = List(count) { buffer.removeFirst() }
+            batch.forEach { it.attempts += 1 }
+        }
+
+        val events = batch.map(QueuedEvent::event)
+        val body = AbtoJson.encode(mapOf("batch" to events)).toByteArray(Charsets.UTF_8)
         val retryBatch = try {
             val connection = URI(config.endpoint).toURL().openConnection() as HttpURLConnection
             try {
@@ -86,9 +131,15 @@ class AbtoTransport(private val config: AbtoConfig) {
                     emptyList()
                 } else {
                     val responseBody = connection.inputStream.use { readBoundedResponse(it) }
-                    val eventIds = batch.mapNotNull { it["event_id"] as? String }
+                    val eventIds = events.mapNotNull { it["event_id"] as? String }
                     val retryIds = retryEventIds(responseBody, eventIds)
-                    if (retryIds == null) batch else batch.filter { it["event_id"] !is String || it["event_id"] in retryIds }
+                    if (retryIds == null) {
+                        batch
+                    } else {
+                        batch.filter {
+                            it.event["event_id"] !is String || it.event["event_id"] in retryIds
+                        }
+                    }
                 }
             } finally {
                 connection.disconnect()
@@ -97,32 +148,59 @@ class AbtoTransport(private val config: AbtoConfig) {
             batch
         }
 
-        if (retryBatch.isNotEmpty()) {
+        val nowMs = System.currentTimeMillis()
+        val eligibleRetryBatch = retryBatch.filter {
+            retryEligible(it.attempts, it.firstQueuedAtMs, nowMs)
+        }
+        if (eligibleRetryBatch.isNotEmpty()) {
             synchronized(lock) {
                 // 죽은 endpoint 가 메모리를 무한히 키우지 않게 버퍼를 제한한다.
-                retryBatch.asReversed().forEach { buffer.addFirst(it) }
+                eligibleRetryBatch.asReversed().forEach { buffer.addFirst(it) }
                 while (buffer.size > MAX_BUFFER) buffer.removeLast()
-                scheduleFlushLocked(config.flushIntervalMs)
             }
-        } else {
-            synchronized(lock) {
-                if (buffer.isNotEmpty()) scheduleFlushLocked(0)
-            }
+            return retryDelayMs(eligibleRetryBatch)
         }
+        return null
+    }
+
+    private fun requestFlushLocked(delayMs: Long) {
+        if (flushRunning) {
+            flushRequested = true
+            return
+        }
+        if (delayMs == 0L && scheduledFlush != null) {
+            scheduledFlush?.cancel(false)
+            scheduledFlush = null
+        }
+        scheduleFlushLocked(delayMs)
     }
 
     private fun scheduleFlushLocked(delayMs: Long) {
         if (scheduledFlush != null) return
-        scheduledFlush = executor.schedule({ drainAndSend() }, delayMs, TimeUnit.MILLISECONDS)
+        scheduledFlush = executor.schedule({ runScheduledFlush() }, delayMs, TimeUnit.MILLISECONDS)
+    }
+
+    private fun retryDelayMs(batch: List<QueuedEvent>): Long {
+        val attempt = batch.maxOfOrNull(QueuedEvent::attempts) ?: 1
+        val baseMs = maxOf(1, config.flushIntervalMs)
+        val exponentialMs = minOf(MAX_RETRY_DELAY_MS, baseMs * (1L shl (attempt - 1)))
+        val jitterBound = maxOf(1, exponentialMs / 2)
+        return exponentialMs + ThreadLocalRandom.current().nextLong(jitterBound)
     }
 
     private companion object {
         const val MAX_BUFFER = 1000
         const val MAX_BATCH_SIZE = 100
+        const val MAX_ATTEMPTS = 3
+        const val MAX_EVENT_AGE_MS = 5 * 60 * 1000L
+        const val MAX_RETRY_DELAY_MS = 60 * 1000L
         val ACK_RESULTS = setOf("ok", "warning", "drop")
         val RESULT_PATTERN = Regex(""""result"\s*:\s*"([^"]+)"""")
 
         fun isTransientStatus(status: Int): Boolean = status == 408 || status == 429 || status >= 500
+
+        fun retryEligible(attempts: Int, firstQueuedAtMs: Long, nowMs: Long): Boolean =
+            attempts < MAX_ATTEMPTS && nowMs - firstQueuedAtMs < MAX_EVENT_AGE_MS
 
         fun retryEventIds(responseBody: String, eventIds: List<String>): Set<String>? {
             if (!Regex(""""results"\s*:\s*\{""").containsMatchIn(responseBody)) return null

@@ -36,13 +36,13 @@ class AbtoConfig(
             null
         }
         val scheme = parsed?.scheme?.lowercase()
-        if (scheme != "http" && scheme != "https") {
+        val host = parsed?.host?.lowercase()
+        if ((scheme != "http" && scheme != "https") || host.isNullOrBlank()) {
             throw AbtoInitException("[abto] endpoint is not a valid http(s) URL: \"$raw\"")
         }
-        val host = parsed.host?.lowercase()
         val developmentLoopback =
             environment == AbtoEnvironment.DEVELOPMENT &&
-                (host == "localhost" || host == "::1" || host?.startsWith("127.") == true)
+                (host == "localhost" || host == "::1" || host.startsWith("127."))
         if (scheme == "http" && !developmentLoopback) {
             throw AbtoInitException("[abto] endpoint must use HTTPS outside development loopback.")
         }
