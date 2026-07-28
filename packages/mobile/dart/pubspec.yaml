@@ -1,0 +1,14 @@
+name: abto
+description: >-
+  ABTO analytics SDK for Flutter/Dart — user behavior x LLM cost/latency/quality attribution.
+  Follows the same event contract as the browser SDK (packages/browser/javascript).
+version: 0.1.0
+repository: https://github.com/greedy-co/abto-sdk
+
+environment:
+  sdk: ^3.4.0
+
+# 코어는 순수 Dart(dart:io) — Flutter 의존이 없어 dart test 로 검증되고,
+# Flutter 앱에서는 그대로 import 해서 쓴다 (영속화만 shared_preferences 어댑터 권장).
+dev_dependencies:
+  test: ^1.25.0

@@ -1,0 +1,83 @@
+"""Request-scoped ABTO identifier context for the `abto` Python package.
+
+Mirrors @abto-app/calling: carries the gateway identifier headers via
+contextvars so outbound provider calls can attach them. The gateway remains the
+source of truth for token, cost, latency, request_id, and variant assignment.
+"""
+
+from __future__ import annotations
+
+import contextvars
+import secrets
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+from typing import Any, Dict, Iterator, Optional
+
+ABTO_HEADER = {
+    "device_id": "x-abto-device-id",
+    "node_key": "x-abto-node-key",
+    "traceparent": "traceparent",
+}
+
+
+@dataclass(frozen=True)
+class AbtoContext:
+    """Device id, "feature.node" node key, and end-user action trace id."""
+
+    device_id: Optional[str] = None
+    node_key: Optional[str] = None
+    trace_id: Optional[str] = None
+
+
+_current: contextvars.ContextVar[AbtoContext] = contextvars.ContextVar(
+    "abto_context", default=AbtoContext()
+)
+
+
+def get_context() -> AbtoContext:
+    return _current.get()
+
+
+_UNSET = object()
+
+
+@contextmanager
+def with_context(
+    device_id: Any = _UNSET,
+    node_key: Any = _UNSET,
+    trace_id: Any = _UNSET,
+) -> Iterator[AbtoContext]:
+    patch = {
+        k: v
+        for k, v in dict(
+            device_id=device_id, node_key=node_key, trace_id=trace_id
+        ).items()
+        if v is not _UNSET
+    }
+    merged = replace(_current.get(), **patch)
+    token = _current.set(merged)
+    try:
+        yield merged
+    finally:
+        _current.reset(token)
+
+
+def create_trace_id() -> str:
+    """32-hex-char trace id, per W3C trace-context."""
+    return secrets.token_hex(16)
+
+
+def create_traceparent(trace_id: str) -> str:
+    return f"00-{trace_id}-{secrets.token_hex(8)}-01"
+
+
+def get_headers(ctx: Optional[AbtoContext] = None) -> Dict[str, str]:
+    c = ctx if ctx is not None else _current.get()
+    headers: Dict[str, str] = {}
+    if c.device_id:
+        headers[ABTO_HEADER["device_id"]] = c.device_id
+    if c.node_key:
+        headers[ABTO_HEADER["node_key"]] = c.node_key
+    if c.trace_id:
+        headers[ABTO_HEADER["traceparent"]] = create_traceparent(c.trace_id)
+    return headers

@@ -1,4 +1,11 @@
 .build/
+.dart_tool/
+.gradle/
 .swiftpm/
 Package.resolved
+build/
+dist/
+node_modules/
+*.egg-info/
+__pycache__/
 .DS_Store

@@ -1,4 +1,4 @@
-name: swift
+name: sdk
 
 on:
   pull_request:
@@ -6,6 +6,12 @@ on:
     branches:
       - main
     tags:
+      - "event-js-v*"
+      - "calling-js-v*"
+      - "calling-python-v*"
+      - "dart-v*"
+      - "android-v*"
+      - "swift-v*"
       - "v*"
 
 permissions:
@@ -16,10 +22,166 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  public-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Install pinned Gitleaks release
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="${RUNNER_TEMP}/gitleaks.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "${archive}"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}" gitleaks
+      - name: Reject committed credentials
+        run: >-
+          "${RUNNER_TEMP}/gitleaks" git
+          --no-banner
+          --redact
+          --exit-code 1
+
+  event-js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/browser/javascript
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+  calling-js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/server/javascript
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/server/python
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade build pytest
+      - run: python -m pytest
+      - run: python -m build
+
+  dart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/mobile/dart
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1
+      - run: dart pub get
+      - run: dart test
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@90ddb51e90a5fd9ba75f40cf85156b7b41bf76a3 # v6
+        with:
+          gradle-version: "9.3.0"
+      - run: >-
+          gradle -p packages/mobile/android clean check sdkChecks
+          generatePomFileForMavenPublication --no-daemon --no-configuration-cache
+
+  swift:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - run: swift build --target AbtoApp -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
       - run: swift run abto-sdk-checks
+
+  publish-source-tags:
+    needs: [public-safety, event-js, calling-js, python, dart, android, swift]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Create immutable source tags for a verified release merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FALLBACK_RELEASE_SUBJECT: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          release_subject="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq 'map(select(.merged_at != null))[0].title // ""')"
+          if [[ -z "${release_subject}" ]]; then
+            release_subject="${FALLBACK_RELEASE_SUBJECT}"
+          fi
+
+          prefix="chore(release): "
+          if [[ "${release_subject}" != "${prefix}"* ]]; then
+            echo "No SDK release tag requested by this main commit."
+            exit 0
+          fi
+
+          release_tag="${release_subject#"${prefix}"}"
+          if ! [[ "${release_tag}" =~ ^(event-js|calling-js|calling-python|dart|android|swift)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::invalid SDK release tag ${release_tag}"
+            exit 1
+          fi
+
+          tags=("${release_tag}")
+          if [[ "${release_tag}" == swift-v* ]]; then
+            tags+=("v${release_tag#swift-v}")
+          fi
+
+          git fetch --tags --force origin
+          for tag in "${tags[@]}"; do
+            if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+              tagged_commit="$(git rev-list -n 1 "${tag}")"
+              if [[ "${tagged_commit}" != "${GITHUB_SHA}" ]]; then
+                echo "::error::${tag} already points to ${tagged_commit}, not ${GITHUB_SHA}"
+                exit 1
+              fi
+              continue
+            fi
+            git tag -a "${tag}" "${GITHUB_SHA}" -m "${tag}"
+            git push origin "refs/tags/${tag}"
+          done

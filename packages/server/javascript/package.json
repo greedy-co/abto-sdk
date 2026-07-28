@@ -1,0 +1,67 @@
+{
+  "name": "@abto-app/calling",
+  "version": "0.1.0",
+  "description": "ABTO JavaScript Server SDK — Gateway routing, provider credentials, and request-scoped context propagation.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "homepage": "https://docs.abto.app/sdk/javascript/server/",
+  "bugs": {
+    "url": "https://github.com/greedy-co/abto-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/greedy-co/abto-sdk.git",
+    "directory": "packages/server/javascript"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "abto",
+    "gateway",
+    "llm",
+    "node",
+    "observability",
+    "server"
+  ],
+  "peerDependencies": {
+    "openai": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "openai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.10"
+  }
+}
