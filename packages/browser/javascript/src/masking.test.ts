@@ -22,6 +22,13 @@ describe('maskText', () => {
       '«redacted-pii» and «redacted-pii» «redacted-secret» «redacted-secret»',
     );
   });
+  it('sensitive redacts an ABTO Calling Key', () => {
+    const masked = maskText(
+      'key is ck-abto-AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      'sensitive',
+    );
+    expect(masked).toBe('key is «redacted-secret»');
+  });
 });
 
 describe('autocapture masking', () => {

@@ -97,7 +97,7 @@ const CODE_HINT = /(function\s|=>|;\n|\{\n|import\s|class\s|def\s|<\/?[a-z]+>)/;
 const PII_PATTERN =
   String.raw`(\b\d{3}-\d{2}-\d{4}\b|\b\d{16}\b|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})`;
 const SECRET_PATTERN =
-  String.raw`(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]+KEY-----)`;
+  String.raw`(ck-abto-[A-Za-z0-9]{16,}|sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]+KEY-----)`;
 const PII_HINT = new RegExp(PII_PATTERN);
 const SECRET_HINT = new RegExp(SECRET_PATTERN);
 const PII_REDACTION = new RegExp(PII_PATTERN, 'g');
