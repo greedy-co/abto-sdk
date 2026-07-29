@@ -6,19 +6,12 @@ import {
   type AbtoContext,
 } from './context.js';
 import type { ProviderKeys } from './credentials.js';
-import {
-  createAbtoOpenAIWithCircuit,
-  createOpenAIFallbackCircuit,
-  type CreateAbtoOpenAIOptions,
-  type OpenAIDirectFallbackConfig,
-} from './openai.js';
+import { createAbtoOpenAI, type CreateAbtoOpenAIOptions } from './openai.js';
 
 export interface AbtoConfig {
   abtoApiKey?: string;
   providerKeys?: ProviderKeys;
   gatewayBaseURL?: string;
-  /** 안전하게 판별 가능한 Gateway 장애에서 사용하는 OpenAI direct fallback 설정입니다. */
-  fallback?: OpenAIDirectFallbackConfig;
   /** Default device key when a request context does not provide one. */
   deviceId?: string;
   environment?: 'development' | 'staging' | 'production';
@@ -30,11 +23,6 @@ export interface AbtoConfig {
   };
 }
 
-type AbtoOpenAIOptions = Omit<
-  CreateAbtoOpenAIOptions,
-  'abtoApiKey' | 'providerKeys' | 'gatewayBaseURL'
->;
-
 export interface AbtoNodeClient {
   readonly config: Omit<
     Required<Pick<AbtoConfig, 'environment'>> & AbtoConfig,
@@ -44,7 +32,10 @@ export interface AbtoNodeClient {
   getContext(): AbtoContext | undefined;
   getHeaders(ctx?: AbtoContext): Record<string, string>;
   createTraceId(): string;
-  openai<T = unknown>(options?: AbtoOpenAIOptions): Promise<T>;
+  openai(options?: Omit<
+    CreateAbtoOpenAIOptions,
+    'abtoApiKey' | 'providerKeys' | 'gatewayBaseURL'
+  >): Promise<unknown>;
   flush(): Promise<void>;
   shutdown(): Promise<void>;
 }
@@ -99,8 +90,6 @@ export function initAbto(config: AbtoConfig = {}): AbtoNodeClient {
     gatewayBaseURL: config.gatewayBaseURL ?? getEnv('ABTO_GATEWAY_BASE_URL'),
     deviceId: fallbackDeviceId,
   };
-  let defaultOpenAIClient: Promise<unknown> | undefined;
-  const openAIFallbackCircuit = createOpenAIFallbackCircuit();
 
   return {
     config: resolved,
@@ -115,24 +104,15 @@ export function initAbto(config: AbtoConfig = {}): AbtoNodeClient {
       return getAbtoHeaders(resolveContext(ctx));
     },
     createTraceId,
-    openai<T = unknown>(options: AbtoOpenAIOptions = {}): Promise<T> {
+    openai(options = {}): Promise<unknown> {
       const suppliedGetContext = options.getContext;
-      const createClient = (): Promise<T> => createAbtoOpenAIWithCircuit<T>(
-        {
-          ...options,
-          abtoApiKey,
-          providerKeys,
-          gatewayBaseURL: resolved.gatewayBaseURL,
-          fallback: options.fallback ?? config.fallback,
-          getContext: () => resolveContext(suppliedGetContext?.()),
-        },
-        openAIFallbackCircuit,
-      );
-      if (Object.keys(options).length !== 0) {
-        return createClient();
-      }
-      defaultOpenAIClient ??= createClient();
-      return defaultOpenAIClient as Promise<T>;
+      return createAbtoOpenAI({
+        ...options,
+        abtoApiKey,
+        providerKeys,
+        gatewayBaseURL: resolved.gatewayBaseURL,
+        getContext: () => resolveContext(suppliedGetContext?.()),
+      });
     },
     async flush(): Promise<void> {
       // Server SDK currently does not emit telemetry directly.

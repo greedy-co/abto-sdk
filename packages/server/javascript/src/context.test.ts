@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { initAbto } from './client.js';
 import {
   createTraceId,
@@ -19,7 +19,6 @@ describe('server context headers', () => {
   };
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     for (const [key, value] of Object.entries(originalEnvironment)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -184,110 +183,5 @@ describe('server context headers', () => {
       'x-abto-device-id': 'device-1',
       'x-abto-node-key': 'chat.default',
     });
-  });
-
-  it('reuses the default OpenAI client so its circuit survives across requests', async () => {
-    const abto = initAbto({
-      abtoApiKey: 'abto-test',
-      gatewayBaseURL: 'https://gateway.abto.app/v1',
-      providerKeys: { openai: 'sk-openai' },
-    });
-
-    const first = abto.openai();
-    const second = abto.openai();
-
-    expect(second).toBe(first);
-    await first;
-  });
-
-  it('shares the fallback circuit across customized OpenAI clients', async () => {
-    const hosts: string[] = [];
-    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
-      const request = input instanceof Request ? input : new Request(input, init);
-      const host = new URL(request.url).host;
-      hosts.push(host);
-      if (host === 'gateway.abto.app') {
-        return new Response('{"error":{"message":"Gateway unavailable"}}', {
-          status: 503,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      return new Response(JSON.stringify({
-        id: 'chatcmpl-test',
-        object: 'chat.completion',
-        created: 0,
-        model: 'gpt-4o-mini',
-        choices: [],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    });
-    const abto = initAbto({
-      abtoApiKey: 'abto-test',
-      gatewayBaseURL: 'https://gateway.abto.app/v1',
-      providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
-    });
-    const first = await abto.openai({
-      clientOptions: { timeout: 1_000 },
-    }) as {
-      chat: {
-        completions: {
-          create(input: Record<string, unknown>): Promise<unknown>;
-        };
-      };
-    };
-    const second = await abto.openai({
-      clientOptions: { timeout: 2_000 },
-    }) as typeof first;
-    const request = {
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: 'hello' }],
-    };
-
-    await first.chat.completions.create(request);
-    await second.chat.completions.create(request);
-
-    expect(hosts).toEqual([
-      'gateway.abto.app',
-      'api.openai.com',
-      'api.openai.com',
-    ]);
-  });
-
-  it('honors a per-client direct fallback opt-out', async () => {
-    const urls: string[] = [];
-    vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
-      const request = input instanceof Request ? input : new Request(input, init);
-      urls.push(request.url);
-      return new Response('{"error":{"message":"Gateway unavailable"}}', {
-        status: 503,
-        headers: {
-          'content-type': 'application/json',
-          'x-request-id': 'req-admission',
-        },
-      });
-    });
-    const abto = initAbto({
-      abtoApiKey: 'abto-test',
-      gatewayBaseURL: 'https://gateway.abto.app/v1',
-      providerKeys: { openai: 'sk-openai' },
-      fallback: true,
-    });
-    const openai = await abto.openai({ fallback: false }) as {
-      chat: {
-        completions: {
-          create(input: Record<string, unknown>): Promise<unknown>;
-        };
-      };
-    };
-
-    await expect(openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: 'hello' }],
-    })).rejects.toThrow();
-
-    expect(urls).toEqual(['https://gateway.abto.app/v1/chat/completions']);
   });
 });
