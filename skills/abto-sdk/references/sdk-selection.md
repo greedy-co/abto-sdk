@@ -17,8 +17,7 @@ Do not use a Calling SDK for browser or mobile event collection.
 Do not use an Event Key to authenticate Gateway calls.
 
 Flutter Web is not supported by the current Dart package because its transport uses `dart:io`.
-Treat Flutter Web as a web runtime and use the Browser JavaScript integration only when the
-application can load JavaScript at that boundary.
+Treat Flutter Web as a web runtime and use the Browser JavaScript integration only when the application can load JavaScript at that boundary.
 
 ## Shared endpoints
 
@@ -40,8 +39,7 @@ Use a different host only when the user provides an environment-specific endpoin
 - Read the Gateway response header `x-request-id`.
 - Attach that request identifier to the related client outcome.
 
-The Gateway owns provider execution, token usage, cost, latency, retries, fallback facts,
-variant assignment, and `request_id`.
+The Gateway owns provider execution, token usage, cost, latency, retries, fallback facts, variant assignment, and `request_id`.
 Do not recreate those facts in an Event or Calling SDK.
 
 ## Key boundary

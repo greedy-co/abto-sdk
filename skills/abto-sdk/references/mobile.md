@@ -24,8 +24,7 @@ final abto = AbtoClient(
 );
 ```
 
-Provide an `AbtoKeyValueStore` backed by the application's existing secure preferences for
-persistent identity.
+Provide an `AbtoKeyValueStore` backed by the application's existing secure preferences for persistent identity.
 The package uses `dart:io` and does not support Flutter Web.
 
 ## Android and Kotlin
@@ -76,8 +75,7 @@ let abto = try AbtoClient(
 )
 ```
 
-Use the SDK's default `UserDefaults` identity store or provide the application's existing
-`AbtoKeyValueStore`.
+Use the SDK's default `UserDefaults` identity store or provide the application's existing `AbtoKeyValueStore`.
 
 ## Common event flow
 

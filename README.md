@@ -11,7 +11,7 @@ Node.js 22.20 or later is required.
 Codex:
 
 ```bash
-npx skills add https://github.com/greedy-co/abto-sdk \
+npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skills/abto-sdk \
   --skill abto-sdk \
   --global \
   --agent codex \
@@ -22,7 +22,7 @@ npx skills add https://github.com/greedy-co/abto-sdk \
 Claude Code:
 
 ```bash
-npx skills add https://github.com/greedy-co/abto-sdk \
+npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skills/abto-sdk \
   --skill abto-sdk \
   --global \
   --agent claude-code \
@@ -30,10 +30,8 @@ npx skills add https://github.com/greedy-co/abto-sdk \
   --yes
 ```
 
-The skill inspects an application, selects the correct Browser, App, or Server SDK,
-keeps Event and Calling Keys at the correct security boundary, and verifies the integration.
-See [`skills/abto-sdk/references/skill-installation.md`](skills/abto-sdk/references/skill-installation.md)
-for verification, update, removal, and troubleshooting commands.
+The skill inspects an application, selects the correct Browser, App, or Server SDK, keeps Event and Calling Keys at the correct security boundary, and verifies the integration.
+See [`skills/abto-sdk/references/skill-installation.md`](skills/abto-sdk/references/skill-installation.md) for verification, update, removal, and troubleshooting commands.
 
 ## Install
 
@@ -71,13 +69,13 @@ skills/
 └── abto-sdk/
 ```
 
-Browser and Server JavaScript are separate packages with separate dependency and
-security boundaries. Python is server-only. Mobile SDKs share the same event contract
-but are released independently.
+Browser and Server JavaScript are separate packages with separate dependency and security boundaries.
+Python is server-only.
+Mobile SDKs share the same event contract but are released independently.
 
-All SDKs on the same `major.minor` line implement the same capability contract. Each
-SDK advances its own patch version and release tag, such as `event-js-v0.1.4` or
-`calling-python-v0.1.2`. Swift releases also receive a SemVer `vX.Y.Z` tag for SwiftPM.
+All SDKs on the same `major.minor` line implement the same capability contract.
+Each SDK advances its own patch version and release tag, such as `event-js-v0.1.4` or `calling-python-v0.1.2`.
+Swift releases also receive a SemVer `vX.Y.Z` tag for SwiftPM.
 
 ## License
 

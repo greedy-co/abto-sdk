@@ -14,7 +14,8 @@ Run the repository's existing gates for every changed runtime:
 
 Also verify:
 
-- One lockfile changed for the selected package manager.
+- If the repository already manages a lockfile for the selected package manager, update that lockfile.
+- Do not introduce a new lockfile convention only for the ABTO integration.
 - One initialization exists per application runtime.
 - Client bundles contain only an Event Key.
 - Calling Keys and provider keys resolve only from server secret storage.
@@ -27,8 +28,7 @@ Inspect the final diff and repository status without printing secret values.
 
 ## Bounded live check
 
-Run a live check only when the user has authorized the target environment, credentials,
-and any paid model call.
+Run a live check only when the user has authorized the target environment, credentials, and any paid model call.
 
 ### Event plane
 
