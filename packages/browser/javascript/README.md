@@ -146,7 +146,7 @@ const abto = initAbto({
 커스텀 `event_name`은 Backend와 같은 UTF-16 기준 최대 200자이며, `defineEvents()`와 runtime capture가 enqueue 전에 검증한다.
 metric `scale`은 최대 16자이며, 초과한 값은 event 전체가 drop되지 않도록 top-level metadata에서 제외한다.
 
-SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고정 Event 계약은 `$` 접두
+SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고정 Biz Event 계약은 `$` 접두
 `event_name`을 거절한다. Transport가 위 표의 canonical 이름으로만 변환해 전송하며 `$lib`,
 `$device_id`, `$session_id` 같은 SDK 소유 context는 `extra_json`에 그대로 보존한다.
 Dashboard 이벤트 카탈로그와 Success Metric에서는 canonical wire 이름을 사용한다.
