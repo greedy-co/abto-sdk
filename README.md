@@ -3,6 +3,38 @@
 Public SDKs for connecting product behavior with LLM request cost, latency, and quality.
 This repository contains the installable source for ABTO's six supported SDKs.
 
+## Agent setup
+
+Install the ABTO SDK skill globally for the coding agent you use.
+Node.js 22.20 or later is required.
+
+Codex:
+
+```bash
+npx skills add https://github.com/greedy-co/abto-sdk \
+  --skill abto-sdk \
+  --global \
+  --agent codex \
+  --copy \
+  --yes
+```
+
+Claude Code:
+
+```bash
+npx skills add https://github.com/greedy-co/abto-sdk \
+  --skill abto-sdk \
+  --global \
+  --agent claude-code \
+  --copy \
+  --yes
+```
+
+The skill inspects an application, selects the correct Browser, App, or Server SDK,
+keeps Event and Calling Keys at the correct security boundary, and verifies the integration.
+See [`skills/abto-sdk/references/skill-installation.md`](skills/abto-sdk/references/skill-installation.md)
+for verification, update, removal, and troubleshooting commands.
+
 ## Install
 
 | Runtime | Package | Install |
@@ -35,6 +67,8 @@ packages/
     ├── dart/
     ├── android/
     └── swift/
+skills/
+└── abto-sdk/
 ```
 
 Browser and Server JavaScript are separate packages with separate dependency and
