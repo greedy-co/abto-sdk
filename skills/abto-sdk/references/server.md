@@ -39,7 +39,7 @@ const { data, response } = await abto.withContext(
     traceId,
   },
   async () => {
-    const openai = await abto.openai<OpenAI>();
+    const openai = await abto.openai() as OpenAI;
     return openai.chat.completions
       .create({
         model: "gpt-4o-mini",
