@@ -47,6 +47,32 @@ jobs:
           --redact
           --exit-code 1
 
+  agent-skill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npx --yes skills@1.5.20 add . --skill abto-sdk --list
+      - run: >-
+          npx --yes skills@1.5.20 add .
+          --skill abto-sdk
+          --global
+          --agent codex
+          --copy
+          --yes
+      - run: test -f "$HOME/.agents/skills/abto-sdk/SKILL.md"
+      - run: >-
+          npx --yes skills@1.5.20 add .
+          --skill abto-sdk
+          --global
+          --agent claude-code
+          --copy
+          --yes
+      - run: test -f "$HOME/.claude/skills/abto-sdk/SKILL.md"
+
   event-js:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -131,7 +157,7 @@ jobs:
       - run: swift run abto-sdk-checks
 
   publish-source-tags:
-    needs: [public-safety, event-js, calling-js, python, dart, android, swift]
+    needs: [public-safety, agent-skill, event-js, calling-js, python, dart, android, swift]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
