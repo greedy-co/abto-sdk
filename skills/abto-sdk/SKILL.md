@@ -1,6 +1,6 @@
 ---
 name: abto-sdk
-description: Install and integrate ABTO SDKs across browser JavaScript, Node.js, Python, Flutter/Dart, Android/Kotlin, and iOS/macOS. Use when selecting a Browser, App, or Server SDK; setting up ABTO event collection or Gateway calling; configuring Event or Calling Keys; linking device_id, trace_id, and request_id; troubleshooting an ABTO integration; or verifying that an ABTO SDK is wired correctly.
+description: Select, install, and integrate publicly available ABTO SDKs across browser JavaScript, Node.js, Python, Flutter/Dart, and iOS/macOS, while identifying Android/Kotlin as planned until its registry release is verified. Use when selecting a Browser, App, or Server SDK; setting up ABTO event collection or Gateway calling; configuring Event or Calling Keys; linking device_id, trace_id, and request_id; troubleshooting an ABTO integration; or verifying that an ABTO SDK is wired correctly.
 ---
 
 # ABTO SDK
@@ -30,6 +30,9 @@ Inspect the project, choose the smallest correct SDK set, preserve its existing 
 
 ### 2. Select the SDKs
 
+- Treat [SDK selection](references/sdk-selection.md) as the installation availability source of truth.
+- Do not add a dependency for a runtime marked Planned.
+  Explain the missing public release and offer an available runtime boundary or an integration plan instead.
 - Install an Event SDK in a browser or native app that observes user behavior.
 - Install a Calling SDK on a backend that sends model requests through the ABTO Gateway.
 - Install both only when the product has both client behavior and server-side model calls.

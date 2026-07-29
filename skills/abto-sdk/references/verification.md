@@ -9,7 +9,7 @@ Run the repository's existing gates for every changed runtime:
 | Browser or Node.js | dependency install, typecheck, tests, production build |
 | Python | dependency install, tests, package or application import check |
 | Flutter/Dart | `dart analyze`, `dart test` |
-| Android/Kotlin | Gradle compile/check for the affected module |
+| Android/Kotlin | Planned: do not add a dependency; verify only a user-requested integration plan |
 | iOS/macOS | Xcode build or `swift build` for the affected package |
 
 Also verify:

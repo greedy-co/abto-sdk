@@ -99,10 +99,3 @@ with abto.with_context(
 
 Use the framework's existing async or sync client pattern.
 Do not introduce a second concurrency model only for ABTO.
-
-## Direct fallback
-
-The JavaScript and Python Calling SDKs can fall back directly to OpenAI for a bounded set of safe Gateway failures when an OpenAI provider key is available.
-This fallback does not reproduce Gateway routing, telemetry, policy, or `request_id`.
-Keep the default policy unless the user explicitly accepts the duplicate-call risk of timeout fallback.
-Do not claim that Anthropic or Gemini native direct fallback is supported.
