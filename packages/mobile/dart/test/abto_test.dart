@@ -12,7 +12,7 @@ final uuidV7Pattern = RegExp(
 void main() {
   group('init config validation', () {
     test('accepts a minimal valid config', () {
-      final config = AbtoConfig(projectKey: 'pk_test');
+      final config = AbtoConfig(projectKey: 'ek_test');
       expect(
           config.endpoint.toString(), 'https://api.abto.app/v1/collect/events');
       expect(config.environment, AbtoEnvironment.production);
@@ -21,7 +21,7 @@ void main() {
 
     test('development turns debug on', () {
       expect(
-          AbtoConfig(projectKey: 'pk', environment: AbtoEnvironment.development)
+          AbtoConfig(projectKey: 'ek', environment: AbtoEnvironment.development)
               .debug,
           isTrue);
     });
@@ -37,7 +37,7 @@ void main() {
 
     test('rejects a malformed endpoint', () {
       expect(
-        () => AbtoConfig(projectKey: 'pk', endpoint: 'htp:/broken url'),
+        () => AbtoConfig(projectKey: 'ek', endpoint: 'htp:/broken url'),
         throwsA(predicate((e) => e
             .toString()
             .startsWith('[abto] endpoint is not a valid http(s) URL:'))),
@@ -47,7 +47,7 @@ void main() {
     test('requires HTTPS outside development loopback', () {
       expect(
         () => AbtoConfig(
-            projectKey: 'pk',
+            projectKey: 'ek',
             endpoint: 'http://collector.example/v1/collect/events'),
         throwsA(predicate((e) =>
             e.toString() ==
@@ -55,7 +55,7 @@ void main() {
       );
       expect(
         AbtoConfig(
-          projectKey: 'pk',
+          projectKey: 'ek',
           endpoint: 'http://127.0.0.1:4870/v1/collect/events',
           environment: AbtoEnvironment.development,
         ).endpoint.scheme,
@@ -65,12 +65,12 @@ void main() {
 
     test('rejects batch sizes outside the collector limit', () {
       expect(
-        () => AbtoConfig(projectKey: 'pk', batchSize: 0),
+        () => AbtoConfig(projectKey: 'ek', batchSize: 0),
         throwsA(predicate((e) =>
             e.toString() == '[abto] batchSize must be between 1 and 100.')),
       );
       expect(
-        () => AbtoConfig(projectKey: 'pk', batchSize: 101),
+        () => AbtoConfig(projectKey: 'ek', batchSize: 101),
         throwsA(predicate((e) =>
             e.toString() == '[abto] batchSize must be between 1 and 100.')),
       );
@@ -102,7 +102,7 @@ void main() {
 
     test('client exposes the Gateway attribution device id', () {
       final client = AbtoClient(
-        AbtoConfig(projectKey: 'pk_test'),
+        AbtoConfig(projectKey: 'ek_test'),
         store: AbtoInMemoryStore(),
       );
       final beforeReset = client.deviceId;
@@ -113,7 +113,7 @@ void main() {
     });
 
     test('rejects overlong event names with Backend UTF-16 semantics', () {
-      final client = AbtoClient(AbtoConfig(projectKey: 'pk_test'));
+      final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
       expect(client.capture('pageview'), isFalse);
       expect(client.capture(List.filled(201, 'x').join()), isFalse);
       expect(client.capture(List.filled(101, '🙂').join()), isFalse);
@@ -122,7 +122,7 @@ void main() {
 
   group('trace request id join', () {
     test('attachRequestIdFromHeaders reads header case-insensitively', () {
-      final client = AbtoClient(AbtoConfig(projectKey: 'pk_test'));
+      final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
       final trace = client.startLlmTrace(nodeId: 'smoke.demo');
       expect(trace.traceId,
           matches(RegExp(r'^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$')));
@@ -169,7 +169,7 @@ void main() {
       try {
         final transport = AbtoTransport(
           AbtoConfig(
-            projectKey: 'pk_test',
+            projectKey: 'ek_test',
             endpoint:
                 'http://${server.address.host}:${server.port}/v1/collect/events',
             environment: AbtoEnvironment.development,
@@ -218,7 +218,7 @@ void main() {
       try {
         final client = AbtoClient(
           AbtoConfig(
-            projectKey: 'pk_test',
+            projectKey: 'ek_test',
             endpoint:
                 'http://${server.address.host}:${server.port}/v1/collect/events',
             environment: AbtoEnvironment.development,
@@ -258,7 +258,7 @@ void main() {
       try {
         final client = AbtoClient(
           AbtoConfig(
-            projectKey: 'pk_test',
+            projectKey: 'ek_test',
             endpoint:
                 'http://${server.address.host}:${server.port}/v1/collect/events',
             environment: AbtoEnvironment.development,
@@ -323,7 +323,7 @@ void main() {
 
       try {
         final client = AbtoClient(AbtoConfig(
-          projectKey: 'pk_privacy',
+          projectKey: 'ek_privacy',
           endpoint:
               'http://${server.address.host}:${server.port}/v1/collect/events',
           environment: AbtoEnvironment.development,
@@ -397,7 +397,7 @@ void main() {
 
       try {
         final transport = AbtoTransport(AbtoConfig(
-          projectKey: 'pk_bounded_response',
+          projectKey: 'ek_bounded_response',
           endpoint:
               'http://${server.address.host}:${server.port}/v1/collect/events',
           environment: AbtoEnvironment.development,
@@ -433,7 +433,7 @@ void main() {
 
       try {
         final transport = AbtoTransport(AbtoConfig(
-          projectKey: 'pk_retry_budget',
+          projectKey: 'ek_retry_budget',
           endpoint:
               'http://${server.address.host}:${server.port}/v1/collect/events',
           environment: AbtoEnvironment.development,
@@ -455,7 +455,7 @@ void main() {
     test('first event reaches local collector', () async {
       final client = AbtoClient(
         AbtoConfig(
-          projectKey: 'pk_smoke_flutter',
+          projectKey: 'ek_smoke_flutter',
           endpoint: 'http://localhost:4870/v1/collect/events',
           environment: AbtoEnvironment.development,
         ),
