@@ -21,10 +21,10 @@ func isUUIDv7(_ value: String) -> Bool {
 
 // init config validation
 do {
-    let config = try AbtoConfig(projectKey: "ek_test")
+    let config = try AbtoConfig(projectKey: "pk_test")
     check(config.endpoint.absoluteString == "https://api.abto.app/v1/collect/events", "default endpoint derived")
     check(config.environment == .production && config.debug == false, "production defaults")
-    check(try AbtoConfig(projectKey: "ek", environment: .development).debug, "development turns debug on")
+    check(try AbtoConfig(projectKey: "pk", environment: .development).debug, "development turns debug on")
 } catch {
     failures += 1
     print("FAIL valid config threw: \(error)")
@@ -38,14 +38,14 @@ do {
 }
 
 do {
-    _ = try AbtoConfig(projectKey: "ek", endpoint: "htp:/broken url")
+    _ = try AbtoConfig(projectKey: "pk", endpoint: "htp:/broken url")
     check(false, "malformed endpoint rejected")
 } catch {
     check("\(error)".hasPrefix("[abto] endpoint is not a valid http(s) URL:"), "malformed endpoint rejected")
 }
 
 do {
-    _ = try AbtoConfig(projectKey: "ek", endpoint: "http://collector.example/v1/collect/events")
+    _ = try AbtoConfig(projectKey: "pk", endpoint: "http://collector.example/v1/collect/events")
     check(false, "production cleartext endpoint rejected")
 } catch {
     check("\(error)" == "[abto] endpoint must use HTTPS outside development loopback.", "production cleartext endpoint rejected")
@@ -53,7 +53,7 @@ do {
 
 do {
     let config = try AbtoConfig(
-        projectKey: "ek",
+        projectKey: "pk",
         endpoint: "http://127.0.0.1:4870/v1/collect/events",
         environment: .development
     )
@@ -64,7 +64,7 @@ do {
 
 for invalidBatchSize in [0, 101] {
     do {
-        _ = try AbtoConfig(projectKey: "ek", batchSize: invalidBatchSize)
+        _ = try AbtoConfig(projectKey: "pk", batchSize: invalidBatchSize)
         check(false, "batchSize \(invalidBatchSize) rejected")
     } catch {
         check("\(error)" == "[abto] batchSize must be between 1 and 100.", "batchSize \(invalidBatchSize) rejected")
@@ -90,7 +90,7 @@ check(firstContext.commonProperties()["user_id"] == nil, "reset clears user_id")
 check(firstContext.anonymousId != anonBefore, "reset rotates anonymous_id")
 
 do {
-    let client = try AbtoClient(projectKey: "ek_identity", store: AbtoInMemoryStore())
+    let client = try AbtoClient(projectKey: "pk_identity", store: AbtoInMemoryStore())
     let deviceBeforeReset = client.deviceId
     check(isUUIDv7(deviceBeforeReset), "client exposes Gateway attribution deviceId")
     check(isUUIDv7(client.sessionId), "client exposes sessionId")
@@ -109,7 +109,7 @@ check(abtoScaleValue("KRW") == "KRW", "bounded metric scale retained")
 check(abtoScaleValue(String(repeating: "x", count: 17)) == nil, "oversized metric scale omitted")
 check(abtoScaleValue(String(repeating: "🙂", count: 9)) == nil, "metric scale uses backend UTF-16 limit")
 
-let eventNameClient = try! AbtoClient(projectKey: "ek_event_name", store: AbtoInMemoryStore())
+let eventNameClient = try! AbtoClient(projectKey: "pk_event_name", store: AbtoInMemoryStore())
 check(!eventNameClient.capture("pageview"), "reserved system event name rejected by public capture")
 check(!eventNameClient.capture(String(repeating: "x", count: 201)), "overlong event name rejected before enqueue")
 check(!eventNameClient.capture(String(repeating: "🙂", count: 101)), "event name limit uses backend UTF-16 units")
@@ -159,7 +159,7 @@ check(responseProperties["$response_text"] == nil, "response text is not transmi
 
 // trace request id join
 do {
-    let client = try AbtoClient(projectKey: "ek_test", store: AbtoInMemoryStore())
+    let client = try AbtoClient(projectKey: "pk_test", store: AbtoInMemoryStore())
     let trace = client.startLlmTrace(nodeId: "smoke.demo")
     check(trace.traceId.range(of: "^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$", options: .regularExpression) != nil, "trace_id uses UUIDv7 bits")
     check(trace.attachRequestId(fromHeaders: ["X-Request-Id": "req_1"]) == "req_1", "attachRequestId reads header case-insensitively")
@@ -199,7 +199,7 @@ check(
 // collector E2E (opt-in)
 if ProcessInfo.processInfo.environment["ABTO_E2E"] == "1" {
     let client = try! AbtoClient(
-        projectKey: "ek_smoke_ios",
+        projectKey: "pk_smoke_ios",
         endpoint: "http://localhost:4870/v1/collect/events",
         environment: .development,
         store: AbtoInMemoryStore()

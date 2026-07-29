@@ -65,7 +65,7 @@ class AbtoClient(
         context.reset()
     }
 
-    /** 수동 event 전송 — LLM call 이전 행동 트래킹의 기본 경로. */
+    /** 수동 biz event 전송 — LLM call 이전 행동 트래킹의 기본 경로. */
     fun capture(
         event: String,
         properties: Map<String, Any?> = emptyMap(),

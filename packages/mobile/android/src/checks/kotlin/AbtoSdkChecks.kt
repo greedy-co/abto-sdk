@@ -33,10 +33,10 @@ fun isUuidV7(value: String): Boolean =
 
 fun main() {
     // init config validation
-    val config = AbtoConfig(projectKey = "ek_test")
+    val config = AbtoConfig(projectKey = "pk_test")
     check(config.endpoint == "https://api.abto.app/v1/collect/events", "default endpoint derived")
     check(config.environment == AbtoEnvironment.PRODUCTION && !config.debug, "production defaults")
-    check(AbtoConfig("ek", environment = AbtoEnvironment.DEVELOPMENT).debug, "development turns debug on")
+    check(AbtoConfig("pk", environment = AbtoEnvironment.DEVELOPMENT).debug, "development turns debug on")
 
     try {
         AbtoConfig(projectKey = "  ")
@@ -46,28 +46,28 @@ fun main() {
     }
 
     try {
-        AbtoConfig(projectKey = "ek", endpoint = "htp:/broken url")
+        AbtoConfig(projectKey = "pk", endpoint = "htp:/broken url")
         check(false, "malformed endpoint rejected")
     } catch (e: AbtoInitException) {
         check(e.message!!.startsWith("[abto] endpoint is not a valid http(s) URL:"), "malformed endpoint rejected")
     }
 
     try {
-        AbtoConfig(projectKey = "ek", endpoint = "https:/collector")
+        AbtoConfig(projectKey = "pk", endpoint = "https:/collector")
         check(false, "endpoint without authority rejected")
     } catch (e: AbtoInitException) {
         check(e.message!!.startsWith("[abto] endpoint is not a valid http(s) URL:"), "endpoint without authority rejected")
     }
 
     try {
-        AbtoConfig(projectKey = "ek", endpoint = "http://collector.example/v1/collect/events")
+        AbtoConfig(projectKey = "pk", endpoint = "http://collector.example/v1/collect/events")
         check(false, "production cleartext endpoint rejected")
     } catch (e: AbtoInitException) {
         check(e.message == "[abto] endpoint must use HTTPS outside development loopback.", "production cleartext endpoint rejected")
     }
     check(
         AbtoConfig(
-            projectKey = "ek",
+            projectKey = "pk",
             endpoint = "http://127.0.0.1:4870/v1/collect/events",
             environment = AbtoEnvironment.DEVELOPMENT,
         ).endpoint.startsWith("http://127.0.0.1"),
@@ -76,7 +76,7 @@ fun main() {
 
     for (invalidBatchSize in listOf(0, 101)) {
         try {
-            AbtoConfig(projectKey = "ek", batchSize = invalidBatchSize)
+            AbtoConfig(projectKey = "pk", batchSize = invalidBatchSize)
             check(false, "batchSize $invalidBatchSize rejected")
         } catch (e: AbtoInitException) {
             check(e.message == "[abto] batchSize must be between 1 and 100.", "batchSize $invalidBatchSize rejected")
@@ -101,7 +101,7 @@ fun main() {
     check(!first.commonProperties().containsKey("user_id"), "reset clears user_id")
     check(first.anonymousId != anonBefore, "reset rotates anonymous_id")
 
-    val identityClient = AbtoClient(AbtoConfig("ek_identity"), AbtoInMemoryStore())
+    val identityClient = AbtoClient(AbtoConfig("pk_identity"), AbtoInMemoryStore())
     val clientDeviceBeforeReset = identityClient.deviceId
     check(isUuidV7(clientDeviceBeforeReset), "client exposes Gateway attribution deviceId")
     check(isUuidV7(identityClient.sessionId), "client exposes sessionId")
@@ -112,7 +112,7 @@ fun main() {
     check(!identityClient.capture("🙂".repeat(101)), "event name limit uses backend UTF-16 units")
 
     // trace request id join
-    val client = AbtoClient(AbtoConfig("ek_test"), AbtoInMemoryStore())
+    val client = AbtoClient(AbtoConfig("pk_test"), AbtoInMemoryStore())
     val trace = client.startLlmTrace(nodeId = "smoke.demo")
     check(Regex("^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$").matches(trace.traceId), "trace_id uses UUIDv7 bits")
     check(trace.attachRequestId(mapOf("X-Request-Id" to listOf("req_1"))) == "req_1", "attachRequestId reads header case-insensitively")
@@ -196,7 +196,7 @@ fun main() {
     try {
         val unavailableClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_unavailable",
+                projectKey = "pk_unavailable",
                 endpoint = "http://127.0.0.1:${server.address.port}/always-unavailable",
                 environment = AbtoEnvironment.DEVELOPMENT,
                 debug = false,
@@ -215,7 +215,7 @@ fun main() {
 
         val burstClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_burst",
+                projectKey = "pk_burst",
                 endpoint = "http://127.0.0.1:${server.address.port}/blocked-success",
                 environment = AbtoEnvironment.DEVELOPMENT,
                 debug = false,
@@ -235,7 +235,7 @@ fun main() {
 
         val oversizedClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_oversized",
+                projectKey = "pk_oversized",
                 endpoint = "http://127.0.0.1:${server.address.port}/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
                 flushIntervalMs = 50,
@@ -250,7 +250,7 @@ fun main() {
 
         val retryClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_retry",
+                projectKey = "pk_retry",
                 endpoint = "http://127.0.0.1:${server.address.port}/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
                 flushIntervalMs = 50,
@@ -272,7 +272,7 @@ fun main() {
 
         val finiteClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_finite",
+                projectKey = "pk_finite",
                 endpoint = "http://127.0.0.1:${server.address.port}/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
             ),
@@ -311,7 +311,7 @@ fun main() {
 
         val privacyClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_privacy",
+                projectKey = "pk_privacy",
                 endpoint = "http://127.0.0.1:${server.address.port}/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
             ),
@@ -348,7 +348,7 @@ fun main() {
     if (System.getenv("ABTO_E2E") == "1") {
         val e2eClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_smoke_android",
+                projectKey = "pk_smoke_android",
                 endpoint = "http://localhost:4870/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
             ),
