@@ -5,13 +5,7 @@ injects them into outbound provider calls (httpx event hooks). The gateway owns
 token, cost, latency, request_id, and variant assignment.
 """
 
-from .client import (
-    Abto,
-    OpenAIDirectFallbackConfig,
-    OpenAIDirectFallbackOptions,
-    abto_request_hook,
-    init_abto,
-)
+from .client import Abto, abto_request_hook, init_abto
 from .context import (
     ABTO_HEADER,
     AbtoContext,
@@ -28,8 +22,6 @@ __all__ = [
     "Abto",
     "init_abto",
     "abto_request_hook",
-    "OpenAIDirectFallbackConfig",
-    "OpenAIDirectFallbackOptions",
     "AbtoContext",
     "ABTO_HEADER",
     "with_context",
