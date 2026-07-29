@@ -2,6 +2,9 @@ name: sdk
 
 on:
   pull_request:
+  repository_dispatch:
+    types:
+      - sync-agent-skill
   push:
     branches:
       - main
@@ -23,6 +26,7 @@ concurrency:
 
 jobs:
   public-safety:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -48,6 +52,7 @@ jobs:
           --exit-code 1
 
   agent-skill:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -73,7 +78,145 @@ jobs:
           --yes
       - run: test -f "$HOME/.claude/skills/abto-sdk/SKILL.md"
 
+  sync-agent-skill:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Decode the verified private payload
+        env:
+          ARCHIVE_BASE64: ${{ github.event.client_payload.archive_base64 }}
+          ARCHIVE_SHA256: ${{ github.event.client_payload.archive_sha256 }}
+          MANIFEST_BASE64: ${{ github.event.client_payload.manifest_base64 }}
+          MANIFEST_SHA256: ${{ github.event.client_payload.manifest_sha256 }}
+          SIGNATURE: ${{ github.event.client_payload.signature }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+          SYNC_HMAC_KEY: ${{ secrets.AGENT_SKILL_SYNC_HMAC_KEY }}
+        shell: bash
+        run: |
+          test -n "${SYNC_HMAC_KEY}"
+          test "${SOURCE_REPOSITORY}" = "greedy-co/abto"
+          [[ "${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          printf '%s' "${ARCHIVE_BASE64}" \
+            | base64 --decode >"${RUNNER_TEMP}/abto-agent-skill.tar.gz"
+          echo "${ARCHIVE_SHA256}  ${RUNNER_TEMP}/abto-agent-skill.tar.gz" \
+            | sha256sum --check
+          printf '%s' "${MANIFEST_BASE64}" \
+            | base64 --decode >"${RUNNER_TEMP}/abto-agent-skill-manifest.json"
+          echo "${MANIFEST_SHA256}  ${RUNNER_TEMP}/abto-agent-skill-manifest.json" \
+            | sha256sum --check
+
+          expected_signature="$(
+            printf '%s\n%s\n%s\n%s\n' \
+              "${SOURCE_REPOSITORY}" \
+              "${SOURCE_SHA}" \
+              "${ARCHIVE_SHA256}" \
+              "${MANIFEST_SHA256}" \
+              | openssl dgst -sha256 -hmac "${SYNC_HMAC_KEY}" -binary \
+              | base64 -w 0
+          )"
+          test "${SIGNATURE}" = "${expected_signature}"
+
+          while IFS= read -r entry; do
+            case "${entry}" in
+              skills/abto-sdk|skills/abto-sdk/)
+                ;;
+              skills/abto-sdk/*)
+                if [[ "${entry}" == *"/../"* || "${entry}" == *"/.." ]]; then
+                  echo "::error::unsafe archive path ${entry}"
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "::error::unexpected archive path ${entry}"
+                exit 1
+                ;;
+            esac
+          done < <(tar -tzf "${RUNNER_TEMP}/abto-agent-skill.tar.gz")
+
+          mkdir -p "${RUNNER_TEMP}/abto-agent-skill"
+          tar \
+            --extract \
+            --gzip \
+            --file "${RUNNER_TEMP}/abto-agent-skill.tar.gz" \
+            --directory "${RUNNER_TEMP}/abto-agent-skill" \
+            --no-same-owner \
+            --no-same-permissions
+      - name: Verify and apply the exact manifest
+        run: >-
+          node .github/scripts/apply-agent-skill-sync.mjs
+          "${RUNNER_TEMP}/abto-agent-skill"
+          "${RUNNER_TEMP}/abto-agent-skill-manifest.json"
+          "${GITHUB_WORKSPACE}"
+      - name: Install pinned Gitleaks release
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="${RUNNER_TEMP}/gitleaks.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "${archive}"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}" gitleaks
+      - name: Reject credentials in the candidate
+        run: >-
+          "${RUNNER_TEMP}/gitleaks" dir
+          skills/abto-sdk
+          --no-banner
+          --redact
+          --exit-code 1
+      - name: Verify Codex and Claude Code installation
+        run: |
+          npx --yes skills@1.5.20 add . \
+            --skill abto-sdk \
+            --global \
+            --agent codex \
+            --copy \
+            --yes
+          test -f "$HOME/.agents/skills/abto-sdk/SKILL.md"
+          npx --yes skills@1.5.20 add . \
+            --skill abto-sdk \
+            --global \
+            --agent claude-code \
+            --copy \
+            --yes
+          test -f "$HOME/.claude/skills/abto-sdk/SKILL.md"
+      - name: Commit only the verified Agent Skill
+        env:
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+        shell: bash
+        run: |
+          test "${SOURCE_SHA}" != ""
+          git add skills/abto-sdk
+          changed_paths="$(git diff --cached --name-only)"
+          if [[ -z "${changed_paths}" ]]; then
+            echo "Public Agent Skill is already current."
+            exit 0
+          fi
+          if grep -Ev '^skills/abto-sdk/' <<<"${changed_paths}"; then
+            echo "::error::Agent Skill sync attempted to modify another public path"
+            exit 1
+          fi
+
+          manifest_sha256="$(jq -r '.sha256' \
+            "${RUNNER_TEMP}/abto-agent-skill-manifest.json")"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(skill): sync verified Agent Skill ${manifest_sha256:0:12}"
+          git push origin HEAD:main
+
   event-js:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -90,6 +233,7 @@ jobs:
       - run: npm run build
 
   calling-js:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -106,6 +250,7 @@ jobs:
       - run: npm run build
 
   python:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -121,6 +266,7 @@ jobs:
       - run: python -m build
 
   dart:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -133,6 +279,7 @@ jobs:
       - run: dart test
 
   android:
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -149,6 +296,7 @@ jobs:
           generatePomFileForMavenPublication --no-daemon --no-configuration-cache
 
   swift:
+    if: github.event_name != 'repository_dispatch'
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -199,8 +347,6 @@ jobs:
           fi
 
           git fetch --tags --force origin
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for tag in "${tags[@]}"; do
             if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
               tagged_commit="$(git rev-list -n 1 "${tag}")"
