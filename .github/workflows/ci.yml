@@ -13,6 +13,8 @@ on:
       - "android-v*"
       - "swift-v*"
       - "v*"
+  schedule:
+    - cron: "23 18 * * 1"
 
 permissions:
   contents: read
@@ -22,7 +24,81 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    outputs:
+      event_js: ${{ steps.paths.outputs.event_js }}
+      calling_js: ${{ steps.paths.outputs.calling_js }}
+      python: ${{ steps.paths.outputs.python }}
+      dart: ${{ steps.paths.outputs.dart }}
+      android: ${{ steps.paths.outputs.android }}
+      swift: ${{ steps.paths.outputs.swift }}
+      actions: ${{ steps.paths.outputs.actions }}
+      sdk: ${{ steps.paths.outputs.sdk }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Select only affected SDK checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+        run: |
+          changed_paths=""
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            :
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            changed_paths=".github/workflows/ci.yml"
+          else
+            base_sha="${BASE_SHA}"
+            if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]] \
+              || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null
+            then
+              base_sha="$(git rev-parse "${GITHUB_SHA}^")"
+            fi
+            changed_paths="$(git diff --name-only "${base_sha}" "${GITHUB_SHA}")"
+          fi
+
+          changed() {
+            grep -Eq "$1" <<<"${changed_paths}"
+          }
+
+          workflow_changed=false
+          if changed '^\.github/workflows/ci\.yml$'; then
+            workflow_changed=true
+          fi
+
+          set_flag() {
+            local name="$1"
+            local pattern="$2"
+            local value=false
+            if [[ "${workflow_changed}" == "true" ]] || changed "${pattern}"; then
+              value=true
+            fi
+            echo "${name}=${value}" >> "${GITHUB_OUTPUT}"
+          }
+
+          set_flag event_js '^packages/browser/javascript/'
+          set_flag calling_js '^packages/server/javascript/'
+          set_flag python '^packages/server/python/'
+          set_flag dart '^packages/mobile/dart/'
+          set_flag android '^packages/mobile/android/'
+          set_flag swift '^(Package\.swift|packages/mobile/swift/)'
+          set_flag actions '^\.github/workflows/'
+
+          sdk=false
+          if [[ "${workflow_changed}" == "true" ]] \
+            || changed '^packages/(browser/javascript|server/(javascript|python)|mobile/(dart|android|swift))/' \
+            || changed '^Package\.swift$'
+          then
+            sdk=true
+          fi
+          echo "sdk=${sdk}" >> "${GITHUB_OUTPUT}"
+
   public-safety:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -47,7 +123,36 @@ jobs:
           --redact
           --exit-code 1
 
+  agent-skill:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npx --yes skills@1.5.20 add . --skill abto-sdk --list
+      - run: >-
+          npx --yes skills@1.5.20 add .
+          --skill abto-sdk
+          --global
+          --agent codex
+          --copy
+          --yes
+      - run: test -f "$HOME/.agents/skills/abto-sdk/SKILL.md"
+      - run: >-
+          npx --yes skills@1.5.20 add .
+          --skill abto-sdk
+          --global
+          --agent claude-code
+          --copy
+          --yes
+      - run: test -f "$HOME/.claude/skills/abto-sdk/SKILL.md"
+
   event-js:
+    needs: changes
+    if: needs.changes.outputs.event_js == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -64,6 +169,8 @@ jobs:
       - run: npm run build
 
   calling-js:
+    needs: changes
+    if: needs.changes.outputs.calling_js == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -80,6 +187,8 @@ jobs:
       - run: npm run build
 
   python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -95,6 +204,8 @@ jobs:
       - run: python -m build
 
   dart:
+    needs: changes
+    if: needs.changes.outputs.dart == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -107,6 +218,8 @@ jobs:
       - run: dart test
 
   android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -123,6 +236,8 @@ jobs:
           generatePomFileForMavenPublication --no-daemon --no-configuration-cache
 
   swift:
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -130,9 +245,60 @@ jobs:
       - run: swift build --target AbtoApp -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
       - run: swift run abto-sdk-checks
 
+  codeql-actions:
+    name: Analyze (actions)
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.actions == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          languages: actions
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          category: /language:actions
+
+  codeql-swift:
+    name: Analyze (swift)
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.swift == 'true'
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          languages: swift
+          build-mode: manual
+      - run: swift build --target AbtoApp -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - run: swift run abto-sdk-checks
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          category: /language:swift
+
   publish-source-tags:
-    needs: [public-safety, event-js, calling-js, python, dart, android, swift]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [changes, public-safety, agent-skill, event-js, calling-js, python, dart, android, swift]
+    if: >-
+      always()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.changes.outputs.sdk == 'true'
+      && needs.public-safety.result == 'success'
+      && needs.agent-skill.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -173,8 +339,6 @@ jobs:
           fi
 
           git fetch --tags --force origin
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for tag in "${tags[@]}"; do
             if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
               tagged_commit="$(git rev-list -n 1 "${tag}")"
