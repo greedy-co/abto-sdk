@@ -62,7 +62,7 @@ with with_context(device_id="d1", node_key="resume.make"):
 ## Header Contract
 
 ```text
-x-abto-device-id     (required)
+x-abto-device-id     (optional; 없으면 user 기준 분석과 sticky 배정에서만 빠진다)
 x-abto-node-key     (required; "feature.node" dot notation, e.g. resume.make)
 traceparent        (trace_id; gateway-deferred in Round1)
 x-abto-key-openai  (route 후보 provider key; provider별로 선택해 추가)
