@@ -27,6 +27,8 @@ export {
 export {
   createAbtoOpenAI,
   type CreateAbtoOpenAIOptions,
+  type OpenAIDirectFallbackConfig,
+  type OpenAIDirectFallbackOptions,
 } from "./openai.js";
 
 export type {
