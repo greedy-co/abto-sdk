@@ -5,14 +5,14 @@ This repository contains the installable source for ABTO's six supported SDKs.
 
 ## Agent setup
 
-Install the ABTO SDK skill globally for the coding agent you use.
+Install the unified ABTO skill globally for the coding agent you use.
 Node.js 22.20 or later is required.
 
 Codex:
 
 ```bash
-npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skills/abto-sdk \
-  --skill abto-sdk \
+npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto \
+  --skill abto \
   --global \
   --agent codex \
   --copy \
@@ -22,8 +22,8 @@ npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skil
 Claude Code:
 
 ```bash
-npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skills/abto-sdk \
-  --skill abto-sdk \
+npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto \
+  --skill abto \
   --global \
   --agent claude-code \
   --copy \
@@ -31,7 +31,14 @@ npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/skil
 ```
 
 The skill inspects an application, selects the correct Browser, App, or Server SDK, keeps Event and Calling Keys at the correct security boundary, and verifies the integration.
-See [`skills/abto-sdk/references/skill-installation.md`](skills/abto-sdk/references/skill-installation.md) for verification, update, removal, and troubleshooting commands.
+See [`abto/references/skill-installation.md`](abto/references/skill-installation.md) for verification, update, removal, and troubleshooting commands.
+
+If the old copied `abto-sdk` Skill is still installed, verify `abto` first and then remove the legacy name:
+
+```bash
+npx --yes skills@1.5.20 remove abto-sdk --global --agent codex --yes
+npx --yes skills@1.5.20 remove abto-sdk --global --agent claude-code --yes
+```
 
 ## Install
 
@@ -65,8 +72,9 @@ packages/
     ├── dart/
     ├── android/
     └── swift/
-skills/
-└── abto-sdk/
+abto/
+├── SKILL.md
+└── references/
 ```
 
 Browser and Server JavaScript are separate packages with separate dependency and security boundaries.

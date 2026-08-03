@@ -1,11 +1,12 @@
 ---
-name: abto-sdk
-description: Select, install, and integrate publicly available ABTO SDKs across browser JavaScript, Node.js, Python, Flutter/Dart, and iOS/macOS, while identifying Android/Kotlin as planned until its registry release is verified. Use when selecting a Browser, App, or Server SDK; setting up ABTO event collection or Gateway calling; configuring Event or Calling Keys; linking device_id, trace_id, and request_id; troubleshooting an ABTO integration; or verifying that an ABTO SDK is wired correctly.
+name: abto
+description: Integrate and verify ABTO across browser JavaScript, Node.js, Python, Flutter/Dart, Android/Kotlin, and iOS/macOS. Use when selecting, installing, updating, or troubleshooting an ABTO Browser, App, or Server SDK; setting up event collection or Gateway calling; configuring Event or Calling Keys; linking device_id, trace_id, and request_id; or checking that data reaches the expected ABTO surface.
 ---
 
-# ABTO SDK
+# ABTO
 
-Inspect the project, choose the smallest correct SDK set, preserve its existing conventions, configure credentials at the correct security boundary, and verify the integration.
+Use this as the single public ABTO integration skill.
+Inspect the project, choose the smallest correct SDK set, preserve its existing conventions, configure credentials at the correct security boundary, and verify the integration from the application to the expected ABTO surface.
 
 ## Load the relevant references
 

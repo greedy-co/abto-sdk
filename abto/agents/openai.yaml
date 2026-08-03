@@ -1,0 +1,4 @@
+interface:
+  display_name: "ABTO SDK"
+  short_description: "Install and connect the right ABTO SDK"
+  default_prompt: "Use $abto to inspect this project, install the correct ABTO SDK, configure it safely, and verify the integration."
