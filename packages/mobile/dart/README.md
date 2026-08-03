@@ -15,7 +15,7 @@ import 'package:abto/abto.dart';
 
 final abto = AbtoClient(
   AbtoConfig(
-    projectKey: 'pk_live_…',
+    projectKey: 'ek-abto-…',
     endpoint: 'https://api.abto.app/v1/collect/events', // 생략 시 기본값
     environment: AbtoEnvironment.production,
   ),
@@ -27,7 +27,7 @@ abto.identify('u_123', 't_1');
 // 같은 AI 요청을 ABTO Gateway로 보낼 때 이 값을 x-abto-device-id로 전달
 final gatewayDeviceId = abto.deviceId;
 
-// LLM call 이전 biz event — 수동 capture
+// LLM call 이전 event — 수동 capture
 abto.capture('checkout_started', properties: {'cart_size': 3});
 
 // LLM 호출 생애주기 — request_id 로 게이트웨이 비용/latency 와 조인
