@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - "release-candidate/**"
+      - "release-recovery/**"
     tags:
       - "event-js-v*"
       - "calling-js-v*"
@@ -56,6 +57,8 @@ jobs:
         run: |
           changed_paths=""
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            :
+          elif [[ "${GITHUB_REF}" == refs/heads/release-recovery/* ]]; then
             :
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             changed_paths=".github/workflows/ci.yml"
@@ -567,3 +570,73 @@ jobs:
           --verify-tag
           --title "${RELEASE_TAG}"
           --generate-notes
+
+  recover-source-release-from-branch:
+    needs: public-safety
+    if: >-
+      always()
+      && github.event_name == 'push'
+      && startsWith(github.ref, 'refs/heads/release-recovery/')
+      && needs.public-safety.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Recover an existing verified source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          recovery_path="${GITHUB_REF#refs/heads/release-recovery/}"
+          release_tag="${recovery_path%%/*}"
+          case "${release_tag}" in
+            calling-python-v*|dart-v*|android-v*|swift-v*|v*) ;;
+            *)
+              echo "::error::unsupported source release recovery tag ${release_tag}"
+              exit 1
+              ;;
+          esac
+          version="${release_tag##*-v}"
+          if [[ "${release_tag}" == v* ]]; then
+            version="${release_tag#v}"
+          fi
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::invalid source release recovery version ${version}"
+            exit 1
+          fi
+
+          main_relationship="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...main" \
+              --jq .status
+          )"
+          if [[ "${main_relationship}" != "identical" && "${main_relationship}" != "ahead" ]]; then
+            echo "::error::release recovery branch must point to public main history, not ${GITHUB_SHA}"
+            exit 1
+          fi
+          tagged_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${release_tag}" --jq .sha)"
+          successful_run="$(
+            gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow ci.yml \
+              --branch "${release_tag}" \
+              --event push \
+              --limit 20 \
+              --json conclusion,headSha \
+            | jq -r \
+                --arg sha "${tagged_sha}" \
+                'any(.[]; .headSha == $sha and .conclusion == "success")'
+          )"
+          if [[ "${successful_run}" != "true" ]]; then
+            echo "::error::${release_tag} has no successful source CI run"
+            exit 1
+          fi
+
+          gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" \
+            || gh release create "${release_tag}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --title "${release_tag}" \
+              --generate-notes
