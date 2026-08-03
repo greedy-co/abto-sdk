@@ -7,7 +7,8 @@
  * and variant assignment.
  *
  * Gateway identifier contract:
- *   - device_id -> header `x-abto-device-id` (required by the gateway)
+ *   - device_id -> header `x-abto-device-id` (optional; without it the call still
+ *                 succeeds but drops out of user-level analytics and sticky assignment)
  *   - node_key -> header `x-abto-node-key`  (required by the gateway). "feature.node"
  *                 dot notation, e.g. "resume.make"; feature is the read-time prefix.
  *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
@@ -27,7 +28,7 @@ export const ABTO_HEADER = {
 } as const;
 
 export interface AbtoContext {
-  /** Device id. Sent as `x-abto-device-id` (required by the gateway). */
+  /** Device id. Sent as `x-abto-device-id` (optional for the gateway). */
   deviceId?: string;
   /** "feature.node" dot-notation node key (e.g. "resume.make"). Sent as `x-abto-node-key`. */
   nodeKey?: string;
