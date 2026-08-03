@@ -1,4 +1,5 @@
 name: sdk
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('recover {0}', inputs.release_tag) || github.ref_name }}
 
 on:
   pull_request:
@@ -16,12 +17,18 @@ on:
       - "v*"
   schedule:
     - cron: "23 18 * * 1"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable SDK tag to recover
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -186,6 +193,109 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  npm-release:
+    needs: public-safety
+    if: >-
+      always()
+      && needs.public-safety.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref_type == 'tag'
+          && (
+            startsWith(github.ref_name, 'event-js-v')
+            || startsWith(github.ref_name, 'calling-js-v')
+          )
+        )
+        || (
+          github.event_name == 'workflow_dispatch'
+          && (
+            startsWith(inputs.release_tag, 'event-js-v')
+            || startsWith(inputs.release_tag, 'calling-js-v')
+          )
+        )
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+          path: release-source
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          path: release-tooling
+          sparse-checkout: .github/scripts/check-npm-release.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - id: release
+        name: Validate the public npm release tag
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          release_tag="${INPUT_RELEASE_TAG:-${GITHUB_REF_NAME}}"
+          case "${release_tag}" in
+            event-js-v*)
+              target_directory="packages/browser/javascript"
+              package_name="@abto-app/event"
+              version="${release_tag#event-js-v}"
+              ;;
+            calling-js-v*)
+              target_directory="packages/server/javascript"
+              package_name="@abto-app/calling"
+              version="${release_tag#calling-js-v}"
+              ;;
+            *)
+              echo "::error::unsupported npm release tag ${release_tag}"
+              exit 1
+              ;;
+          esac
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::invalid npm release version ${version}"
+            exit 1
+          fi
+          package_version="$(node -p "require('./release-source/${target_directory}/package.json').version")"
+          if [[ "${package_version}" != "${version}" ]]; then
+            echo "::error::${target_directory} is ${package_version}, expected ${version}"
+            exit 1
+          fi
+          {
+            echo "target_directory=${target_directory}"
+            echo "package_name=${package_name}"
+            echo "version=${version}"
+          } >> "${GITHUB_OUTPUT}"
+      - run: npm install --global npm@11.18.0
+      - name: Require the immutable release dependency lock
+        run: test -f package-lock.json
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
+      - run: npm ci --ignore-scripts
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
+      - run: npm test
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
+      - run: npm run typecheck
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
+      - run: npm run build
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
+      - id: registry-state
+        name: Verify an existing same-version npm artifact
+        run: >-
+          node release-tooling/.github/scripts/check-npm-release.mjs
+          "release-source/${{ steps.release.outputs.target_directory }}"
+          "${{ steps.release.outputs.package_name }}"
+          "${{ steps.release.outputs.version }}"
+          >> "${GITHUB_OUTPUT}"
+      - if: ${{ steps.registry-state.outputs.already_published != 'true' }}
+        run: npm publish --access public
+        working-directory: release-source/${{ steps.release.outputs.target_directory }}
 
   python:
     needs: changes
@@ -352,3 +462,108 @@ jobs:
             git tag -a "${tag}" "${GITHUB_SHA}" -m "${tag}"
             git push origin "refs/tags/${tag}"
           done
+
+  source-release:
+    needs: [changes, public-safety, agent-skill, event-js, calling-js, npm-release, python, dart, android, swift]
+    if: >-
+      always()
+      && github.event_name == 'push'
+      && github.ref_type == 'tag'
+      && (
+        startsWith(github.ref_name, 'event-js-v')
+        || startsWith(github.ref_name, 'calling-js-v')
+        || startsWith(github.ref_name, 'calling-python-v')
+        || startsWith(github.ref_name, 'dart-v')
+        || startsWith(github.ref_name, 'android-v')
+        || startsWith(github.ref_name, 'swift-v')
+        || startsWith(github.ref_name, 'v')
+      )
+      && needs.public-safety.result == 'success'
+      && needs.agent-skill.result == 'success'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Create the verified source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release view "${GITHUB_REF_NAME}"
+          --repo "${GITHUB_REPOSITORY}"
+          || gh release create "${GITHUB_REF_NAME}"
+          --repo "${GITHUB_REPOSITORY}"
+          --verify-tag
+          --title "${GITHUB_REF_NAME}"
+          --generate-notes
+
+  recover-source-release:
+    needs: [public-safety, npm-release]
+    if: >-
+      always()
+      && github.event_name == 'workflow_dispatch'
+      && needs.public-safety.result == 'success'
+      && (
+        startsWith(inputs.release_tag, 'calling-python-v')
+        || startsWith(inputs.release_tag, 'dart-v')
+        || startsWith(inputs.release_tag, 'android-v')
+        || startsWith(inputs.release_tag, 'swift-v')
+        || startsWith(inputs.release_tag, 'v')
+        || (
+          needs.npm-release.result == 'success'
+          && (
+            startsWith(inputs.release_tag, 'event-js-v')
+            || startsWith(inputs.release_tag, 'calling-js-v')
+          )
+        )
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Require successful source CI for a non-npm recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          case "${RELEASE_TAG}" in
+            event-js-v*|calling-js-v*) exit 0 ;;
+          esac
+          tagged_sha="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" \
+              --jq .sha
+          )"
+          successful_run="$(
+            gh run list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --workflow ci.yml \
+              --branch "${RELEASE_TAG}" \
+              --event push \
+              --limit 20 \
+              --json conclusion,headSha \
+            | jq -r \
+                --arg sha "${tagged_sha}" \
+                'any(.[]; .headSha == $sha and .conclusion == "success")'
+          )"
+          if [[ "${successful_run}" != "true" ]]; then
+            echo "::error::${RELEASE_TAG} has no successful source CI run"
+            exit 1
+          fi
+      - name: Recover an existing verified source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: >-
+          gh release view "${RELEASE_TAG}"
+          --repo "${GITHUB_REPOSITORY}"
+          || gh release create "${RELEASE_TAG}"
+          --repo "${GITHUB_REPOSITORY}"
+          --verify-tag
+          --title "${RELEASE_TAG}"
+          --generate-notes
