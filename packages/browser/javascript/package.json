@@ -1,6 +1,6 @@
 {
   "name": "@abto-app/event",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ABTO Browser SDK — autocapture, typed custom events, identity, sessions, and AI trace correlation.",
   "type": "module",
   "license": "MIT",

@@ -124,7 +124,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.1.2"
+        "$lib_version": "0.1.3"
       }
     }
   ]

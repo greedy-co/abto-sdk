@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "targets": {
-    "event-js": "f286933cf8a3e068c0c40d1dce5e9cb05e795ffdf69f96277cbacb05a2e9ef7e",
+    "event-js": "3cb9a72eb0db45f15b710cb8a1141db83530b9919d0cf79da79a22c8c900cb10",
     "calling-js": "472c14f453adc6e9e346c8acc5311d1537fe448215109e2536297edab793db8f",
     "calling-python": "07229c734c71dc349b2e7e970551fe1f85ce6a413c90421b241b4a9a5fa29c83",
     "dart": "18b97faaa8dd26d43552bc1ba62f166f23ea518b736429d630ace7b1a7e2ca3f",

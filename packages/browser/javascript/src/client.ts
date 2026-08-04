@@ -30,7 +30,7 @@ import type {
 } from './types.js';
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 
-const SDK_VERSION = '0.1.0';
+export const SDK_VERSION = '0.1.3';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';

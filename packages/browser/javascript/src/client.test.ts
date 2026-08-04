@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AbtoBrowserClient, getIdentity, initAbto } from './client.js';
+import {
+  AbtoBrowserClient,
+  getIdentity,
+  initAbto,
+  SDK_VERSION,
+} from './client.js';
 import { defineEvents } from './event-registry.js';
 
 const UUID_V7_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -135,7 +140,7 @@ describe('Browser event envelope and identity', () => {
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
-    expect(event.properties.$lib_version).toBe('0.1.0');
+    expect(event.properties.$lib_version).toBe(SDK_VERSION);
     expect(event.properties.$app_version).toBe('host-1.2.3');
     sdk.shutdown();
   });
