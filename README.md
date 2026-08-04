@@ -174,7 +174,7 @@ abto/
 | Node.js | [설치 및 API 가이드](https://docs.abto.app/sdk/javascript/server/) |
 | Python | [설치 및 API 가이드](https://docs.abto.app/sdk/python/) |
 | Flutter / Dart | [설치 및 API 가이드](https://docs.abto.app/sdk/flutter/) |
-| Android / Kotlin | [설치 및 API 가이드](./packages/mobile/android) |
+| Android / Kotlin | [설치 및 API 가이드](https://docs.abto.app/sdk/android/) |
 | iOS / macOS | [설치 및 API 가이드](https://docs.abto.app/sdk/ios/) |
 | 문제 제보 | [GitHub Issues](https://github.com/greedy-co/abto-sdk/issues) |
 

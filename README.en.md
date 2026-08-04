@@ -174,7 +174,7 @@ SDKs on the same `major.minor` line implement the same capability contract. Each
 | Node.js | [Setup and API guide](https://docs.abto.app/sdk/javascript/server/) |
 | Python | [Setup and API guide](https://docs.abto.app/sdk/python/) |
 | Flutter / Dart | [Setup and API guide](https://docs.abto.app/sdk/flutter/) |
-| Android / Kotlin | [Setup and API guide](./packages/mobile/android) |
+| Android / Kotlin | [Setup and API guide](https://docs.abto.app/en/sdk/android/) |
 | iOS / macOS | [Setup and API guide](https://docs.abto.app/sdk/ios/) |
 | Report a problem | [GitHub Issues](https://github.com/greedy-co/abto-sdk/issues) |
 
