@@ -8,12 +8,10 @@
 | Node.js backend | Available | Gateway calls and request context | `@abto-app/calling` | Calling Key plus provider keys |
 | Python backend | Available | Gateway calls and request context | `abto[openai]` | Calling Key plus provider keys |
 | Flutter/Dart native app | Available | App events and client outcomes | `abto` | Event Key |
-| Android/Kotlin app | Planned — do not install | App events and client outcomes | — | Event Key |
+| Android/Kotlin app | Available | App events and client outcomes | `app.abto:abto-app` | Event Key |
 | iOS/macOS app | Available | App events and client outcomes | `AbtoApp` | Event Key |
 
-Only rows marked Available have a verified public installation path.
-For a Planned runtime, do not guess a package coordinate or install a local source snapshot.
-Explain that the registry release is pending and propose an available boundary or a code-only plan.
+Every row above has a verified public installation path.
 
 Use an Event SDK for facts the client observes.
 Use a Calling SDK for server-side model execution.
