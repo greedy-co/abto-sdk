@@ -8,6 +8,8 @@
   <p><sub>Browser, server, and mobile SDKs—plus one integration Skill for coding agents.</sub></p>
   <p>
     <a href="https://github.com/greedy-co/abto-sdk/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/greedy-co/abto-sdk/ci.yml?branch=main&style=flat-square&label=SDK%20CI" alt="SDK CI"></a>
+    <a href="https://github.com/greedy-co/abto-sdk/releases/latest"><img src="https://img.shields.io/github/v/release/greedy-co/abto-sdk?style=flat-square&label=release" alt="Latest release"></a>
+    <a href="https://github.com/greedy-co/abto-sdk/releases"><img src="https://img.shields.io/github/release-date/greedy-co/abto-sdk?style=flat-square&label=released" alt="Release date"></a>
     <a href="https://docs.abto.app/"><img src="https://img.shields.io/badge/docs-docs.abto.app-2563eb?style=flat-square" alt="Documentation"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="MIT License"></a>
   </p>
@@ -70,14 +72,14 @@ The agent keeps Event Keys and Calling Keys in the correct runtime and waits for
 
 Start with the SDK that matches one runtime and one responsibility. Use an **Event SDK** to observe user behavior in a browser or app. Use a **Calling SDK** when your server sends model requests.
 
-| Runtime | Responsibility | Package | Install | Status |
+| Runtime | Responsibility | Package | Install | Distribution |
 | --- | --- | --- | --- | --- |
-| Browser JavaScript | Events and autocapture | [`@abto-app/event`](https://www.npmjs.com/package/@abto-app/event) | `npm install @abto-app/event` | Available |
-| Node.js | Gateway calls and request context | [`@abto-app/calling`](https://www.npmjs.com/package/@abto-app/calling) | `npm install @abto-app/calling openai` | Available |
-| Python | Gateway calls and request context | [`abto`](https://pypi.org/project/abto/) | `python -m pip install "abto[openai]"` | Available |
-| Flutter / Dart | App events | [`abto`](https://pub.dev/packages/abto) | `dart pub add abto` | Available |
-| Android / Kotlin | App events | [`packages/mobile/android`](./packages/mobile/android) | Public Maven Central release pending | Planned |
-| iOS / macOS | App events | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | Available |
+| Browser JavaScript | Events and autocapture | [`@abto-app/event`](https://www.npmjs.com/package/@abto-app/event) | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
+| Node.js | Gateway calls and request context | [`@abto-app/calling`](https://www.npmjs.com/package/@abto-app/calling) | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
+| Python | Gateway calls and request context | [`abto`](https://pypi.org/project/abto/) | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
+| Flutter / Dart | App events | [`abto`](https://pub.dev/packages/abto) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
+| Android / Kotlin | App events | [`packages/mobile/android`](./packages/mobile/android) | Public Maven Central release pending | [![Maven Central pending](https://img.shields.io/badge/Maven%20Central-pending-a3a3a3?style=flat-square)](https://docs.abto.app/sdk/android/) |
+| iOS / macOS | App events | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
 
 Add the package with Swift Package Manager:
 
