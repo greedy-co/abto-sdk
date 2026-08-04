@@ -7,7 +7,7 @@
   <br/>
   <h1>ABTO SDK</h1>
   <p><strong>제품 행동에서 AI 비용·지연·품질까지, 하나의 흐름으로 연결하세요.</strong></p>
-  <p><sub>브라우저·서버·모바일 SDK와 코딩 에이전트용 통합 Skill을 한 저장소에서 제공합니다.</sub></p>
+  <p><sub>브라우저·모바일·서버 SDK와 코딩 에이전트용 통합 Skill을 한 저장소에서 제공합니다.</sub></p>
   <p>
     <a href="https://github.com/greedy-co/abto-sdk/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/greedy-co/abto-sdk/ci.yml?branch=main&style=flat-square&label=SDK%20CI" alt="SDK CI"></a>
     <a href="https://github.com/greedy-co/abto-sdk/releases/latest"><img src="https://img.shields.io/github/v/release/greedy-co/abto-sdk?style=flat-square&label=release" alt="Latest release"></a>
@@ -72,18 +72,31 @@ npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto
 
 ## 직접 설치하기
 
-역할과 실행 환경에 맞는 SDK 하나부터 시작하세요. 브라우저나 앱에서 사용자 행동을 관측하려면 **Event SDK**, 서버에서 모델을 호출하려면 **Calling SDK**를 사용합니다.
+실행 위치에 따라 SDK의 역할과 키 경계가 달라집니다. 브라우저와 모바일 앱에서는 **Event SDK**로 사용자의 행동과 결과를 수집하고, 서버에서는 **Calling SDK**로 모델 요청을 Gateway에 연결합니다. 전체 흐름을 관측하려면 클라이언트와 서버 SDK를 함께 사용할 수 있습니다.
 
-| 실행 환경 | 역할 | 패키지 | 설치 | 배포 |
-| --- | --- | --- | --- | --- |
-| Browser JavaScript | 이벤트·자동 수집 | [`@abto-app/event`](https://www.npmjs.com/package/@abto-app/event) | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
-| Node.js | Gateway 호출·요청 문맥 | [`@abto-app/calling`](https://www.npmjs.com/package/@abto-app/calling) | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
-| Python | Gateway 호출·요청 문맥 | [`abto`](https://pypi.org/project/abto/) | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Flutter / Dart | 앱 이벤트 | [`abto`](https://pub.dev/packages/abto) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
-| Android / Kotlin | 앱 이벤트 | [`packages/mobile/android`](./packages/mobile/android) | Maven Central 공개 배포 준비 중 | [![Maven Central pending](https://img.shields.io/badge/Maven%20Central-pending-a3a3a3?style=flat-square)](https://docs.abto.app/sdk/android/) |
-| iOS / macOS | 앱 이벤트 | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
+### 브라우저용 SDK
 
-Swift Package Manager에서는 다음 패키지를 추가합니다.
+웹 페이지의 클릭·탐색·사용자 지정 이벤트를 수집합니다. 브라우저 번들에는 Event Key만 넣고, Calling Key와 provider key는 넣지 마세요.
+
+| 런타임 | 역할 | 설치 | 배포 |
+| --- | --- | --- | --- |
+| Browser JavaScript | 이벤트·자동 수집 | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
+
+패키지와 사용법은 [`@abto-app/event`](./packages/browser/javascript)에서 확인할 수 있습니다.
+
+### 모바일용 SDK
+
+네이티브 앱에서 제품 이벤트와 사용자 결과를 수집합니다. 모바일 SDK도 Event Key만 사용하며 모델 호출은 서버에 맡깁니다.
+
+| 런타임 | 패키지 | 설치 | 배포 |
+| --- | --- | --- | --- |
+| Flutter / Dart | [`abto`](./packages/mobile/dart) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
+| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.2")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.2) |
+| iOS / macOS | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
+
+Android 패키지는 `android.*` 의존성이 없는 순수 Kotlin/JVM JAR입니다. Android 앱에서는 기존 `SharedPreferences`를 `AbtoKeyValueStore`로 연결해 사용합니다.
+
+Swift Package Manager에서는 저장소를 패키지로 추가합니다.
 
 ```swift
 .package(
@@ -92,7 +105,18 @@ Swift Package Manager에서는 다음 패키지를 추가합니다.
 )
 ```
 
-> Android SDK는 소스가 공개되어 있지만 Maven Central 배포 전입니다. 공개 좌표를 추측하거나 소스를 앱에 직접 복사하지 마세요. Flutter Web은 현재 Dart SDK가 지원하지 않으므로 Browser JavaScript SDK를 사용하세요.
+Flutter Web은 현재 Dart SDK가 지원하지 않으므로 브라우저용 JavaScript SDK를 사용하세요.
+
+### 서버용 SDK
+
+서버에서 LLM 요청을 ABTO Gateway로 보내고 `device_id`, `trace_id`, `request_id` 문맥을 이어 줍니다. Calling Key와 provider key는 서버의 비밀 저장소에만 보관하세요.
+
+| 런타임 | 역할 | 설치 | 배포 |
+| --- | --- | --- | --- |
+| Node.js | Gateway 호출·요청 문맥 | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
+| Python | Gateway 호출·요청 문맥 | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
+
+패키지별 사용법은 [Node.js Calling SDK](./packages/server/javascript)와 [Python Calling SDK](./packages/server/python)에서 확인할 수 있습니다.
 
 ## 하나의 흐름으로 연결하기
 
@@ -131,7 +155,7 @@ packages/
 │   └── python/           # abto
 └── mobile/
     ├── dart/             # abto
-    ├── android/          # 공개 배포 준비 중
+    ├── android/          # app.abto:abto-app
     └── swift/            # AbtoApp
 
 abto/
@@ -150,7 +174,7 @@ abto/
 | Node.js | [설치 및 API 가이드](https://docs.abto.app/sdk/javascript/server/) |
 | Python | [설치 및 API 가이드](https://docs.abto.app/sdk/python/) |
 | Flutter / Dart | [설치 및 API 가이드](https://docs.abto.app/sdk/flutter/) |
-| Android / Kotlin | [공개 배포 상태](https://docs.abto.app/sdk/android/) |
+| Android / Kotlin | [설치 및 API 가이드](./packages/mobile/android) |
 | iOS / macOS | [설치 및 API 가이드](https://docs.abto.app/sdk/ios/) |
 | 문제 제보 | [GitHub Issues](https://github.com/greedy-co/abto-sdk/issues) |
 
