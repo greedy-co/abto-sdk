@@ -45,6 +45,7 @@ jobs:
       swift: ${{ steps.paths.outputs.swift }}
       actions: ${{ steps.paths.outputs.actions }}
       sdk: ${{ steps.paths.outputs.sdk }}
+      agent_skill: ${{ steps.paths.outputs.agent_skill }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -69,44 +70,12 @@ jobs:
             then
               base_sha="$(git rev-parse "${GITHUB_SHA}^")"
             fi
-            changed_paths="$(git diff --name-only "${base_sha}" "${GITHUB_SHA}")"
+            changed_paths="$(git diff --no-renames --name-only "${base_sha}" "${GITHUB_SHA}")"
           fi
 
-          changed() {
-            grep -Eq "$1" <<<"${changed_paths}"
-          }
-
-          workflow_changed=false
-          if changed '^\.github/workflows/ci\.yml$'; then
-            workflow_changed=true
-          fi
-
-          set_flag() {
-            local name="$1"
-            local pattern="$2"
-            local value=false
-            if [[ "${workflow_changed}" == "true" ]] || changed "${pattern}"; then
-              value=true
-            fi
-            echo "${name}=${value}" >> "${GITHUB_OUTPUT}"
-          }
-
-          set_flag event_js '^packages/browser/javascript/'
-          set_flag calling_js '^packages/server/javascript/'
-          set_flag python '^packages/server/python/'
-          set_flag dart '^packages/mobile/dart/'
-          set_flag android '^packages/mobile/android/'
-          set_flag swift '^(Package\.swift|packages/mobile/swift/)'
-          set_flag actions '^\.github/workflows/'
-
-          sdk=false
-          if [[ "${workflow_changed}" == "true" ]] \
-            || changed '^packages/(browser/javascript|server/(javascript|python)|mobile/(dart|android|swift))/' \
-            || changed '^Package\.swift$'
-          then
-            sdk=true
-          fi
-          echo "sdk=${sdk}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "${changed_paths}" \
+            | node .github/scripts/classify-sdk-changes.mjs \
+            >> "${GITHUB_OUTPUT}"
 
   public-safety:
     if: github.event_name != 'schedule'
@@ -135,7 +104,8 @@ jobs:
           --exit-code 1
 
   agent-skill:
-    if: github.event_name != 'schedule'
+    needs: changes
+    if: github.event_name != 'schedule' && needs.changes.outputs.agent_skill == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

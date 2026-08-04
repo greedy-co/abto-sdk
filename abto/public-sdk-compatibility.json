@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "targets": {
-    "event-js": "b0d33dce2ecea2e5b72678c5674f44f9c3898d7395baf7cbd7c6c6a93ddf1638",
+    "event-js": "f286933cf8a3e068c0c40d1dce5e9cb05e795ffdf69f96277cbacb05a2e9ef7e",
     "calling-js": "472c14f453adc6e9e346c8acc5311d1537fe448215109e2536297edab793db8f",
     "calling-python": "07229c734c71dc349b2e7e970551fe1f85ce6a413c90421b241b4a9a5fa29c83",
     "dart": "18b97faaa8dd26d43552bc1ba62f166f23ea518b736429d630ace7b1a7e2ca3f",
-    "android": "9ce8cf8690b94e7ed64ca61e86678723b44e67528c62fc3fd0a3d25f2a195dc6",
-    "swift": "ce9506ea3c483ff9ce1704fa41ef4de30c133d6195918f90a614e42a8e7ba5bf"
+    "android": "33e73725e0819315c3774eda226d63a598b36484d51abdb9d6e6362595472e90",
+    "swift": "1857d77e09c690af1fbe930b153d61b30c1104b199fbfda3b306e09f39dcbef4"
   }
 }

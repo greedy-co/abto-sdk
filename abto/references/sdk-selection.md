@@ -11,7 +11,7 @@
 | Android/Kotlin app | Available | App events and client outcomes | `app.abto:abto-app` | Event Key |
 | iOS/macOS app | Available | App events and client outcomes | `AbtoApp` | Event Key |
 
-Every row above has a verified public installation path.
+Only rows marked Available have a verified public installation path.
 
 Use an Event SDK for facts the client observes.
 Use a Calling SDK for server-side model execution.
