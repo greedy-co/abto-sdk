@@ -7,7 +7,7 @@
   <br/>
   <h1>ABTO SDK</h1>
   <p><strong>Connect product behavior with AI cost, latency, and quality in one observable flow.</strong></p>
-  <p><sub>Browser, server, and mobile SDKs—plus one integration Skill for coding agents.</sub></p>
+  <p><sub>Browser, mobile, and server SDKs—plus one integration Skill for coding agents.</sub></p>
   <p>
     <a href="https://github.com/greedy-co/abto-sdk/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/greedy-co/abto-sdk/ci.yml?branch=main&style=flat-square&label=SDK%20CI" alt="SDK CI"></a>
     <a href="https://github.com/greedy-co/abto-sdk/releases/latest"><img src="https://img.shields.io/github/v/release/greedy-co/abto-sdk?style=flat-square&label=release" alt="Latest release"></a>
@@ -72,18 +72,31 @@ The agent keeps Event Keys and Calling Keys in the correct runtime and waits for
 
 ## Install manually
 
-Start with the SDK that matches one runtime and one responsibility. Use an **Event SDK** to observe user behavior in a browser or app. Use a **Calling SDK** when your server sends model requests.
+The SDK's role and key boundary depend on where it runs. Use an **Event SDK** in the browser or a mobile app to capture user behavior and outcomes. Use a **Calling SDK** on the server to route model requests through the Gateway. A complete integration can use both client and server SDKs.
 
-| Runtime | Responsibility | Package | Install | Distribution |
-| --- | --- | --- | --- | --- |
-| Browser JavaScript | Events and autocapture | [`@abto-app/event`](https://www.npmjs.com/package/@abto-app/event) | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
-| Node.js | Gateway calls and request context | [`@abto-app/calling`](https://www.npmjs.com/package/@abto-app/calling) | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
-| Python | Gateway calls and request context | [`abto`](https://pypi.org/project/abto/) | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Flutter / Dart | App events | [`abto`](https://pub.dev/packages/abto) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
-| Android / Kotlin | App events | [`packages/mobile/android`](./packages/mobile/android) | Public Maven Central release pending | [![Maven Central pending](https://img.shields.io/badge/Maven%20Central-pending-a3a3a3?style=flat-square)](https://docs.abto.app/sdk/android/) |
-| iOS / macOS | App events | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
+### Browser SDK
 
-Add the package with Swift Package Manager:
+Capture page interactions, navigation, and custom events. Put only an Event Key in the browser bundle—never a Calling Key or provider key.
+
+| Runtime | Responsibility | Install | Distribution |
+| --- | --- | --- | --- |
+| Browser JavaScript | Events and autocapture | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
+
+See [`@abto-app/event`](./packages/browser/javascript) for package documentation and usage.
+
+### Mobile SDKs
+
+Capture product events and user outcomes in native apps. Mobile SDKs use only an Event Key and leave model calls to your server.
+
+| Runtime | Package | Install | Distribution |
+| --- | --- | --- | --- |
+| Flutter / Dart | [`abto`](./packages/mobile/dart) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
+| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.2")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.2) |
+| iOS / macOS | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
+
+The Android artifact is a pure Kotlin/JVM JAR with no `android.*` dependency. In Android apps, adapt the existing `SharedPreferences` store to `AbtoKeyValueStore`.
+
+Add the repository as a Swift Package:
 
 ```swift
 .package(
@@ -92,7 +105,18 @@ Add the package with Swift Package Manager:
 )
 ```
 
-> The Android SDK source is public, but the Maven Central release is still pending. Do not guess a package coordinate or copy the source into an app. The current Dart SDK does not support Flutter Web; use the Browser JavaScript SDK at that boundary.
+The current Dart SDK does not support Flutter Web. Use the Browser JavaScript SDK at that boundary.
+
+### Server SDKs
+
+Route server-side LLM requests through the ABTO Gateway and propagate `device_id`, `trace_id`, and `request_id` context. Keep Calling Keys and provider keys in server-side secret storage only.
+
+| Runtime | Responsibility | Install | Distribution |
+| --- | --- | --- | --- |
+| Node.js | Gateway calls and request context | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
+| Python | Gateway calls and request context | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
+
+See the [Node.js Calling SDK](./packages/server/javascript) and [Python Calling SDK](./packages/server/python) for package-specific usage.
 
 ## Connect the flow
 
@@ -131,7 +155,7 @@ packages/
 │   └── python/           # abto
 └── mobile/
     ├── dart/             # abto
-    ├── android/          # public release pending
+    ├── android/          # app.abto:abto-app
     └── swift/            # AbtoApp
 
 abto/
@@ -150,7 +174,7 @@ SDKs on the same `major.minor` line implement the same capability contract. Each
 | Node.js | [Setup and API guide](https://docs.abto.app/sdk/javascript/server/) |
 | Python | [Setup and API guide](https://docs.abto.app/sdk/python/) |
 | Flutter / Dart | [Setup and API guide](https://docs.abto.app/sdk/flutter/) |
-| Android / Kotlin | [Public release status](https://docs.abto.app/sdk/android/) |
+| Android / Kotlin | [Setup and API guide](./packages/mobile/android) |
 | iOS / macOS | [Setup and API guide](https://docs.abto.app/sdk/ios/) |
 | Report a problem | [GitHub Issues](https://github.com/greedy-co/abto-sdk/issues) |
 
