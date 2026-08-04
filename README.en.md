@@ -169,13 +169,13 @@ SDKs on the same `major.minor` line implement the same capability contract. Each
 
 | Topic | Link |
 | --- | --- |
-| All documentation | [docs.abto.app](https://docs.abto.app/) |
-| Browser JavaScript | [Setup and API guide](https://docs.abto.app/sdk/javascript/browser/) |
-| Node.js | [Setup and API guide](https://docs.abto.app/sdk/javascript/server/) |
-| Python | [Setup and API guide](https://docs.abto.app/sdk/python/) |
-| Flutter / Dart | [Setup and API guide](https://docs.abto.app/sdk/flutter/) |
+| All documentation | [docs.abto.app](https://docs.abto.app/en/) |
+| Browser JavaScript | [Setup and API guide](https://docs.abto.app/en/sdk/javascript/browser/) |
+| Node.js | [Setup and API guide](https://docs.abto.app/en/sdk/javascript/server/) |
+| Python | [Setup and API guide](https://docs.abto.app/en/sdk/python/) |
+| Flutter / Dart | [Setup and API guide](https://docs.abto.app/en/sdk/flutter/) |
 | Android / Kotlin | [Setup and API guide](https://docs.abto.app/en/sdk/android/) |
-| iOS / macOS | [Setup and API guide](https://docs.abto.app/sdk/ios/) |
+| iOS / macOS | [Setup and API guide](https://docs.abto.app/en/sdk/ios/) |
 | Report a problem | [GitHub Issues](https://github.com/greedy-co/abto-sdk/issues) |
 
 Before contributing, read the README and test commands in the SDK directory you plan to change. Every pull request runs public-repository safety checks; SDK changes also trigger validation for the affected runtime.
