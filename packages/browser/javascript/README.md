@@ -52,8 +52,8 @@ export const events = defineEvents({
     description: '결제가 완료됨',
     properties: {
       order_id: { type: 'string', required: true },
-      amount: { type: 'number', required: true },
-      currency: {
+      value: { type: 'number', required: true },
+      scale: {
         type: 'string',
         enum: ['KRW', 'USD'],
         required: true,
@@ -75,10 +75,14 @@ const abto = initAbto({
 
 abto.capture('checkout_completed', {
   order_id: 'order_123',
-  amount: 49_000,
-  currency: 'KRW',
+  value: 49_000,
+  scale: 'KRW',
 });
 ```
+
+`value`와 `scale`은 Success Metric이 읽는 metric 필드로 승격되는 예약 이름이다.
+금액이나 개수처럼 집계할 수치는 이 두 이름으로 실어야 하며,
+다른 이름의 property는 `extra_json`에만 남아 전환 건수로만 쓰인다.
 
 `defineEvents()`에서 타입을 추론하므로 잘못된 이벤트 이름, required 누락, enum 위반을 개발 시점에 확인할 수 있다. 런타임 정책은 환경별로 다르다.
 
