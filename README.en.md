@@ -3,6 +3,8 @@
 </p>
 
 <div align="center">
+  <img src="./assets/abto-icon.svg" width="96" alt="ABTO icon">
+  <br/>
   <h1>ABTO SDK</h1>
   <p><strong>Connect product behavior with AI cost, latency, and quality in one observable flow.</strong></p>
   <p><sub>Browser, server, and mobile SDKs—plus one integration Skill for coding agents.</sub></p>

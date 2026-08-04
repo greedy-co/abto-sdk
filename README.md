@@ -3,6 +3,8 @@
 </p>
 
 <div align="center">
+  <img src="./assets/abto-icon.svg" width="96" alt="ABTO icon">
+  <br/>
   <h1>ABTO SDK</h1>
   <p><strong>제품 행동에서 AI 비용·지연·품질까지, 하나의 흐름으로 연결하세요.</strong></p>
   <p><sub>브라우저·서버·모바일 SDK와 코딩 에이전트용 통합 Skill을 한 저장소에서 제공합니다.</sub></p>
