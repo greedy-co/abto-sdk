@@ -29,9 +29,29 @@ The package uses `dart:io` and does not support Flutter Web.
 
 ## Android and Kotlin
 
-The Android/Kotlin SDK is planned and is not publicly installable from Maven Central yet.
-Do not add a guessed Maven coordinate, use an unpublished local artifact, or copy source into the customer's project.
-Explain the availability gap and offer the Browser JavaScript SDK for a web boundary, another available native runtime where applicable, or an Android integration plan that stops before dependency installation.
+Add the public Maven Central artifact:
+
+```kotlin
+dependencies {
+    implementation("app.abto:abto-app:0.1.2")
+}
+```
+
+```kotlin
+import app.abto.sdk.*
+
+val abto = AbtoClient(
+    AbtoConfig(
+        projectKey = eventKey,
+        endpoint = "https://api.abto.app/v1/collect/events",
+        environment = AbtoEnvironment.PRODUCTION,
+    ),
+    store = appStore,
+)
+```
+
+The core package is a pure Kotlin/JVM JAR with no `android.*` dependency.
+In an Android app, provide an `AbtoKeyValueStore` adapter backed by the application's existing `SharedPreferences`.
 
 ## iOS and macOS
 
