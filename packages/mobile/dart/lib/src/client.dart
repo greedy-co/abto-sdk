@@ -178,10 +178,10 @@ class AbtoLlmTrace {
   final String traceId;
   String? requestId;
 
-  /// 게이트웨이 응답 헤더에서 x-request-id 를 읽어 이후 이벤트에 붙인다.
+  /// 게이트웨이 응답 헤더에서 x-abto-request-id 를 읽어 이후 이벤트에 붙인다.
   String? attachRequestIdFromHeaders(Map<String, Object?> headers) {
     for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() == 'x-request-id') {
+      if (entry.key.toLowerCase() == 'x-abto-request-id') {
         final value = entry.value;
         final id = value is List
             ? (value.isEmpty ? null : value.first?.toString())
