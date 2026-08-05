@@ -160,7 +160,7 @@ describe('observable AI events', () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     const trace = sdk.startLlmTrace({ nodeId: 'chat.default', surface: 'composer' });
-    trace.attachRequestId(new Response(null, { headers: { 'x-request-id': 'req_123' } }));
+    trace.attachRequestId(new Response(null, { headers: { 'x-abto-request-id': 'req_123' } }));
 
     await trace.submitPrompt({ prompt: 'secret prompt' });
     await trace.markResponseRendered({

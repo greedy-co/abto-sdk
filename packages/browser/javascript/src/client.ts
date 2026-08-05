@@ -30,7 +30,7 @@ import type {
 } from './types.js';
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 
-export const SDK_VERSION = '0.1.3';
+export const SDK_VERSION = '0.1.4';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';
@@ -114,7 +114,7 @@ function readHeader(source: RequestIdSource, name: string): string | undefined {
 
 function readRequestId(source: RequestIdSource): string | undefined {
   if (typeof source === 'string') return normalizeRequestId(source);
-  return readHeader(source, 'x-request-id') ?? readHeader(source, 'x-abto-request-id');
+  return readHeader(source, 'x-abto-request-id');
 }
 
 function contextProperties(

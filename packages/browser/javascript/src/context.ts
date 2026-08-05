@@ -4,7 +4,7 @@
  * Gateway-aligned identifier model:
  * - node_key: "feature.node" dot-notation dimension (e.g. "resume.make"); feature is the prefix.
  * - trace_id: one user action/task execution. Carried as W3C `traceparent`.
- * - request_id: gateway-issued call PK (returned as `x-request-id`); the call-instance join key.
+ * - request_id: gateway-issued call PK (returned as `x-abto-request-id`); the call-instance join key.
  *   The browser does not mint call ids; per-call correlation uses the gateway `request_id`.
  */
 
