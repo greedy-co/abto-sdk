@@ -80,8 +80,8 @@ const abto = initAbto({
 기본 동작은 다음과 같다.
 
 - DNS·연결 수립·TLS 실패: provider에 전송되지 않은 것이 확실하므로 현재 요청을 OpenAI로 직접 전송
-- `x-request-id`가 없는 edge `502`·`503`·`504`: Gateway 도달 전 실패로 보고 현재 요청을 직접 전송
-- `x-request-id`는 있지만 `x-abto-error-source`가 없는 admission `503`: provider 호출 전 실패로 보고 현재 요청을 직접 전송
+- `x-abto-request-id`가 없는 edge `502`·`503`·`504`: Gateway 도달 전 실패로 보고 현재 요청을 직접 전송
+- `x-abto-request-id`는 있지만 `x-abto-error-source`가 없는 admission `503`: provider 호출 전 실패로 보고 현재 요청을 직접 전송
 - Gateway timeout·전송 여부가 모호한 disconnect: circuit만 30초 동안 열고 현재 요청은 원래 오류 반환; 이후 새 요청은 OpenAI direct 경로 사용
 - `fallback.onTimeout: true`: timeout 난 현재 요청도 직접 재전송; Gateway가 이미 provider를 실행했을 수 있어 중복 실행·과금 위험이 있음
 - `x-abto-error-source: provider|transport|internal`, 모호한 disconnect, 결정적인 `4xx`·`429`, caller abort, streaming 시작 이후 실패: 현재 요청 direct fallback 없음

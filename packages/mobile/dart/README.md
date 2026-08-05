@@ -33,7 +33,7 @@ abto.capture('checkout_started', properties: {'cart_size': 3});
 // LLM 호출 생애주기 — request_id 로 게이트웨이 비용/latency 와 조인
 final trace = abto.startLlmTrace(nodeId: 'resume.make', taskType: 'draft_generation');
 trace.submitPrompt(prompt: '이력서 초안 작성해줘', language: 'ko');
-trace.attachRequestIdFromHeaders(response.headers); // x-request-id
+trace.attachRequestIdFromHeaders(response.headers); // x-abto-request-id
 trace.markResponseVisible(responseId: 'resp_1', timeToVisibleMs: 1200);
 trace.captureOutcome('accepted', responseId: 'resp_1');
 

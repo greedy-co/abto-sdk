@@ -22,7 +22,7 @@ Also verify:
 - No custom event or property name starts with `$`.
 - Event payloads do not include unapproved prompt, response, DOM text, form values, or secrets.
 - The client device identifier reaches the corresponding server context.
-- The Gateway `x-request-id` reaches the related client outcome.
+- The Gateway `x-abto-request-id` reaches the related client outcome.
 
 Inspect the final diff and repository status without printing secret values.
 
@@ -40,7 +40,7 @@ Run a live check only when the user has authorized the target environment, crede
 ### Calling plane
 
 1. Send one minimal, low-cost request through the ABTO Gateway.
-2. Confirm a successful response and a non-empty `x-request-id`.
+2. Confirm a successful response and a non-empty `x-abto-request-id`.
 3. Confirm the request under the intended ABTO project.
 4. If a client outcome exists, attach the same request identifier and confirm correlation.
 

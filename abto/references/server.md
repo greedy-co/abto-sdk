@@ -49,7 +49,7 @@ const { data, response } = await abto.withContext(
   },
 );
 
-const requestId = response.headers.get("x-request-id");
+const requestId = response.headers.get("x-abto-request-id");
 ```
 
 Validate `deviceId`, `traceId`, and other client-supplied context using the application's existing request validation.
@@ -93,7 +93,7 @@ with abto.with_context(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
     )
-    request_id = response.headers.get("x-request-id")
+    request_id = response.headers.get("x-abto-request-id")
     completion = response.parse()
 ```
 

@@ -55,7 +55,7 @@ Inspect the project, choose the smallest correct SDK set, preserve its existing 
 - Initialize an Event SDK once at the client application root.
 - Wrap each server request in ABTO request context with a stable `deviceId`, a dot-separated `nodeKey`, and a trace identifier.
 - Pass the same device identifier from the client to the server when the product links user behavior to model calls.
-- Capture the Gateway `x-request-id` and attach it to the related client outcome.
+- Capture the Gateway `x-abto-request-id` and attach it to the related client outcome.
 - Keep custom event names in the product's domain language. Do not create names beginning with `$`.
 - Retain safe privacy defaults.
   Do not enable full prompt, response, DOM text, or input capture unless the user has explicitly approved the data policy.

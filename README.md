@@ -125,7 +125,7 @@ ABTO는 클라이언트 이벤트와 서버의 모델 호출을 같은 식별자
 1. 클라이언트의 안정적인 `device_id`를 서버 요청에도 전달합니다.
 2. 제품 기능을 `support.reply` 같은 점 표기 `nodeKey`로 구분합니다.
 3. 한 번의 사용자 행동에서 발생한 모델 호출은 같은 `trace_id`로 묶습니다.
-4. Gateway 응답의 `x-request-id`를 화면에 표시된 결과와 사용자 반응에 연결합니다.
+4. Gateway 응답의 `x-abto-request-id`를 화면에 표시된 결과와 사용자 반응에 연결합니다.
 
 Gateway는 provider 실행, token 사용량, 비용, 지연, 재시도, variant 배정과 `request_id`의 정본입니다. Event SDK나 Calling SDK에서 이 값을 따로 계산하지 않습니다.
 

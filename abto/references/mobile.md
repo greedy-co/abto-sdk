@@ -74,7 +74,7 @@ identify user
 → capture product event
 → start LLM trace
 → send device_id and trace headers to the backend
-→ attach Gateway x-request-id
+→ attach Gateway x-abto-request-id
 → capture the visible response and user outcome
 → flush during a lifecycle-safe background opportunity
 ```

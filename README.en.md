@@ -125,7 +125,7 @@ ABTO joins client events and server-side model calls through shared identifiers.
 1. Forward the client's stable `device_id` with the related server request.
 2. Name the product surface with a dot-separated `nodeKey`, such as `support.reply`.
 3. Use one `trace_id` for the model calls triggered by one user action.
-4. Attach the Gateway's `x-request-id` response header to the rendered result and the user's outcome.
+4. Attach the Gateway's `x-abto-request-id` response header to the rendered result and the user's outcome.
 
 The Gateway is the source of truth for provider execution, token usage, cost, latency, retries, variant assignment, and `request_id`. Event and Calling SDKs do not estimate those facts independently.
 

@@ -69,7 +69,7 @@ x-abto-key-openai  (route 후보 provider key; provider별로 선택해 추가)
 Authorization       (required; Bearer ABTO inbound key)
 ```
 
-Gateway는 API key를 `tenant_id`로 매핑하고 `request_id`(응답 `x-request-id`)를 발급하며 `variant_id`를 배정하고, provider 전달 전 `x-abto-*`를 strip한다.
+Gateway는 API key를 `tenant_id`로 매핑하고 `request_id`(응답 `x-abto-request-id`)를 발급하며 `variant_id`를 배정하고, provider 전달 전 `x-abto-*`를 strip한다.
 
 ## Gateway 장애 시 OpenAI direct fallback
 

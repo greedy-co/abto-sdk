@@ -38,7 +38,7 @@ Use a different host only when the user provides an environment-specific endpoin
 - Carry a stable device identifier from the client into the corresponding server request.
 - Use a dot-separated `nodeKey`, such as `support.reply`, for the product feature node.
 - Use one `trace_id` for one user action that can produce one or more model calls.
-- Read the Gateway response header `x-request-id`.
+- Read the Gateway response header `x-abto-request-id`.
 - Attach that request identifier to the related client outcome.
 
 The Gateway owns provider execution, token usage, cost, latency, retries, fallback facts, variant assignment, and `request_id`.
