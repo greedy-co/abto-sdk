@@ -266,7 +266,7 @@ function isTimeoutFailure(error: unknown, timedOut: boolean): boolean {
 }
 
 function isSafeGatewayResponse(response: Response): boolean {
-  const requestId = response.headers.get('x-request-id');
+  const requestId = response.headers.get('x-abto-request-id');
   const errorSource = response.headers.get('x-abto-error-source');
   if (
     requestId === null

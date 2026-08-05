@@ -334,19 +334,19 @@ describe('ABTO OpenAI Gateway client', () => {
   it('falls back on an admission 503 but not on provider or transport failures', async () => {
     const scenarios = [
       {
-        headers: { 'x-request-id': 'req-admission' },
+        headers: { 'x-abto-request-id': 'req-admission' },
         expectedCalls: 2,
       },
       {
         headers: {
-          'x-request-id': 'req-provider',
+          'x-abto-request-id': 'req-provider',
           'x-abto-error-source': 'provider',
         },
         expectedCalls: 1,
       },
       {
         headers: {
-          'x-request-id': 'req-transport',
+          'x-abto-request-id': 'req-transport',
           'x-abto-error-source': 'transport',
         },
         expectedCalls: 1,

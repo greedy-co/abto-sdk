@@ -13,7 +13,7 @@
  *                 dot notation, e.g. "resume.make"; feature is the read-time prefix.
  *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
  *
- * request_id (PK, returned as `x-request-id`), tenant_id (from API key), and
+ * request_id (PK, returned as `x-abto-request-id`), tenant_id (from API key), and
  * variant_id (A/B assignment) are gateway-owned and are NOT sent by the SDK.
  */
 

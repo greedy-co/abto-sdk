@@ -265,7 +265,7 @@ describe('server context headers', () => {
         status: 503,
         headers: {
           'content-type': 'application/json',
-          'x-request-id': 'req-admission',
+          'x-abto-request-id': 'req-admission',
         },
       });
     });
