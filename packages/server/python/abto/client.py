@@ -230,7 +230,7 @@ def _direct_headers(headers: Mapping[str, str], openai_key: str) -> Dict[str, st
 
 
 def _safe_gateway_response(response: Any) -> bool:
-    request_id = response.headers.get("x-request-id")
+    request_id = response.headers.get("x-abto-request-id")
     error_source = response.headers.get("x-abto-error-source")
     if request_id is None and response.status_code in {502, 503, 504}:
         return True

@@ -504,17 +504,17 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
 @pytest.mark.parametrize(
     ("headers", "expected_direct_calls"),
     [
-        ({"x-request-id": "req-admission"}, 1),
+        ({"x-abto-request-id": "req-admission"}, 1),
         (
             {
-                "x-request-id": "req-provider",
+                "x-abto-request-id": "req-provider",
                 "x-abto-error-source": "provider",
             },
             0,
         ),
         (
             {
-                "x-request-id": "req-transport",
+                "x-abto-request-id": "req-transport",
                 "x-abto-error-source": "transport",
             },
             0,
