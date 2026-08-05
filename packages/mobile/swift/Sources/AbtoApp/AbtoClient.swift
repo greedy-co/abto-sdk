@@ -234,11 +234,11 @@ public final class AbtoLlmTrace {
         self.traceId = abtoUUIDv7TraceId()
     }
 
-    /// 게이트웨이 응답 헤더에서 x-request-id 를 읽어 이후 이벤트에 붙인다.
+    /// 게이트웨이 응답 헤더에서 x-abto-request-id 를 읽어 이후 이벤트에 붙인다.
     @discardableResult
     public func attachRequestId(fromHeaders headers: [AnyHashable: Any]) -> String? {
         for (key, value) in headers {
-            if let name = key as? String, name.lowercased() == "x-request-id", let id = value as? String, !id.isEmpty {
+            if let name = key as? String, name.lowercased() == "x-abto-request-id", let id = value as? String, !id.isEmpty {
                 requestId = id
                 return id
             }

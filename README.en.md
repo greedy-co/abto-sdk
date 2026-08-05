@@ -101,7 +101,7 @@ Add the repository as a Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.1.1"
+    from: "0.1.2"
 )
 ```
 
