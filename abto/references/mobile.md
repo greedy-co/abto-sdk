@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("app.abto:abto-app:0.1.2")
+    implementation("app.abto:abto-app:0.1.3")
 }
 ```
 

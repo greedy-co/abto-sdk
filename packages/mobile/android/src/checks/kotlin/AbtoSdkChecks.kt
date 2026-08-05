@@ -115,7 +115,7 @@ fun main() {
     val client = AbtoClient(AbtoConfig("ek_test"), AbtoInMemoryStore())
     val trace = client.startLlmTrace(nodeId = "smoke.demo")
     check(Regex("^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$").matches(trace.traceId), "trace_id uses UUIDv7 bits")
-    check(trace.attachRequestId(mapOf("X-Request-Id" to listOf("req_1"))) == "req_1", "attachRequestId reads header case-insensitively")
+    check(trace.attachRequestId(mapOf("X-Abto-Request-Id" to listOf("req_1"))) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")
 
     // collector per-event retry

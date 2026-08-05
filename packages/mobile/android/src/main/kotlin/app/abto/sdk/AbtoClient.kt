@@ -160,10 +160,10 @@ class AbtoLlmTrace internal constructor(
     var requestId: String? = null
         private set
 
-    /** 게이트웨이 응답 헤더(HttpURLConnection.headerFields 등)에서 x-request-id 를 읽어 붙인다. */
+    /** 게이트웨이 응답 헤더(HttpURLConnection.headerFields 등)에서 x-abto-request-id 를 읽어 붙인다. */
     fun attachRequestId(headers: Map<String?, List<String>>): String? {
         val id = headers.entries
-            .firstOrNull { it.key?.lowercase() == "x-request-id" }
+            .firstOrNull { it.key?.lowercase() == "x-abto-request-id" }
             ?.value?.firstOrNull { it.isNotEmpty() }
         if (id != null) requestId = id
         return id
