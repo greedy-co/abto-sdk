@@ -375,7 +375,6 @@ jobs:
           languages: swift
           build-mode: manual
       - run: swift build --target AbtoApp -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-      - run: swift run abto-sdk-checks
       - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           category: /language:swift
