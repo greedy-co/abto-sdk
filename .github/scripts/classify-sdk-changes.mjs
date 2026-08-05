@@ -12,6 +12,15 @@ const TARGET_PATHS = Object.freeze({
   swift: ['packages/mobile/swift/', 'Package.swift'],
 });
 
+const RELEASE_TAG_PATHS = Object.freeze([
+  ['event-js', 'packages/browser/javascript/package.json'],
+  ['calling-js', 'packages/server/javascript/package.json'],
+  ['calling-python', 'packages/server/python/pyproject.toml'],
+  ['dart', 'packages/mobile/dart/pubspec.yaml'],
+  ['android', 'packages/mobile/android/gradle.properties'],
+  ['swift', 'packages/mobile/swift/VERSION'],
+]);
+
 const ALL_CHANGE_PATHS = new Set([
   '.env.sdk-release.example',
   '.gitignore',
@@ -122,15 +131,37 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
   };
 }
 
+export function classifySdkReleaseTag(tag) {
+  const match = /^(event-js|calling-js|calling-python|dart|android|swift)-v(\d+\.\d+\.\d+)$/.exec(tag);
+  if (match) {
+    const path = RELEASE_TAG_PATHS.find(([target]) => target === match[1])?.[1];
+    return classifySdkChanges([path]);
+  }
+  if (/^v\d+\.\d+\.\d+$/.test(tag)) {
+    return classifySdkChanges(['packages/mobile/swift/VERSION']);
+  }
+  throw new Error(`unsupported SDK release tag ${tag}`);
+}
+
 if (basename(process.argv[1] ?? '') === 'classify-sdk-changes.mjs') {
   const args = process.argv.slice(2);
-  if (args.some((arg) => arg !== '--all')) {
-    console.error('usage: node scripts/classify-sdk-changes.mjs [--all] < changed-paths.txt');
+  const forceAll = args.length === 1 && args[0] === '--all';
+  const releaseTag = args.length === 2 && args[0] === '--release-tag' ? args[1] : null;
+  if (args.length > 0 && !forceAll && !releaseTag) {
+    console.error('usage: node scripts/classify-sdk-changes.mjs [--all | --release-tag TAG] < changed-paths.txt');
     process.exit(1);
   }
-  const flags = classifySdkChanges(readFileSync(0, 'utf8').split('\n'), {
-    forceAll: args.includes('--all'),
-  });
+  let flags;
+  try {
+    flags = releaseTag
+      ? classifySdkReleaseTag(releaseTag)
+      : classifySdkChanges(readFileSync(0, 'utf8').split('\n'), {
+        forceAll,
+      });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
   for (const [name, value] of Object.entries(flags)) {
     console.log(`${name}=${value}`);
   }

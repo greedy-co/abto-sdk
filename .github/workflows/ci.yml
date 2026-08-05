@@ -62,7 +62,10 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/heads/release-recovery/* ]]; then
             :
           elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            changed_paths=".github/workflows/ci.yml"
+            node .github/scripts/classify-sdk-changes.mjs \
+              --release-tag "${GITHUB_REF_NAME}" \
+              >> "${GITHUB_OUTPUT}"
+            exit 0
           else
             base_sha="${BASE_SHA}"
             if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]] \
@@ -352,7 +355,12 @@ jobs:
   codeql-swift:
     name: Analyze (swift)
     needs: changes
-    if: github.event_name == 'schedule' || needs.changes.outputs.swift == 'true'
+    if: >-
+      github.event_name == 'schedule'
+      || (
+        needs.changes.outputs.swift == 'true'
+        && !(github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
+      )
     runs-on: macos-15
     timeout-minutes: 20
     permissions:
