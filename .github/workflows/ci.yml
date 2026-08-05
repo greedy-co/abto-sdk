@@ -359,7 +359,7 @@ jobs:
       github.event_name == 'schedule'
       || (
         needs.changes.outputs.swift == 'true'
-        && !(github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
+        && github.ref_type != 'tag'
       )
     runs-on: macos-15
     timeout-minutes: 20
