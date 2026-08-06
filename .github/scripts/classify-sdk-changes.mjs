@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { basename, extname } from 'node:path';
 
 const DOCUMENTATION_EXTENSIONS = new Set(['.adoc', '.markdown', '.md', '.mdx', '.rst']);
+const AGENT_SKILL_PATHS = Object.freeze([
+  'packages/skills/abto/',
+  'abto/',
+]);
 
 const TARGET_PATHS = Object.freeze({
   'event-js': ['packages/browser/javascript/'],
@@ -126,7 +130,9 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
       || dart
       || android
       || swift
-      || normalizedPaths.some((path) => path.startsWith('abto/')),
+      || normalizedPaths.some((path) => (
+        AGENT_SKILL_PATHS.some((prefix) => path.startsWith(prefix))
+      )),
     public: normalizedPaths.some(affectsPublicMirror),
   };
 }
