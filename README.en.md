@@ -43,7 +43,7 @@ The ABTO Skill inspects your runtime and package manager, installs only the SDKs
 #### Codex
 
 ```bash
-npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto \
+npx --yes skills@latest add https://github.com/greedy-co/abto-sdk/tree/main/abto \
   --skill abto \
   --global \
   --agent codex \
@@ -54,7 +54,7 @@ npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto
 #### Claude Code
 
 ```bash
-npx --yes skills@1.5.20 add https://github.com/greedy-co/abto-sdk/tree/main/abto \
+npx --yes skills@latest add https://github.com/greedy-co/abto-sdk/tree/main/abto \
   --skill abto \
   --global \
   --agent claude-code \
