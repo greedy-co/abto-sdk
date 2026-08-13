@@ -49,21 +49,52 @@ Inspect the project, choose the smallest correct SDK set, preserve its existing 
   Do not add secrets to source files, examples, logs, screenshots, shell history, or committed environment files.
 - Stop and request the missing key or permission when a live integration cannot proceed safely.
 
-### 4. Install and wire
+### 4. Pause at the observability decision gates
+
+Treat a request to integrate ABTO as approval only for the basic integration:
+the selected SDK dependency, minimal root initialization, and configuration that follows the existing application conventions.
+It does not authorize a new `nodeKey`, custom event, event-schema change, or unrelated product-code change.
+
+Complete the applicable gates in order.
+Ask one question, stop, and wait for a direct reply before moving to the next gate.
+Do not collect nodeKey and event approval in one question.
+An existing explicit nodeKey or event remains unchanged unless the user asks to change it.
+
+1. **Basic integration**
+   - Install only the selected SDK and add its minimal initialization.
+   - Do not refactor product behavior, add custom capture, or change existing instrumentation merely to demonstrate ABTO.
+   - If the basic integration already exists, report that fact and begin at the applicable decision gate.
+2. **nodeKey gate** (Calling SDK only)
+   - After basic integration, inspect the model-call boundaries without editing them.
+   - Present one smallest candidate: the user-facing capability, exact code location, and proposed dot-separated `nodeKey`.
+   - If no safe candidate is identifiable, ask the user what capability to track, its purpose, and its code location. Then stop for the reply; do not select a model-call boundary yourself.
+   - Ask one focused question, such as: “I found `<capability>` at `<path>` and propose `<nodeKey>`. Should I set that key there?” Then stop for the reply.
+   - Do not add, rename, move, or infer a nodeKey from product terminology before confirmation.
+3. **Event gate** (Event SDK only)
+   - For an integration with both SDKs, begin this gate only after the nodeKey gate is settled.
+     For an Event-only integration, begin it after basic integration.
+   - Ask whether a user-observed outcome needs a custom event at all; do not assume that one is required.
+   - If an event may be useful, present one candidate event name, trigger location, approved properties, and privacy impact.
+   - If no safe outcome or trigger is identifiable, ask the user what outcome to track, why it matters, and where it occurs. Then stop for the reply; do not invent an event candidate.
+   - Ask one separate question, such as: “Should I capture `<event>` at `<path>` with these properties?” Then stop for the reply.
+   - Do not invent a conversion event, add `capture` calls, or change an event schema before confirmation.
+   - If the user declines or leaves the decision open, keep the basic integration intact and report the event as a user-owned follow-up.
+
+### 5. Install and wire
 
 - Use the chosen runtime reference for the package coordinate and initialization API.
 - Initialize an Event SDK once at the client application root.
-- Wrap each server request in ABTO request context with a stable `deviceId`, a dot-separated `nodeKey`, and a trace identifier.
+- Add a confirmed nodeKey to each selected server request context with a stable `deviceId` and trace identifier.
 - Pass the same device identifier from the client to the server when the product links user behavior to model calls.
-- Capture the Gateway `x-abto-request-id` and attach it to the related client outcome.
-- Keep custom event names in the product's domain language. Do not create names beginning with `$`.
+- Only when the user has confirmed the related client outcome event, capture the Gateway `x-abto-request-id` and attach it at that event's approved trigger location.
+- Add a confirmed custom event only at its approved trigger location; keep its name in the product's domain language and never begin it with `$`.
 - Retain safe privacy defaults.
   Do not enable full prompt, response, DOM text, or input capture unless the user has explicitly approved the data policy.
 
-### 5. Verify and report
+### 6. Verify and report
 
 - Run the project's typecheck, build, lint, and tests affected by the integration.
 - Check the diff for client/server boundary violations and accidentally committed credentials.
 - Run one bounded live event or model-call check only when the required credentials, environment, and any paid call are authorized.
 - Confirm the expected ABTO receiving surface, not merely a successful local build.
-- Report the selected SDKs, changed files, commands run, observed ABTO result, and any remaining user-owned step.
+- Report the selected SDKs, each completed or pending decision gate, changed files, commands run, observed ABTO result, and any remaining user-owned step.

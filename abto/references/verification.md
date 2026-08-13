@@ -22,7 +22,8 @@ Also verify:
 - No custom event or property name starts with `$`.
 - Event payloads do not include unapproved prompt, response, DOM text, form values, or secrets.
 - The client device identifier reaches the corresponding server context.
-- The Gateway `x-abto-request-id` reaches the related client outcome.
+- When a related client outcome event is approved, the Gateway `x-abto-request-id` reaches that event at its approved trigger location.
+- Every new nodeKey and custom event has an explicit user confirmation for its exact name and code location.
 
 Inspect the final diff and repository status without printing secret values.
 
@@ -42,7 +43,7 @@ Run a live check only when the user has authorized the target environment, crede
 1. Send one minimal, low-cost request through the ABTO Gateway.
 2. Confirm a successful response and a non-empty `x-abto-request-id`.
 3. Confirm the request under the intended ABTO project.
-4. If a client outcome exists, attach the same request identifier and confirm correlation.
+4. If an approved client outcome event exists, attach the same request identifier at its approved trigger location and confirm correlation.
 
 Do not treat a local `2xx` from the product backend as proof that ABTO received data.
 Do not send production traffic merely to complete a check.
