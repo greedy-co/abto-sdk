@@ -91,7 +91,7 @@ npx --yes skills@latest add https://github.com/greedy-co/abto-sdk/tree/main/abto
 | 런타임 | 패키지 | 설치 | 배포 |
 | --- | --- | --- | --- |
 | Flutter / Dart | [`abto`](./packages/mobile/dart) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
-| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.3")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.3) |
+| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.4")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.4) |
 | iOS / macOS | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
 
 Android 패키지는 `android.*` 의존성이 없는 순수 Kotlin/JVM JAR입니다. Android 앱에서는 기존 `SharedPreferences`를 `AbtoKeyValueStore`로 연결해 사용합니다.

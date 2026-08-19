@@ -68,7 +68,7 @@ val mavenPublication = publishing.publications.create<MavenPublication>("maven")
     pom {
         name.set("ABTO SDK for Android and Kotlin/JVM")
         description.set("ABTO analytics SDK for user behavior and LLM cost, latency, and quality attribution.")
-        url.set("https://github.com/greedy-co/abto-sdk")
+        url.set("https://docs.abto.app/sdk/android/")
 
         licenses {
             license {
