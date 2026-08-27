@@ -56,7 +56,8 @@ If a change cannot be tied to an approved customer outcome, do not make it.
   Never import a Server SDK into a client bundle or install multiple SDKs for the same runtime responsibility.
 - Prefer an existing configuration or provider-client module.
   Create one small ABTO initialization module only when no suitable module exists; do not create demonstrations, sample endpoints, generic wrappers, or future-facing abstractions.
-- For a new Browser integration, use the released package's no-automatic-event initialization from the Browser reference.
+- For a new Browser integration, install or update to a compatible released package whose omitted `autocapture` setting emits no events, then use the Browser reference's minimal initialization without an `autocapture` flag.
+  Do not add `autocapture: { enabled: false }` once that fixed contract is available, and never enable broad automatic collection for a new integration.
   Preserve and disclose any existing automatic event collection behavior instead of changing live collection behavior silently.
 - Use the Event SDK identity and trace helpers without emitting events.
   Starting a trace or reading trace headers does not authorize `submitPrompt`, `markResponseRendered`, `captureResponseInteraction`, or a custom `capture` call.
@@ -77,6 +78,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - Verify the core first, then inspect every confirmed client runtime for meaningful user actions and product outcomes around the approved capabilities.
 - Find broadly, deduplicate aggressively, and present evidence-backed system and custom event candidates using [Discovery and reporting](references/discovery-and-reporting.md).
 - Offer only explicit trace-helper or custom-capture candidates; do not offer automatic DOM collection.
+  The customer must select the exact event and the product trigger where its direct SDK call will be added.
   Preserve and disclose any existing automatic collection behavior.
 - Treat no events as the default.
   Ask one batch question that allows multiple candidate IDs or `none`, then stop before editing.

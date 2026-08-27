@@ -25,7 +25,7 @@ Do not switch package managers or create a second lockfile.
 
 ## Initialize the minimal core
 
-For a new integration, initialize once at the client application root with automatic event collection disabled:
+For a new integration on a compatible current release, initialize once at the client application root and omit `autocapture` entirely:
 
 ```ts
 import { initAbto } from "@abto-app/event";
@@ -34,12 +34,17 @@ export const abto = initAbto({
   projectKey: publicEventKey,
   apiHost: "https://api.abto.app",
   environment: isProduction ? "production" : "development",
-  autocapture: { enabled: false },
 });
 ```
 
+The omitted setting is the no-automatic-event contract.
+Initialization must not enqueue page, route, or DOM events.
 This core provides persistent client identity and trace headers without defining a custom event.
 Do not create an empty event registry merely to initialize the SDK.
+
+Verify that the installed public package exposes this omitted-setting contract.
+If an older installed release enables autocapture when omitted, update only `@abto-app/event` to the smallest compatible fixed public release with the customer's existing package manager and lockfile, then re-verify the empty outbox behavior.
+Do not retain an unnecessary `autocapture: { enabled: false }` compatibility guard after the update.
 
 Resolve `publicEventKey` through the framework's existing public configuration mechanism.
 For example, use `NEXT_PUBLIC_` only in Next.js or `VITE_` only in Vite.
@@ -139,6 +144,7 @@ Use `forgetDevice()` only for a user-requested local data reset.
 ## Privacy defaults
 
 - Keep prompt and response capture at `metadata_only` for every selected system event.
+- Do not enable autocapture for a new integration; instrument only customer-selected events with direct SDK calls.
 - Keep DOM and input masking enabled for any existing automatic collection.
 - Preserve `data-abto-no-capture` and `data-abto-sensitive` in an existing integration.
 - Treat `data-abto-include` and full content capture as explicit policy changes requiring user approval.

@@ -76,11 +76,11 @@ The SDK's role and key boundary depend on where it runs. Use an **Event SDK** in
 
 ### Browser SDK
 
-Capture page interactions, navigation, and custom events. Put only an Event Key in the browser bundle—never a Calling Key or provider key.
+Capture only the browser events the customer chooses to instrument directly. Automatic page and DOM collection is off by default and must be explicitly selected. Put only an Event Key in the browser bundle—never a Calling Key or provider key.
 
 | Runtime | Responsibility | Install | Distribution |
 | --- | --- | --- | --- |
-| Browser JavaScript | Events and autocapture | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
+| Browser JavaScript | Explicit events and opt-in autocapture | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
 
 See [`@abto-app/event`](./packages/browser/javascript) for package documentation and usage.
 
@@ -143,7 +143,7 @@ The Gateway is the source of truth for provider execution, token usage, cost, la
 | Calling Key (`ck-abto-…`) | Never | Server-to-Gateway authentication |
 | Provider key | Never | Upstream provider authentication |
 
-Keep Calling Keys and provider keys in server-side secret storage only. The Browser Event SDK's default privacy settings keep prompt and response capture at metadata level and mask DOM text and input values. Enable full content capture only after reviewing the data policy and approving it explicitly.
+Keep Calling Keys and provider keys in server-side secret storage only. Browser Event SDK initialization emits no events; the default is to call only customer-selected events directly. Prompt and response capture stays at metadata level, while DOM text and input values are masked. Enable full content or automatic page and DOM collection only after reviewing the data policy and approving it explicitly.
 
 ## Repository layout and releases
 

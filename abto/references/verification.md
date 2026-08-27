@@ -37,7 +37,8 @@ Also verify:
 - If the repository already manages a lockfile for the selected package manager, update that lockfile.
 - Do not introduce a new lockfile convention only for the ABTO integration.
 - One initialization exists per application runtime.
-- A new Browser Core initialization cannot emit automatic events before Event approval.
+- A new Browser Core uses a compatible public SDK, omits the `autocapture` setting, and emits no automatic events before Event approval.
+- A fixed Browser SDK integration does not retain an unnecessary `autocapture: { enabled: false }` compatibility guard.
 - An existing Browser initialization retains and reports its previous automatic event collection behavior.
 - Client bundles contain only an Event Key.
 - Calling Keys and provider keys resolve only from server secret storage.
@@ -49,6 +50,7 @@ Also verify:
 - A selected system event uses only its approved trigger and metadata.
 - A response-interaction system event uses only a canonical value exposed by the installed SDK.
 - A selected custom event has an explicit schema and only its approved capture locations.
+- Every new event call names the user-selected candidate ID and exact product trigger; no automatic DOM collection substitutes for that call.
 - When no event is selected, the diff contains no event schema, `capture` call, AI system-event call, or request-ID bridge.
 - When a related supported event is selected, the Gateway `x-abto-request-id` reaches only that approved trigger location.
 - Customer dependency directories, generated vendor code, and lockfile-resolved package contents remain unpatched.

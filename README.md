@@ -76,11 +76,11 @@ npx --yes skills@latest add https://github.com/greedy-co/abto-sdk/tree/main/abto
 
 ### 브라우저용 SDK
 
-웹 페이지의 클릭·탐색·사용자 지정 이벤트를 수집합니다. 브라우저 번들에는 Event Key만 넣고, Calling Key와 provider key는 넣지 마세요.
+고객사가 선택해 직접 기록한 브라우저 이벤트를 수집합니다. 자동 페이지·DOM 수집은 기본으로 꺼져 있으며 명시적으로 선택한 경우에만 켭니다. 브라우저 번들에는 Event Key만 넣고, Calling Key와 provider key는 넣지 마세요.
 
 | 런타임 | 역할 | 설치 | 배포 |
 | --- | --- | --- | --- |
-| Browser JavaScript | 이벤트·자동 수집 | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
+| Browser JavaScript | 명시적 이벤트·opt-in 자동 수집 | `npm install @abto-app/event` | [![npm version](https://img.shields.io/npm/v/@abto-app/event?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/event) |
 
 패키지와 사용법은 [`@abto-app/event`](./packages/browser/javascript)에서 확인할 수 있습니다.
 
@@ -143,7 +143,7 @@ Gateway는 provider 실행, token 사용량, 비용, 지연, 재시도, variant 
 | Calling Key (`ck-abto-…`) | 금지 | 서버의 Gateway 인증 |
 | Provider key | 금지 | upstream provider 인증 |
 
-Calling Key와 provider key는 서버의 비밀 저장소에만 보관하세요. Browser Event SDK의 기본 privacy 설정은 prompt·response를 메타데이터 수준으로 다루며, DOM 텍스트와 입력값은 마스킹합니다. 전체 콘텐츠 수집은 데이터 정책을 검토하고 명시적으로 승인한 경우에만 활성화하세요.
+Calling Key와 provider key는 서버의 비밀 저장소에만 보관하세요. Browser Event SDK는 초기화만으로 이벤트를 만들지 않으며, 고객사가 선택한 이벤트를 직접 호출하는 것이 기본입니다. prompt·response는 메타데이터 수준으로 다루고 DOM 텍스트와 입력값은 마스킹합니다. 전체 콘텐츠나 자동 페이지·DOM 수집은 데이터 정책을 검토하고 명시적으로 승인한 경우에만 활성화하세요.
 
 ## 저장소 구조와 릴리스
 
