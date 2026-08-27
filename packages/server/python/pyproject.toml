@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "abto"
-version = "0.1.4"
+version = "0.1.5"
 description = "ABTO server-side SDK for Python — gateway baseURL + x-abto-* header injection via contextvars and httpx event hooks."
 readme = "README.md"
 requires-python = ">=3.9"

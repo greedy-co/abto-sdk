@@ -37,7 +37,7 @@ _PROVIDERS = ("openai", "anthropic", "gemini")
 
 @dataclass(frozen=True)
 class OpenAIDirectFallbackOptions:
-    """안전하게 판별 가능한 Gateway 장애의 OpenAI direct fallback 설정."""
+    """Configure OpenAI direct fallback for safely identifiable Gateway failures."""
 
     enabled: Optional[bool] = None
     max_retries: int = 2
