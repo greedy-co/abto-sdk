@@ -27,8 +27,8 @@ package func abtoRetryEligible(
     attempts < 3 && now.timeIntervalSince(firstQueuedAt) < 5 * 60
 }
 
-/// 배치 전송 — 큐에 쌓고 batchSize/타이머로 flush 한다.
-/// 텔레메트리 실패가 호스트 앱을 막지 않도록 절대 throw 하지 않는다 (브라우저 SDK 와 동일 계약).
+/// Batch transport that queues events and flushes on `batchSize` or a timer.
+/// Never throws, so telemetry failures cannot block the host app, matching the Browser SDK contract.
 // Mutable state is confined to `queue`; immutable event payloads cross the
 // queue boundary as Data rather than `[String: Any]`.
 final class AbtoTransport: @unchecked Sendable {
@@ -151,7 +151,7 @@ final class AbtoTransport: @unchecked Sendable {
                 abtoRetryEligible(attempts: $0.attempts, firstQueuedAt: $0.firstQueuedAt, now: now)
             }
             if !eligible.isEmpty {
-                // 죽은 endpoint 가 메모리를 무한히 키우지 않게 버퍼를 제한한다.
+                // Cap the buffer so a dead endpoint cannot grow memory without bound.
                 self.buffer = Array((eligible + self.buffer).prefix(Self.maxBuffer))
                 let attempt = eligible.map(\.attempts).max() ?? 1
                 let exponential = min(60.0, self.config.flushInterval * pow(2.0, Double(attempt - 1)))

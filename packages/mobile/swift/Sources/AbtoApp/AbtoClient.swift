@@ -99,19 +99,18 @@ package func abtoResponseProperties(
     return properties
 }
 
-/// iOS/macOS 용 ABTO SDK 진입점.
-/// 브라우저 SDK(packages/browser/javascript)와 동일한 이벤트 계약을 따른다:
-/// Analytics 수신 계약(event_id·device_id·event_name·occurred_at·extra_json)으로
-/// POST {"batch": […]} 한다.
+/// ABTO SDK entry point for iOS/macOS.
+/// Uses the same event contract as the Browser SDK and posts `{"batch": […]}`
+/// to the Analytics ingestion contract: event_id, device_id, event_name, occurred_at, and extra_json.
 public final class AbtoClient {
     public let config: AbtoConfig
     private let context: AbtoContext
     private let transport: AbtoTransport
 
-    /// Analytics와 Gateway의 `x-abto-device-id`에 함께 써야 하는 attribution 축.
+    /// Attribution axis shared by Analytics and the Gateway's `x-abto-device-id`.
     public var deviceId: String { context.anonymousId }
 
-    /// 현재 SDK client 생명주기의 session 식별자.
+    /// Session identifier for the current SDK client lifecycle.
     public var sessionId: String { context.sessionId }
 
     public init(config: AbtoConfig, store: AbtoKeyValueStore = AbtoUserDefaultsStore()) {
@@ -141,7 +140,7 @@ public final class AbtoClient {
         context.reset()
     }
 
-    /// 수동 event 전송 — LLM call 이전 행동 트래킹의 기본 경로.
+    /// Manual event delivery, the default path for tracking behavior before an LLM call.
     @discardableResult
     public func capture(
         _ event: String,
@@ -216,7 +215,7 @@ public final class AbtoClient {
     }
 }
 
-/// LLM 호출 한 건의 생애주기 — trace_id 로 이전 행동을, request_id 로 게이트웨이 비용/latency 를 조인한다.
+/// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
 public final class AbtoLlmTrace {
     public let traceId: String
     public let nodeId: String
@@ -234,7 +233,7 @@ public final class AbtoLlmTrace {
         self.traceId = abtoUUIDv7TraceId()
     }
 
-    /// 게이트웨이 응답 헤더에서 x-abto-request-id 를 읽어 이후 이벤트에 붙인다.
+    /// Reads x-abto-request-id from Gateway response headers and attaches it to later events.
     @discardableResult
     public func attachRequestId(fromHeaders headers: [AnyHashable: Any]) -> String? {
         for (key, value) in headers {

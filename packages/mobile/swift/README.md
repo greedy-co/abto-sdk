@@ -15,7 +15,7 @@ https://github.com/greedy-co/abto-sdk
 다른 Swift package에서는 dependency를 직접 추가한다.
 
 ```swift
-.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.1.2")
+.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.1.3")
 ```
 
 공개 mirror 저장소는 루트 `Package.swift`와 Swift 릴리스용 `vX.Y.Z` 태그를 함께 제공한다.

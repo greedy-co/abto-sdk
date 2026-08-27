@@ -26,7 +26,7 @@ func abtoTimestamp() -> String {
     return formatter.string(from: Date())
 }
 
-/// anonymous_id 영속화 지점 — 기본은 UserDefaults, 테스트에선 인메모리로 주입한다.
+/// Persistence boundary for `anonymous_id`. Defaults to UserDefaults; tests inject an in-memory store.
 public protocol AbtoKeyValueStore {
     func string(forKey key: String) -> String?
     func setString(_ value: String, forKey key: String)
@@ -52,7 +52,7 @@ public final class AbtoInMemoryStore: AbtoKeyValueStore {
     public func setString(_ value: String, forKey key: String) { values[key] = value }
 }
 
-/// 식별자 컨텍스트 — 이벤트 공통 필드(anonymous_id·session_id·user_id·tenant_id)를 관리한다.
+/// Identity context that manages shared event fields: anonymous_id, session_id, user_id, and tenant_id.
 public final class AbtoContext {
     private static let anonymousIdKey = "abto_anonymous_id"
 
