@@ -22,8 +22,8 @@ String uuidV7TraceId() => uuidV7().replaceAll('-', '');
 
 String isoTimestamp() => DateTime.now().toUtc().toIso8601String();
 
-/// anonymous_id 영속화 지점 — Flutter 에선 shared_preferences 어댑터를 끼우고,
-/// 테스트에선 인메모리 구현을 쓴다 (README 참고).
+/// Persistence boundary for `anonymous_id`.
+/// Flutter apps can supply a `shared_preferences` adapter; tests use an in-memory implementation.
 abstract class AbtoKeyValueStore {
   String? get(String key);
   void set(String key, String value);
@@ -39,7 +39,7 @@ class AbtoInMemoryStore implements AbtoKeyValueStore {
   void set(String key, String value) => _values[key] = value;
 }
 
-/// 식별자 컨텍스트 — 이벤트 공통 필드(anonymous_id·session_id·user_id·tenant_id)를 관리한다.
+/// Identity context that manages shared event fields: anonymous_id, session_id, user_id, and tenant_id.
 class AbtoContext {
   AbtoContext(this._store) {
     final existing = _store.get(_anonymousIdKey);

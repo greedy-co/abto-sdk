@@ -47,10 +47,9 @@ String? abtoEventNameIssue(String event, {bool allowSystemEvent = false}) {
   return null;
 }
 
-/// Flutter/Dart 용 ABTO SDK 진입점.
-/// 브라우저 SDK(packages/browser/javascript)와 동일한 이벤트 계약을 따른다:
-/// Analytics 수신 계약(event_id·device_id·event_name·occurred_at·extra_json)으로
-/// POST {"batch": […]} 한다.
+/// ABTO SDK entry point for Flutter/Dart.
+/// Uses the same event contract as the Browser SDK and posts `{"batch": […]}`
+/// to the Analytics ingestion contract: event_id, device_id, event_name, occurred_at, and extra_json.
 class AbtoClient {
   AbtoClient(this.config, {AbtoKeyValueStore? store})
       : _context = AbtoContext(store ?? AbtoInMemoryStore()),
@@ -60,10 +59,10 @@ class AbtoClient {
   final AbtoContext _context;
   final AbtoTransport _transport;
 
-  /// Analytics와 Gateway의 `x-abto-device-id`에 함께 써야 하는 attribution 축.
+  /// Attribution axis shared by Analytics and the Gateway's `x-abto-device-id`.
   String get deviceId => _context.anonymousId;
 
-  /// 현재 SDK client 생명주기의 session 식별자.
+  /// Session identifier for the current SDK client lifecycle.
   String get sessionId => _context.sessionId;
 
   void identify(String userId, [String? tenantId]) =>
@@ -71,7 +70,7 @@ class AbtoClient {
 
   void reset() => _context.reset();
 
-  /// 수동 event 전송 — LLM call 이전 행동 트래킹의 기본 경로.
+  /// Manual event delivery, the default path for tracking behavior before an LLM call.
   bool capture(
     String event, {
     Map<String, Object?> properties = const {},
@@ -115,7 +114,7 @@ class AbtoClient {
       allowSystemEvent: allowSystemEvent,
     );
     if (eventNameIssue != null) {
-      // ignore: avoid_print — 잘못된 event_name을 전송하지 않았다는 의도된 진단 출력.
+      // ignore: avoid_print — intentionally reports that an invalid event_name was not sent.
       print('[abto] event was dropped: $eventNameIssue.');
       return false;
     }
@@ -152,7 +151,7 @@ class AbtoClient {
       },
     };
     if (config.debug) {
-      // ignore: avoid_print — debug 모드의 의도된 진단 출력.
+      // ignore: avoid_print — intentional diagnostic output in debug mode.
       print('[abto] $event $captured');
     }
     _transport.enqueue(captured);
@@ -166,7 +165,7 @@ class AbtoClient {
   Future<void> flush() => _transport.flush();
 }
 
-/// LLM 호출 한 건의 생애주기 — trace_id 로 이전 행동을, request_id 로 게이트웨이 비용/latency 를 조인한다.
+/// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
 class AbtoLlmTrace {
   AbtoLlmTrace._(this._client, this.nodeId, this._taskType, this._surface)
       : traceId = uuidV7TraceId();
@@ -178,7 +177,7 @@ class AbtoLlmTrace {
   final String traceId;
   String? requestId;
 
-  /// 게이트웨이 응답 헤더에서 x-abto-request-id 를 읽어 이후 이벤트에 붙인다.
+  /// Reads x-abto-request-id from Gateway response headers and attaches it to later events.
   String? attachRequestIdFromHeaders(Map<String, Object?> headers) {
     for (final entry in headers.entries) {
       if (entry.key.toLowerCase() == 'x-abto-request-id') {

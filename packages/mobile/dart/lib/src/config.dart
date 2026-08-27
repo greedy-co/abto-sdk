@@ -32,7 +32,7 @@ class AbtoConfig {
       throw AbtoInitException('[abto] batchSize must be between 1 and 100.');
     }
     final raw = endpoint ?? 'https://api.abto.app/v1/collect/events';
-    // fetch 가능한 endpoint 여야 하므로 http(s) 만 허용한다 (브라우저 SDK 와 동일한 검증).
+    // Allow only HTTP(S) endpoints, matching Browser SDK validation.
     final parsed = Uri.tryParse(raw);
     if (parsed == null ||
         (parsed.scheme != 'http' && parsed.scheme != 'https') ||

@@ -1,4 +1,4 @@
-/// ABTO SDK for Flutter/Dart — 브라우저 SDK(packages/browser/javascript)와 동일한 이벤트 계약.
+/// ABTO SDK for Flutter/Dart with the same event contract as the Browser SDK.
 library abto;
 
 export 'src/config.dart';

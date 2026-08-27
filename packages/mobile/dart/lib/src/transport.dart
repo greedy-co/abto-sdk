@@ -5,8 +5,8 @@ import 'dart:math';
 
 import 'config.dart';
 
-/// 배치 전송 — 큐에 쌓고 batchSize/타이머로 flush 한다.
-/// 텔레메트리 실패가 호스트 앱을 막지 않도록 절대 throw 하지 않는다 (브라우저 SDK 와 동일 계약).
+/// Batch transport that queues events and flushes on `batchSize` or a timer.
+/// Never throws, so telemetry failures cannot block the host app, matching the Browser SDK contract.
 class AbtoTransport {
   AbtoTransport(this._config);
 
@@ -31,7 +31,7 @@ class AbtoTransport {
   }
 
   Future<void> flush() {
-    // 전송 순서를 지키기 위해 flush 를 직렬화한다.
+    // Serialize flushes to preserve delivery order.
     _inFlight = _inFlight.then((_) => _drainAndSend());
     return _inFlight;
   }
@@ -57,7 +57,7 @@ class AbtoTransport {
         request.headers.contentType =
             ContentType('application', 'json', charset: 'utf-8');
         request.headers.set('authorization', 'Bearer ${_config.projectKey}');
-        // write() 는 기본 Latin-1 인코딩이라 한글 payload 가 깨진다 — UTF-8 바이트로 직접 보낸다.
+        // `write()` defaults to Latin-1, which corrupts non-ASCII payloads; send UTF-8 bytes directly.
         request.add(utf8.encode(jsonEncode({'batch': events})));
         final response = await request.close();
         final responseBody = await _readBoundedResponse(response);
@@ -83,7 +83,7 @@ class AbtoTransport {
             now.difference(queued.firstQueuedAt) < _maxEventAge)
         .toList();
     if (retryBatch.isNotEmpty) {
-      // 죽은 endpoint 가 메모리를 무한히 키우지 않게 버퍼를 제한한다.
+      // Cap the buffer so a dead endpoint cannot grow memory without bound.
       _buffer.insertAll(0, retryBatch);
       if (_buffer.length > _maxBuffer) {
         _buffer.removeRange(_maxBuffer, _buffer.length);
