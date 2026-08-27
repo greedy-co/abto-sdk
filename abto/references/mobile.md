@@ -69,17 +69,22 @@ Use the SDK's default `UserDefaults` identity store or provide the application's
 
 ## Common event flow
 
+Use the SDK identity and trace headers without capturing an event during Core wiring.
+Add the event-producing steps below only after the user selects their exact candidates:
+
 ```text
 identify user
-→ capture product event
 → start LLM trace
 → send device_id and trace headers to the backend
-→ attach Gateway x-abto-request-id
-→ capture the visible response and user outcome
-→ flush during a lifecycle-safe background opportunity
+→ optionally attach Gateway x-abto-request-id for a selected supported event
+→ optionally capture the selected visible response or product outcome
+→ flush selected events during a lifecycle-safe background opportunity
 ```
 
 Use the SDK's `deviceId` as the Gateway `x-abto-device-id`.
 Do not generate a separate server device identifier for the same app installation.
+Do not create a placeholder product event merely to demonstrate the SDK.
+Use `captureOutcome` only for the canonical interaction values exposed by the installed package: `copied`, `inserted`, `accepted`, `rejected`, `shared`, `downloaded`, `expanded`, `collapsed`, `rated_positive`, `rated_negative`, `regenerated`, and `aborted`.
+When a product action has no exact match, propose a selected custom event instead of passing an arbitrary string.
 Use platform lifecycle hooks that already exist in the application.
 Do not block the UI thread while flushing.

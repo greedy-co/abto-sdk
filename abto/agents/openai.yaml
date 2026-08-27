@@ -1,4 +1,4 @@
 interface:
   display_name: "ABTO SDK"
-  short_description: "Install and connect the right ABTO SDK"
-  default_prompt: "Use $abto to inspect this project, install the correct ABTO SDK, configure it safely, and verify the integration."
+  short_description: "Map repos, wire LLM calls, and select events"
+  default_prompt: "Use $abto to map the frontend and backend repositories, inventory LLM call sites for approval, wire the selected ABTO core, and let me choose events."

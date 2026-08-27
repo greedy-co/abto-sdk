@@ -1,5 +1,23 @@
 # Verification
 
+## Approval and coverage gates
+
+Before checking builds, verify the interaction record:
+
+- The user confirmed the exact repository/runtime map before the first file edit.
+- Every model-call search hit is represented in the LLM inventory or documented as a non-runtime false positive.
+- Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, or `user-excluded`.
+- Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `nodeKey`.
+- Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
+- No incompatible or ambiguous API was silently converted into OpenAI Chat Completions.
+- Every event-related edit maps to a user-selected event candidate ID and exact trigger.
+- Every ABTO-specific uncertainty is resolved through the official [ABTO Docs](https://docs.abto.app/) or remains explicitly unresolved without a guessed implementation.
+- Every version-specific API used after a documentation lookup is verified against the customer's installed public package, types, and public source; any conflict is classified instead of hidden in generated glue.
+- Every `blocked-sdk-defect` entry records the installed public package and version, released contract, sanitized reproduction, expected behavior, and actual behavior.
+- Editing an upstream SDK repository or adding a temporary customer workaround has separate explicit approval.
+
+Do not claim full LLM coverage while an unexplained hit or candidate remains.
+
 ## Local gates
 
 Run the repository's existing gates for every changed runtime:
@@ -17,15 +35,27 @@ Also verify:
 - If the repository already manages a lockfile for the selected package manager, update that lockfile.
 - Do not introduce a new lockfile convention only for the ABTO integration.
 - One initialization exists per application runtime.
+- A new Browser Core initialization cannot emit automatic events before Event approval.
+- An existing Browser initialization retains and reports its previous automatic event collection behavior.
 - Client bundles contain only an Event Key.
 - Calling Keys and provider keys resolve only from server secret storage.
+- The exact client device identifier reaches the corresponding server context and approved Gateway call.
+- Client-supplied identity and trace values pass through existing request validation.
+- No new server identity or per-request random device identifier replaces an available client device identifier.
 - No custom event or property name starts with `$`.
 - Event payloads do not include unapproved prompt, response, DOM text, form values, or secrets.
-- The client device identifier reaches the corresponding server context.
-- When a related client outcome event is approved, the Gateway `x-abto-request-id` reaches that event at its approved trigger location.
-- Every new nodeKey and custom event has an explicit user confirmation for its exact name and code location.
+- A selected system event uses only its approved trigger and metadata.
+- A response-interaction system event uses only a canonical value exposed by the installed SDK.
+- A selected custom event has an explicit schema and only its approved capture locations.
+- When no event is selected, the diff contains no event schema, `capture` call, AI system-event call, or request-ID bridge.
+- When a related supported event is selected, the Gateway `x-abto-request-id` reaches only that approved trigger location.
+- Customer dependency directories, generated vendor code, and lockfile-resolved package contents remain unpatched.
+- Customer repositories contain no new test scaffold created only to prove an SDK defect.
+- An authorized upstream SDK correction includes the smallest SDK-owned regression check that reproduces the defect and passes the affected package's existing gates.
+- A temporary customer workaround exists only with explicit approval, an isolated location, affected version range, defect ID, and removal condition.
 
 Inspect the final diff and repository status without printing secret values.
+Classify every changed file as `Core` or `Event <candidate ID>` and remove any unclassified demonstration, placeholder, wrapper, endpoint, abstraction, refactor, initialization, dependency, or lockfile.
 
 ## Bounded live check
 
@@ -33,28 +63,34 @@ Run a live check only when the user has authorized the target environment, crede
 
 ### Event plane
 
-1. Use a unique, valid custom event already declared by the product.
-2. Capture the event with a non-sensitive test identifier.
-3. Flush the SDK.
-4. Confirm that ABTO accepted the event and that it appears under the intended project and environment.
+Run this check only when the user selected an event:
+
+1. Trigger one selected event with a non-sensitive test identifier.
+2. Flush the SDK when the runtime requires it.
+3. Confirm that ABTO accepted the event and that it appears under the intended project and environment.
+4. For a selected request-correlated system event, confirm the approved `request_id` link.
 
 ### Calling plane
 
-1. Send one minimal, low-cost request through the ABTO Gateway.
+1. Send one minimal, low-cost approved Chat Completions request through the ABTO Gateway.
 2. Confirm a successful response and a non-empty `x-abto-request-id`.
 3. Confirm the request under the intended ABTO project.
-4. If an approved client outcome event exists, attach the same request identifier at its approved trigger location and confirm correlation.
 
 Do not treat a local `2xx` from the product backend as proof that ABTO received data.
 Do not send production traffic merely to complete a check.
 
 ## Report
 
+Use exactly the three headings defined in [Discovery and reporting](discovery-and-reporting.md).
 State:
 
-- Selected SDKs and why each was selected.
-- Package versions and configuration files changed.
-- Local verification commands and results.
-- Live event or request identifier without revealing credentials.
-- The ABTO receiving surface checked.
-- Any live check skipped because credentials, cost authorization, or environment access was unavailable.
+- The confirmed repository map and selected SDKs.
+- The complete LLM inventory with final status for every candidate.
+- Core files and behavior changed, local commands, and results.
+- Event candidates, selected or declined IDs, Event files changed, and privacy impact.
+- A Core-versus-Event change ledger.
+- A Mermaid diagram using the actual device, trace, Gateway, provider, and selected event paths.
+- The resolved direct-fallback setting and any provider path without Gateway policy, ABTO telemetry, or `request_id`.
+- The observed ABTO receiving surface or the exact reason a live check was skipped.
+- The exact official ABTO Docs page and installed package coordinate and version used for any resolved knowledge gap.
+- Each SDK defect's classification, public version, customer impact, upstream or workaround changes, release state, and re-verification result.

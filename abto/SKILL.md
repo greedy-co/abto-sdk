@@ -1,100 +1,105 @@
 ---
 name: abto
-description: Integrate and verify ABTO across browser JavaScript, Node.js, Python, Flutter/Dart, Android/Kotlin, and iOS/macOS. Use when selecting, installing, updating, or troubleshooting an ABTO Browser, App, or Server SDK; setting up event collection or Gateway calling; configuring Event or Calling Keys; linking device_id, trace_id, and request_id; or checking that data reaches the expected ABTO surface.
+description: Map frontend and backend repository boundaries, inventory LLM API call sites for approval, install and wire the minimum ABTO Browser, App, or Server SDKs, preserve device_id and trace correlation, recommend opt-in system or custom events, and verify the resulting ABTO integration. Use for ABTO setup, updates, troubleshooting, Gateway calling, event collection, key placement, or end-to-end integration checks across browser JavaScript, Node.js, Python, Flutter/Dart, Android/Kotlin, and iOS/macOS.
 ---
 
 # ABTO
 
 Use this as the single public ABTO integration skill.
-Inspect the project, choose the smallest correct SDK set, preserve its existing conventions, configure credentials at the correct security boundary, and verify the integration from the application to the expected ABTO surface.
+Map the application before editing, obtain approval for exact model-call targets, wire only the smallest required core, and leave every event opt-in.
+Deliver the smallest integration that unlocks the customer's selected ABTO outcomes while preserving existing product behavior.
+When multiple designs provide the same ABTO value, choose the one with fewer changed files, dependencies, endpoints, and new abstractions.
+If a change cannot be tied to an approved customer outcome, do not make it.
 
 ## Load the relevant references
 
-1. Always read [SDK selection](references/sdk-selection.md).
-2. Read only the implementation reference for the selected runtime:
+1. Always read [SDK selection](references/sdk-selection.md) and [Discovery and reporting](references/discovery-and-reporting.md).
+2. When an ABTO-specific term, behavior, API, supported field, version, event rule, Dashboard meaning, or troubleshooting step is missing or uncertain, consult the official [ABTO Docs](https://docs.abto.app/) before proposing code.
+   Follow the documentation, installed-version, and conflict procedure in [SDK selection](references/sdk-selection.md) instead of guessing or generating compatibility glue.
+3. Read only the implementation reference for each confirmed runtime:
    - Browser JavaScript: [Browser JavaScript](references/browser-javascript.md)
    - Node.js or Python backend: [Server](references/server.md)
    - Flutter/Dart, Android/Kotlin, or iOS/macOS: [Mobile](references/mobile.md)
-3. Read [Verification](references/verification.md) before declaring the integration complete.
-4. Read [Skill installation](references/skill-installation.md) only when installing, updating, removing, or troubleshooting this agent skill itself.
+4. Read [SDK defect handling](references/sdk-defect-handling.md) only when an installed public SDK appears to behave contrary to its released contract.
+5. Read [Verification](references/verification.md) before declaring the integration complete.
+6. Read [Skill installation](references/skill-installation.md) only when installing, updating, removing, or troubleshooting this agent skill itself.
 
 ## Integration workflow
 
-### 1. Inspect before editing
+### 1. Map and confirm the repositories
 
-- Read the repository instructions, package manifests, lockfiles, application entry points, existing telemetry code, and environment-variable conventions.
-- Identify every runtime boundary in a monorepo.
-  A web client and its backend are separate integration targets even when they share a repository.
-- Check for an existing ABTO dependency or initialization before adding another one.
-- Preserve the package manager, framework lifecycle, formatting, and test commands already in use.
-- Keep unrelated user changes intact.
+- Read repository instructions, Git roots, workspace manifests, lockfiles, deployment entry points, application entry points, existing telemetry, and environment-variable conventions.
+- Distinguish frontend, backend, worker, and native runtimes even when they share a monorepo.
+- When the product uses split repositories, inspect every available repository that participates in the client-to-model path.
+  If a required counterpart is unavailable, report the evidence and ask for its path or access instead of guessing.
+- Check for existing ABTO dependencies, initialization, event schemas, and request context before proposing another integration.
+- Present the repository map under `## 1. Core · LLM API wiring`, ask the user to confirm it, then stop before editing any file.
+- Preserve package managers, framework lifecycles, formatting, test commands, and unrelated user changes.
 
-### 2. Select the SDKs
+### 2. Inventory every LLM call and obtain approval
 
-- Treat [SDK selection](references/sdk-selection.md) as the installation availability source of truth.
-- Do not add a dependency for a runtime marked Planned.
-  Explain the missing public release and offer an available runtime boundary or an integration plan instead.
-- Install an Event SDK in a browser or native app that observes user behavior.
-- Install a Calling SDK on a backend that sends model requests through the ABTO Gateway.
-- Install both only when the product has both client behavior and server-side model calls.
-- Never import a Server SDK into a client bundle.
-- Never install multiple Event SDKs in the same runtime unless the application genuinely has separate platform targets.
+- After the repository map is confirmed, inspect every confirmed runtime using the inventory in [Discovery and reporting](references/discovery-and-reporting.md).
+- Account for direct SDK calls, raw provider HTTP calls, shared wrappers, framework adapters, API routes, serverless functions, background workers, queues, cron jobs, batch jobs, and streaming paths.
+- Trace each provider call back to its user-facing capability and, when one exists, its client request trigger.
+- Present every candidate with an ID, capability, repository/runtime, exact call site, API surface, device path, proposed dot-separated `nodeKey`, compatibility, and intended action.
+- Mark only confirmed OpenAI Chat Completions calls as automatically wireable.
+  Inventory OpenAI Responses, embeddings, images, audio, native Anthropic or Gemini calls, and ambiguous framework abstractions, but do not rewrite them into a different API or invent an adapter.
+- Propose a `nodeKey` only when existing product or route language makes the capability unambiguous.
+  Otherwise mark the candidate ambiguous and ask what capability and stable key the user wants.
+- Ask one batch question that lets the user approve all eligible IDs or name inclusions and exclusions.
+  Stop before adding dependencies, initialization, context, or node keys.
 
-### 3. Establish the security boundary
+### 3. Install and wire the approved core
 
-- Obtain real values from the user or the ABTO dashboard. Never invent keys.
-- Put Event Keys only in client-side configuration intended for public delivery.
-- Put Calling Keys and provider credentials only in server secret storage.
-- Reuse the project's secret-management mechanism.
-  Do not add secrets to source files, examples, logs, screenshots, shell history, or committed environment files.
-- Stop and request the missing key or permission when a live integration cannot proceed safely.
+- Treat approval of the inventory as authorization only for the selected SDK dependencies, minimal initialization, and the approved LLM call sites and `nodeKey` values.
+- Use [SDK selection](references/sdk-selection.md) as the public availability source of truth.
+  Never import a Server SDK into a client bundle or install multiple SDKs for the same runtime responsibility.
+- Prefer an existing configuration or provider-client module.
+  Create one small ABTO initialization module only when no suitable module exists; do not create demonstrations, sample endpoints, generic wrappers, or future-facing abstractions.
+- For a new Browser integration, use the released package's no-automatic-event initialization from the Browser reference.
+  Preserve and disclose any existing automatic event collection behavior instead of changing live collection behavior silently.
+- Use the Event SDK identity and trace helpers without emitting events.
+  Starting a trace or reading trace headers does not authorize `submitPrompt`, `markResponseRendered`, `captureResponseInteraction`, or a custom `capture` call.
+- Pass the same client `device_id` and trace through the existing request path, validate client-supplied context with the application's existing validation, and apply it to the approved Calling context.
+- For server-only work, reuse a clearly established stable product identifier.
+  If none exists, ask the user instead of minting a separate server identity or using a per-request random value.
+- Keep Event Keys in public client configuration and Calling/provider keys in server-only secret storage.
+  Never invent, print, or commit credentials.
+- Preserve the Calling SDK's resolved direct-fallback behavior unless the user approves an availability-policy change.
+  Inventory and report every Gateway and direct provider path, including which path lacks ABTO telemetry and `request_id`.
+- Do not create an event schema, event call, response-ID bridge, or unrelated product-code change during core wiring.
+- If a released SDK appears to violate its documented contract, stop further customer-code changes and follow [SDK defect handling](references/sdk-defect-handling.md).
+  Do not patch dependency directories or generate a wrapper to hide the suspected defect.
 
-### 4. Pause at the observability decision gates
+### 4. Discover events and obtain selection
 
-Treat a request to integrate ABTO as approval only for the basic integration:
-the selected SDK dependency, minimal root initialization, and configuration that follows the existing application conventions.
-It does not authorize a new `nodeKey`, custom event, event-schema change, or unrelated product-code change.
+- Verify the core first, then inspect every confirmed client runtime for meaningful user actions and product outcomes around the approved capabilities.
+- Find broadly, deduplicate aggressively, and present evidence-backed system and custom event candidates using [Discovery and reporting](references/discovery-and-reporting.md).
+- Offer only explicit trace-helper or custom-capture candidates; do not offer automatic DOM collection.
+  Preserve and disclose any existing automatic collection behavior.
+- Treat no events as the default.
+  Ask one batch question that allows multiple candidate IDs or `none`, then stop before editing.
+- Add only the selected system-event calls at their approved triggers.
+- For response-interaction helpers, use only a value exposed by the installed SDK's canonical interaction type.
+  Propose a custom event when the product action has no exact canonical value; never pass an invented string to a system-event helper.
+- Create or extend the product event schema only when at least one custom event is selected, and add only the selected `capture` calls.
+- Use the Gateway `x-abto-request-id` only through a currently supported selected event path.
+  Do not claim that an arbitrary custom event is request-correlated when the SDK does not establish that link.
+- If the user selects no events, retain the core integration with no event-related code or schema file.
+- If a selected Event path exposes a released SDK defect, mark that Event ID `blocked-sdk-defect` and follow [SDK defect handling](references/sdk-defect-handling.md).
+  Do not silently substitute a custom event or different trigger.
 
-Complete the applicable gates in order.
-Ask one question, stop, and wait for a direct reply before moving to the next gate.
-Do not collect nodeKey and event approval in one question.
-An existing explicit nodeKey or event remains unchanged unless the user asks to change it.
+### 5. Verify and report
 
-1. **Basic integration**
-   - Install only the selected SDK and add its minimal initialization.
-   - Do not refactor product behavior, add custom capture, or change existing instrumentation merely to demonstrate ABTO.
-   - If the basic integration already exists, report that fact and begin at the applicable decision gate.
-2. **nodeKey gate** (Calling SDK only)
-   - After basic integration, inspect the model-call boundaries without editing them.
-   - Present one smallest candidate: the user-facing capability, exact code location, and proposed dot-separated `nodeKey`.
-   - If no safe candidate is identifiable, ask the user what capability to track, its purpose, and its code location. Then stop for the reply; do not select a model-call boundary yourself.
-   - Ask one focused question, such as: “I found `<capability>` at `<path>` and propose `<nodeKey>`. Should I set that key there?” Then stop for the reply.
-   - Do not add, rename, move, or infer a nodeKey from product terminology before confirmation.
-3. **Event gate** (Event SDK only)
-   - For an integration with both SDKs, begin this gate only after the nodeKey gate is settled.
-     For an Event-only integration, begin it after basic integration.
-   - Ask whether a user-observed outcome needs a custom event at all; do not assume that one is required.
-   - If an event may be useful, present one candidate event name, trigger location, approved properties, and privacy impact.
-   - If no safe outcome or trigger is identifiable, ask the user what outcome to track, why it matters, and where it occurs. Then stop for the reply; do not invent an event candidate.
-   - Ask one separate question, such as: “Should I capture `<event>` at `<path>` with these properties?” Then stop for the reply.
-   - Do not invent a conversion event, add `capture` calls, or change an event schema before confirmation.
-   - If the user declines or leaves the decision open, keep the basic integration intact and report the event as a user-owned follow-up.
-
-### 5. Install and wire
-
-- Use the chosen runtime reference for the package coordinate and initialization API.
-- Initialize an Event SDK once at the client application root.
-- Add a confirmed nodeKey to each selected server request context with a stable `deviceId` and trace identifier.
-- Pass the same device identifier from the client to the server when the product links user behavior to model calls.
-- Only when the user has confirmed the related client outcome event, capture the Gateway `x-abto-request-id` and attach it at that event's approved trigger location.
-- Add a confirmed custom event only at its approved trigger location; keep its name in the product's domain language and never begin it with `$`.
-- Retain safe privacy defaults.
-  Do not enable full prompt, response, DOM text, or input capture unless the user has explicitly approved the data policy.
-
-### 6. Verify and report
-
-- Run the project's typecheck, build, lint, and tests affected by the integration.
-- Check the diff for client/server boundary violations and accidentally committed credentials.
-- Run one bounded live event or model-call check only when the required credentials, environment, and any paid call are authorized.
-- Confirm the expected ABTO receiving surface, not merely a successful local build.
-- Report the selected SDKs, each completed or pending decision gate, changed files, commands run, observed ABTO result, and any remaining user-owned step.
+- Follow [Verification](references/verification.md) for each changed runtime and for the final change ledger.
+- Run one bounded live event or model call only when credentials, target environment, and any paid call are explicitly authorized.
+- At every confirmation checkpoint and in the final response, use exactly these three sections:
+  - `## 1. Core · LLM API wiring`
+  - `## 2. Event candidates · selection result`
+  - `## 3. Final integration flow`
+- Mark later sections as pending at an earlier checkpoint instead of omitting them.
+- In the final section, separate Core and Event changes and draw a Mermaid diagram from the actual repositories and code paths.
+- Report every discovered LLM candidate as wired, already wired, incompatible, ambiguous, user-excluded, or blocked-sdk-defect.
+  Never claim full coverage while an unexplained candidate remains.
+- Do not mark `blocked-sdk-defect` as wired merely because an SDK source fix merged.
+  Require a fixed public artifact, customer lockfile update, and successful re-verification of the original path.

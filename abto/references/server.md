@@ -1,5 +1,25 @@
 # Server SDKs
 
+## Contents
+
+- [Supported calling boundary](#supported-calling-boundary)
+- [Node.js](#nodejs)
+- [Python](#python)
+- [Preserve and disclose direct fallback](#preserve-and-disclose-direct-fallback)
+- [Add request correlation only when selected](#add-request-correlation-only-when-selected)
+- [Validate and propagate context](#validate-and-propagate-context)
+
+## Supported calling boundary
+
+Automatically wire only confirmed OpenAI Chat Completions calls.
+The Gateway may route that request to OpenAI, Anthropic, or Gemini with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
+
+Inventory and report OpenAI Responses or other OpenAI APIs, native Anthropic or Gemini clients, and ambiguous framework or raw HTTP wrappers.
+Do not migrate them, generate an adapter, or change streaming and error semantics merely to increase the number of wired calls.
+
+Initialize one shared ABTO client through the application's existing server configuration or provider-client module.
+Create a small dedicated module only when no suitable module exists.
+
 ## Node.js
 
 Require Node.js 18 or later.
@@ -27,12 +47,12 @@ const abto = initAbto({
 });
 ```
 
-Wrap each model call in request context:
+Wrap each approved call in its approved request context while preserving the existing completion return shape:
 
 ```ts
 import type OpenAI from "openai";
 
-const { data, response } = await abto.withContext(
+const completion = await abto.withContext(
   {
     deviceId,
     nodeKey: "support.reply",
@@ -40,20 +60,13 @@ const { data, response } = await abto.withContext(
   },
   async () => {
     const openai = await abto.openai() as OpenAI;
-    return openai.chat.completions
-      .create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-      })
-      .withResponse();
+    return openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+    });
   },
 );
-
-const requestId = response.headers.get("x-abto-request-id");
 ```
-
-Validate `deviceId`, `traceId`, and other client-supplied context using the application's existing request validation.
-Do not accept a Calling Key or provider key from a client request.
 
 ## Python
 
@@ -81,7 +94,7 @@ abto = init_abto(
 openai = abto.openai()
 ```
 
-Wrap each model call in request context:
+Wrap each approved call in its approved request context while preserving the existing completion return shape:
 
 ```python
 with abto.with_context(
@@ -89,13 +102,56 @@ with abto.with_context(
     node_key="support.reply",
     trace_id=trace_id,
 ):
-    response = openai.chat.completions.with_raw_response.create(
+    completion = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
     )
-    request_id = response.headers.get("x-abto-request-id")
-    completion = response.parse()
 ```
 
 Use the framework's existing async or sync client pattern.
 Do not introduce a second concurrency model only for ABTO.
+
+## Preserve and disclose direct fallback
+
+When an OpenAI key source is present, the current Node.js and Python Calling SDKs enable direct OpenAI fallback by default for safely classified Gateway failures.
+Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
+Do not set `fallback: false`, enable timeout replay, or change retry counts merely to make ABTO reporting simpler.
+
+Record the exact fallback setting for every approved call path.
+Gateway-served calls receive Gateway policy, telemetry, and `request_id`; direct fallback calls do not.
+Show both branches in the final inventory, summary, and Mermaid diagram when fallback is enabled.
+If the user values complete ABTO observation over direct availability, present that tradeoff and obtain approval before disabling fallback.
+
+## Add request correlation only when selected
+
+Do not switch an approved call to a raw-response API during Core wiring.
+Only when the user selects a supported system event that consumes the Gateway request identifier, read it at that approved call site.
+
+Inside the existing Node.js `withContext` callback, retain the completion as `data`:
+
+```ts
+const { data: completion, response } = await openai.chat.completions
+  .create(existingRequest)
+  .withResponse();
+const requestId = response.headers.get("x-abto-request-id");
+```
+
+Inside the existing Python `with_context` block, parse the same completion after reading the header:
+
+```python
+raw_response = openai.chat.completions.with_raw_response.create(**existing_request)
+request_id = raw_response.headers.get("x-abto-request-id")
+completion = raw_response.parse()
+```
+
+Pass that identifier through the product's existing response path only to the selected event trigger.
+Do not create a parallel endpoint, response shape, or request-ID bridge solely for ABTO.
+
+## Validate and propagate context
+
+- Read client ABTO headers at the existing request boundary; do not create a parallel endpoint or body format just for ABTO.
+- Validate `deviceId`, `traceId`, and other client-supplied context using the application's existing request validation.
+- Pass the same validated device identifier to every approved model call caused by that client action.
+- Do not accept a Calling Key or provider key from a client request.
+- For a server-only call, reuse a clearly established stable product identifier or ask the user when none exists.
+- Read `x-abto-request-id` only when a selected supported event path needs it, and return it only to that approved client trigger.
