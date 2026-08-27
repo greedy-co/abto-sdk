@@ -68,7 +68,8 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - Preserve the Calling SDK's resolved direct-fallback behavior unless the user approves an availability-policy change.
   Inventory and report every Gateway and direct provider path, including which path lacks ABTO telemetry and `request_id`.
 - Do not create an event schema, event call, response-ID bridge, or unrelated product-code change during core wiring.
-- If a released SDK appears to violate its documented contract, stop further customer-code changes and follow [SDK defect handling](references/sdk-defect-handling.md).
+- If an installed SDK appears to violate its documented contract, pause only the affected path and follow [SDK defect handling](references/sdk-defect-handling.md).
+  Prefer the smallest compatible public SDK update that already fixes the defect, apply it with the customer's existing package manager and lockfile, re-verify the original path, and continue wiring when it passes.
   Do not patch dependency directories or generate a wrapper to hide the suspected defect.
 
 ### 4. Discover events and obtain selection
@@ -86,7 +87,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - Use the Gateway `x-abto-request-id` only through a currently supported selected event path.
   Do not claim that an arbitrary custom event is request-correlated when the SDK does not establish that link.
 - If the user selects no events, retain the core integration with no event-related code or schema file.
-- If a selected Event path exposes a released SDK defect, mark that Event ID `blocked-sdk-defect` and follow [SDK defect handling](references/sdk-defect-handling.md).
+- If a selected Event path exposes an SDK defect, follow [SDK defect handling](references/sdk-defect-handling.md) and retry it on the smallest compatible fixed public version before marking that Event ID `blocked-sdk-defect`.
   Do not silently substitute a custom event or different trigger.
 
 ### 5. Verify and report

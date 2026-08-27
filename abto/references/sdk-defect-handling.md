@@ -3,6 +3,7 @@
 ## Contents
 
 - [Confirm the boundary](#confirm-the-boundary)
+- [Prefer a released update](#prefer-a-released-update)
 - [Protect customer code](#protect-customer-code)
 - [Fix an authorized upstream defect](#fix-an-authorized-upstream-defect)
 - [Release and retry](#release-and-retry)
@@ -25,16 +26,34 @@ Classify the result before changing code:
 |---|---|
 | Customer integration error | Correct only the approved customer integration path. |
 | Skill or documentation error | Correct the Skill or released documentation; do not change SDK runtime code. |
-| Version mismatch | Use the verified released API or wait for its public release; do not target unreleased source. |
-| Released SDK defect | Mark the affected Core or Event path `blocked-sdk-defect` and use the upstream flow below. |
+| Version mismatch | Update to the smallest compatible public version that provides the required released API, then retry the original path. |
+| Installed SDK defect | Check public stable releases for an existing fix before marking the path blocked or changing upstream source. |
 | Unsupported capability | Report it as incompatible or a product gap; do not invent an adapter. |
 | Gateway or collection-service defect | Report the service boundary; do not hide it in SDK or customer code. |
 
-Do not call a behavior a released SDK defect unless it reproduces against the installed public artifact and contradicts a released contract.
+Do not call a behavior an SDK defect unless it reproduces against the installed public artifact and contradicts a released contract.
+
+## Prefer a released update
+
+Before marking a path `blocked-sdk-defect` or editing upstream source:
+
+1. Resolve the installed package coordinate, version, and lockfile entry.
+2. Check the canonical registry, public source tags, release notes, and official ABTO Docs for stable public versions that fix the reproduced behavior.
+3. Select the smallest compatible fixed version within the application's current runtime and major-version constraints.
+4. Update only the affected direct SDK dependency and its necessary lockfile resolution through the customer's existing package manager.
+5. Re-run the sanitized reproduction, the approved integration path, and that runtime's existing checks.
+
+When the update passes, continue the approved wiring and mark the path `wired`.
+Report the previous and installed versions, fix evidence, dependency and lockfile files changed, and re-verification result.
+Do not create a wrapper, alternate endpoint, event substitute, or customer test scaffold for a defect that a released update resolves.
+
+Do not silently install a prerelease, unreleased commit, incompatible runtime version, or new major version.
+If the only fixed public version has breaking or unrelated behavior changes, present the exact impact and obtain approval before updating.
+Mark the path `blocked-sdk-defect` and continue to the upstream flow only when no compatible fixed public artifact exists or an approved update still reproduces the defect.
 
 ## Protect customer code
 
-- Stop adding customer integration code at the affected path.
+- When no released update resolves the defect, stop adding customer integration code at the affected path.
 - Do not edit `node_modules`, package caches, generated vendor source, downloaded artifacts, or lockfile-resolved package contents.
 - Do not create a monkey patch, generic wrapper, parallel endpoint, duplicate SDK, or alternate event solely to bypass the defect.
 - Preserve unrelated customer changes and do not copy customer secrets, payloads, prompts, responses, or private source into an upstream report or fixture.
@@ -85,6 +104,7 @@ Never patch dependency contents or present the workaround as the SDK fix.
 ## Report the blocked flow
 
 Keep the required three-section report.
-In the affected Core or Event section, report the defect classification, evidence, public version, customer-code impact, approval state, upstream change, release state, and retry result.
+In the affected Core or Event section, report the defect classification, evidence, installed and checked public versions, update result, customer-code impact, approval state, upstream change, release state, and retry result.
 Mark later work pending while the public artifact is unavailable.
-In the final Mermaid diagram, show the customer path stopped at the defective SDK and the separate upstream fix → release → reinstall → retry loop.
+When a public update resolves the defect, show installed SDK → compatible public update → retry → wired.
+Otherwise show the customer path stopped at the defective SDK and the separate upstream fix → release → reinstall → retry loop.

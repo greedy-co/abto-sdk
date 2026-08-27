@@ -6,7 +6,7 @@ Before checking builds, verify the interaction record:
 
 - The user confirmed the exact repository/runtime map before the first file edit.
 - Every model-call search hit is represented in the LLM inventory or documented as a non-runtime false positive.
-- Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, or `user-excluded`.
+- Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
 - Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `nodeKey`.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
 - No incompatible or ambiguous API was silently converted into OpenAI Chat Completions.
@@ -14,6 +14,8 @@ Before checking builds, verify the interaction record:
 - Every ABTO-specific uncertainty is resolved through the official [ABTO Docs](https://docs.abto.app/) or remains explicitly unresolved without a guessed implementation.
 - Every version-specific API used after a documentation lookup is verified against the customer's installed public package, types, and public source; any conflict is classified instead of hidden in generated glue.
 - Every `blocked-sdk-defect` entry records the installed public package and version, released contract, sanitized reproduction, expected behavior, and actual behavior.
+- Every suspected SDK defect checks compatible stable public releases before upstream source work or `blocked-sdk-defect` classification.
+- Every defect resolved by a public update records the previous and installed versions and passes the original reproduction and approved integration path before becoming `wired`.
 - Editing an upstream SDK repository or adding a temporary customer workaround has separate explicit approval.
 
 Do not claim full LLM coverage while an unexplained hit or candidate remains.
@@ -50,6 +52,7 @@ Also verify:
 - When no event is selected, the diff contains no event schema, `capture` call, AI system-event call, or request-ID bridge.
 - When a related supported event is selected, the Gateway `x-abto-request-id` reaches only that approved trigger location.
 - Customer dependency directories, generated vendor code, and lockfile-resolved package contents remain unpatched.
+- A defect-driven dependency update changes only the affected direct SDK and necessary lockfile resolution; a prerelease, incompatible runtime, or new major version has explicit approval.
 - Customer repositories contain no new test scaffold created only to prove an SDK defect.
 - An authorized upstream SDK correction includes the smallest SDK-owned regression check that reproduces the defect and passes the affected package's existing gates.
 - A temporary customer workaround exists only with explicit approval, an isolated location, affected version range, defect ID, and removal condition.
@@ -93,4 +96,4 @@ State:
 - The resolved direct-fallback setting and any provider path without Gateway policy, ABTO telemetry, or `request_id`.
 - The observed ABTO receiving surface or the exact reason a live check was skipped.
 - The exact official ABTO Docs page and installed package coordinate and version used for any resolved knowledge gap.
-- Each SDK defect's classification, public version, customer impact, upstream or workaround changes, release state, and re-verification result.
+- Each SDK defect's classification, previous and installed versions, checked public versions, customer impact, update or upstream changes, release state, and re-verification result.

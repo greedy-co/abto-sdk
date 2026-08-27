@@ -62,7 +62,7 @@ Ask one question after the complete table:
 “Which eligible IDs should I wire with the proposed locations and nodeKeys? You can answer `all`, list IDs, add corrections, or exclude IDs.”
 
 After implementation, retain every row and replace `eligible` with `wired` or `user-excluded` as applicable.
-Use `blocked-sdk-defect` when a reproduced defect in the installed public SDK prevents an otherwise approved path.
+Use `blocked-sdk-defect` only when a reproduced defect prevents an otherwise approved path and no compatible fixed public SDK update resolves it.
 Do not declare the inventory complete until every search hit is either represented by a row or documented as a non-runtime false positive.
 
 ## Event candidates
