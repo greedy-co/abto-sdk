@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.exitProcess
 
-// 프레임워크 없는 검증 러너 — 실패 시 exit 1.
-// ABTO_E2E=1 이고 dev collector(:4870)가 떠 있으면 실제 전송까지 검증한다.
+// Framework-free verification runner that exits with status 1 on failure.
+// Also verifies actual delivery when ABTO_E2E=1 and the development collector is running on port 4870.
 
 var failures = 0
 

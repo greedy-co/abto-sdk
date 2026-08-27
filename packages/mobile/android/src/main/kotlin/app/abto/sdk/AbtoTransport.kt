@@ -28,9 +28,9 @@ internal fun readBoundedResponse(
 }
 
 /**
- * 배치 전송 — 큐에 쌓고 batchSize/타이머로 flush 한다.
- * 네트워크는 항상 전용 스레드에서 돌아 Android 메인 스레드 제약(NetworkOnMainThreadException)을 피하고,
- * 실패는 절대 호스트 앱으로 던지지 않는다 (브라우저 SDK 와 동일 계약).
+ * Batch transport that queues events and flushes on `batchSize` or a timer.
+ * Network operations always run on a dedicated thread to avoid Android main-thread restrictions
+ * (`NetworkOnMainThreadException`), and failures are never thrown to the host app, matching the Browser SDK contract.
  */
 class AbtoTransport(private val config: AbtoConfig) {
     private data class QueuedEvent(
@@ -154,7 +154,7 @@ class AbtoTransport(private val config: AbtoConfig) {
         }
         if (eligibleRetryBatch.isNotEmpty()) {
             synchronized(lock) {
-                // 죽은 endpoint 가 메모리를 무한히 키우지 않게 버퍼를 제한한다.
+                // Cap the buffer so a dead endpoint cannot grow memory without bound.
                 eligibleRetryBatch.asReversed().forEach { buffer.addFirst(it) }
                 while (buffer.size > MAX_BUFFER) buffer.removeLast()
             }

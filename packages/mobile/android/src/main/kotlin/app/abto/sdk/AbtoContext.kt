@@ -28,8 +28,8 @@ internal fun uuidV7TraceId(): String = uuidV7().replace("-", "")
 internal fun isoTimestamp(): String = Instant.now().toString()
 
 /**
- * anonymous_id 영속화 지점 — Android 에선 SharedPreferences 어댑터를 끼우고,
- * JVM 테스트에선 인메모리 구현을 쓴다 (README 참고).
+ * Persistence boundary for `anonymous_id`.
+ * Android apps can supply a SharedPreferences adapter; JVM tests use an in-memory implementation.
  */
 interface AbtoKeyValueStore {
     fun get(key: String): String?
@@ -45,7 +45,7 @@ class AbtoInMemoryStore : AbtoKeyValueStore {
     }
 }
 
-/** 식별자 컨텍스트 — 이벤트 공통 필드(anonymous_id·session_id·user_id·tenant_id)를 관리한다. */
+/** Identity context that manages shared event fields: anonymous_id, session_id, user_id, and tenant_id. */
 class AbtoContext(private val store: AbtoKeyValueStore) {
     var anonymousId: String
         private set

@@ -1,6 +1,6 @@
 package app.abto.sdk
 
-/** 외부 의존 없이 이벤트 payload 를 직렬화하는 최소 JSON 인코더. */
+/** Minimal JSON encoder for serializing event payloads without external dependencies. */
 internal object AbtoJson {
     fun encode(value: Any?): String = when (value) {
         null -> "null"
