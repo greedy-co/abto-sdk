@@ -9,7 +9,7 @@ describe('serializeElementsChain', () => {
     expect(chain).toContain('button.cta');
     expect(chain).toContain('text="Go"');
     expect(chain).toContain('#root');
-    // button;div;body 처럼 조상까지 walk-up 한다.
+    // Walk up through ancestors such as button;div;body.
     expect(chain.split(';').length).toBeGreaterThanOrEqual(2);
   });
 

@@ -58,11 +58,11 @@ export interface PageviewHit {
   eventType: 'pageview' | 'pageleave';
   path: string;
   referrer?: string;
-  /** 떠나는 페이지의 체류 시간(wall-clock). pageleave 에만 실린다. */
+  /** Wall-clock dwell time for the departing page. Present only on pageleave. */
   durationMs?: number;
-  /** 떠나는 페이지의 스크롤 깊이. pageleave 에만 실린다. */
+  /** Scroll depth for the departing page. Present only on pageleave. */
   scroll?: ScrollDepthSnapshot;
-  /** 실제 페이지 언로드(pagehide)에서 발생한 pageleave. 수신측은 즉시 flush 해야 유실이 없다. */
+  /** Pageleave emitted by a real pagehide. Receivers should flush it immediately. */
   unload?: boolean;
 }
 
@@ -274,15 +274,15 @@ export function installAutocapture(sink: AutocaptureSink, options: { mask?: Mask
       return result;
     };
   }
-  // pageview 상태는 메모리에만 있으므로(PostHog PageViewManager 와 같은 모델),
-  // full unload 전에 마지막 pageleave 를 보내야 체류 시간이 유실되지 않는다.
+  // Pageview state lives only in memory, like PostHog's PageViewManager, so emit
+  // the final pageleave before a full unload to preserve dwell time.
   let unloadPageleaveSent = false;
   const onPagehide = (): void => {
     if (unloadPageleaveSent) return;
     unloadPageleaveSent = true;
     sink(pageleaveHit(true));
   };
-  // bfcache 복원은 새 pageview 로 취급해 pageview 1개 ↔ pageleave 1개 짝을 유지한다.
+  // Treat a bfcache restore as a new pageview to keep pageview/pageleave pairs balanced.
   const onPageshow = (e: Event): void => {
     if (!(e as PageTransitionEvent).persisted || !unloadPageleaveSent) return;
     unloadPageleaveSent = false;

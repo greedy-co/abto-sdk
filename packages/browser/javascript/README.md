@@ -1,6 +1,6 @@
 # @abto-app/event
 
-ABTO SDK는 브라우저에서 관측 가능한 사용자 행동을 수집하고, Gateway가 반환한 `request_id`를 통해 서버의 LLM 비용·지연 데이터와 연결한다.
+ABTO SDK는 고객사가 선택해 직접 기록한 사용자 행동을 수집하고, Gateway가 반환한 `request_id`를 통해 서버의 LLM 비용·지연 데이터와 연결한다.
 
 `@abto-app/event`는 공개키를 사용하는 Browser 전용 패키지다.
 비밀키와 provider credential을 사용하는 Node 환경에는 별도 `@abto-app/calling` 패키지를 설치한다.
@@ -19,7 +19,7 @@ Browser SDK가 보내는 이벤트는 두 종류다.
 
 | 종류 | SDK 이름 | Analytics wire 이름 | 정의 주체 | 발생 방식 |
 |---|---|---|---|---|
-| 시스템 이벤트 | `$`로 시작 | ABTO canonical 이름 | ABTO | SDK 자동 수집 또는 전용 API |
+| 시스템 이벤트 | `$`로 시작 | ABTO canonical 이름 | ABTO | 명시적으로 켠 autocapture 또는 전용 API |
 | 커스텀 이벤트 | `$` 없이 제품 도메인 이름 사용 | 같은 이름 | 고객 저장소 | `client.capture()` |
 
 사용자는 `$` 이벤트나 `$` 속성을 등록할 수 없다. 아래 canonical wire 이름도 ABTO가 소유하므로 커스텀 이벤트로 등록할 수 없다. ABTO 시스템 이벤트는 일반 `capture()`로 보낼 수 없으며 SDK 내부 경로와 AI trace 전용 메서드만 발생시킨다.
@@ -28,11 +28,11 @@ Browser SDK가 보내는 이벤트는 두 종류다.
 
 | SDK 이벤트 | Analytics `event_name` | 의미 | 발생 조건 |
 |---|---|---|---|
-| `$pageview` | `pageview` | 페이지/SPA route 진입 | 초기 로드, history 변경, bfcache 복원 |
-| `$pageleave` | `pageleave` | 페이지/route 이탈 | SPA 이동, `pagehide` |
-| `$autocapture` | `interaction_autocaptured` | DOM 상호작용 원시 사실 | click, change, submit, copy |
-| `$rageclick` | `interaction_rageclick` | 짧은 시간의 반복 클릭 | SDK 휴리스틱 |
-| `$dead_click` | `interaction_deadclick` | 반응이 관측되지 않은 클릭 | SDK 휴리스틱 |
+| `$pageview` | `pageview` | 페이지/SPA route 진입 | autocapture opt-in 시 초기 로드, history 변경, bfcache 복원 |
+| `$pageleave` | `pageleave` | 페이지/route 이탈 | autocapture opt-in 시 SPA 이동, `pagehide` |
+| `$autocapture` | `interaction_autocaptured` | DOM 상호작용 원시 사실 | autocapture opt-in 시 click, change, submit, copy |
+| `$rageclick` | `interaction_rageclick` | 짧은 시간의 반복 클릭 | autocapture opt-in 시 SDK 휴리스틱 |
+| `$dead_click` | `interaction_deadclick` | 반응이 관측되지 않은 클릭 | autocapture opt-in 시 SDK 휴리스틱 |
 | `$ai_prompt_submitted` | `llm_prompt_submitted` | 프롬프트 제출을 앱이 확인 | `trace.submitPrompt()` |
 | `$ai_response_rendered` | `llm_response_rendered` | 응답이 UI에 렌더됨을 앱이 확인 | `trace.markResponseRendered()` |
 | `$ai_response_interacted` | `llm_response_interacted` | 응답에 대한 명시적 행동 | `trace.captureResponseInteraction()` |
@@ -95,7 +95,7 @@ abto.capture('checkout_completed', {
 
 ## 초기화와 autocapture
 
-앱 루트에서 한 번 초기화하면 autocapture가 시작된다.
+앱 루트에서 한 번 초기화한다. 설정을 생략한 기본 초기화는 identity와 trace context만 준비하며 이벤트를 만들지 않는다. 고객사가 필요하다고 정한 Custom Event와 LLM trace event만 해당 제품 동작에서 직접 호출한다.
 
 ```ts
 const abto = initAbto({
@@ -105,6 +105,19 @@ const abto = initAbto({
   events,
 });
 ```
+
+페이지와 DOM 상호작용을 넓게 수집해야 하고 데이터 정책 검토를 마친 경우에만 autocapture를 명시적으로 켠다.
+
+```ts
+const abto = initAbto({
+  projectKey: 'public_project_key',
+  autocapture: { enabled: true },
+});
+```
+
+### 이전 기본값에서 마이그레이션
+
+`0.1.4` 이하에서 `autocapture`를 생략하면 자동 수집이 켜졌다. 그 동작에 의존한 애플리케이션은 업그레이드할 때 `autocapture: { enabled: true }`를 추가해야 한다. 자동 수집이 필요하지 않은 애플리케이션은 설정을 생략하고 선택한 `capture()`와 `LlmTrace` 호출만 유지한다.
 
 기본 endpoint는 `${apiHost}/v1/collect/events`다. SDK 내부의 Browser 이벤트는 전송 직전에
 현재 Analytics 수신 계약으로 변환된다.
@@ -124,7 +137,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.1.4"
+        "$lib_version": "0.1.5"
       }
     }
   ]
@@ -155,7 +168,7 @@ SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고
 `$device_id`, `$session_id` 같은 SDK 소유 context는 `extra_json`에 그대로 보존한다.
 Dashboard 이벤트 카탈로그와 Success Metric에서는 canonical wire 이름을 사용한다.
 
-annotation은 원시 `$autocapture`를 다른 이벤트로 바꾸지 않는다. 원시 상호작용을 보존하면서 분석 차원만 보강한다.
+autocapture를 명시적으로 켠 경우 annotation은 원시 `$autocapture`를 다른 이벤트로 바꾸지 않는다. 원시 상호작용을 보존하면서 분석 차원만 보강한다.
 
 ```html
 <button
@@ -168,7 +181,7 @@ annotation은 원시 `$autocapture`를 다른 이벤트로 바꾸지 않는다. 
 </button>
 ```
 
-위 클릭은 `$autocapture`로 수집되며 `$ai_action`, `$surface`, `$node_key`, `$response_id`, `$request_id`가 함께 실린다. 업무 의미가 확정된 행동은 앱 코드에서 커스텀 이벤트 또는 AI 전용 메서드로 별도 기록한다.
+autocapture를 켰다면 위 클릭은 `$autocapture`로 수집되며 `$ai_action`, `$surface`, `$node_key`, `$response_id`, `$request_id`가 함께 실린다. 업무 의미가 확정된 행동은 앱 코드에서 커스텀 이벤트 또는 AI 전용 메서드로 별도 기록한다.
 
 ## 개인정보 기본값
 

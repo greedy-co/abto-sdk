@@ -30,7 +30,7 @@ import type {
 } from './types.js';
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 
-export const SDK_VERSION = '0.1.4';
+export const SDK_VERSION = '0.1.5';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';
@@ -75,7 +75,7 @@ function resolveConfig<R extends EventRegistry>(config: AbtoBrowserConfig<R>): R
     capturePrompt: config.capture?.prompt ?? 'metadata_only',
     captureResponse: config.capture?.response ?? 'metadata_only',
     mask: config.capture?.mask ?? 'all',
-    autocapture: config.autocapture?.enabled ?? true,
+    autocapture: config.autocapture?.enabled ?? false,
     batchSize: config.export?.maxBatchSize ?? 20,
     flushIntervalMs: config.export?.flushIntervalMs ?? 5000,
     sessionIdleMs: config.identity?.sessionIdleMs ?? 30 * 60 * 1000,

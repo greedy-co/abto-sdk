@@ -101,9 +101,13 @@ function affectsPublicMirror(path) {
 export function classifySdkChanges(paths, { forceAll = false } = {}) {
   const normalizedPaths = paths.map(normalizePath).filter(Boolean);
   const all = forceAll || normalizedPaths.some((path) => ALL_CHANGE_PATHS.has(path));
+  const runtimeTargetChanged = (target) => normalizedPaths.some(
+    (path) => isRuntimeChangeForTarget(target, path),
+  );
   const targetChanged = (target) => all
-    || normalizedPaths.some((path) => isRuntimeChangeForTarget(target, path));
+    || runtimeTargetChanged(target);
 
+  const eventJsRuntime = runtimeTargetChanged('event-js');
   const eventJs = targetChanged('event-js');
   const callingJs = targetChanged('calling-js');
   const python = targetChanged('calling-python');
@@ -116,6 +120,7 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
     browser: eventJs,
     server: callingJs,
     event_js: eventJs,
+    event_js_runtime: eventJsRuntime,
     calling_js: callingJs,
     python,
     dart,

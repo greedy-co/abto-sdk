@@ -218,7 +218,7 @@ export class Transport {
   private acknowledge(uuids: readonly string[], scheduleNext = true): void {
     const acknowledged = new Set(uuids);
     this.queue = this.queue.filter((event) => !acknowledged.has(event.uuid));
-    // Per-event retry만 받은 batch는 진전이 없으므로 backoff 단계를 유지한다.
+    // Preserve the backoff step when a batch receives only per-event retries.
     if (acknowledged.size > 0) this.retryAttempt = 0;
     this.persist();
     if (scheduleNext && this.queue.length > 0) this.armTimer(0);

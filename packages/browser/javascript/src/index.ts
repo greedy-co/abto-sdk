@@ -2,7 +2,7 @@
  * @abto-app/event — public entry point.
  *
  * Browser SDK for LLM semantic event capture.
- * Broad capture by default; hosts opt into masking modes when needed.
+ * Manual capture by default; hosts explicitly opt into masked autocapture when needed.
  */
 
 // Primary API.

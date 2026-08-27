@@ -65,12 +65,12 @@ describe('broad autocapture', () => {
   });
 
   it('emits an initial pageview on install', () => {
-    // beforeEach 의 install 시점에 초기 로드 pageview 가 발생한다.
+    // Installation in beforeEach emits the initial-load pageview.
     expect(hits.some((h) => h.kind === 'pageview' && h.eventType === 'pageview')).toBe(true);
   });
 
   it('emits pageview and pageleave on pushState', () => {
-    hits.length = 0; // 초기 로드 pageview 제외
+    hits.length = 0; // Exclude the initial-load pageview.
     history.pushState({}, '', '/step/broad-autocapture');
     const pv = hits.find(
       (h) => h.kind === 'pageview' && h.eventType === 'pageview',
@@ -125,14 +125,14 @@ describe('pageview dwell time', () => {
   });
 
   it('attaches a scroll depth snapshot to pageleave', async () => {
-    // 초기 스크롤 측정은 다음 tick 에 이뤄진다.
+    // The initial scroll measurement runs on the next tick.
     await new Promise((resolve) => setTimeout(resolve, 0));
     hits.length = 0;
     history.pushState({}, '', '/dwell/scroll');
     const pl = hits.find((h) => h.kind === 'pageview' && h.eventType === 'pageleave');
     const scroll = pl && pl.kind === 'pageview' ? pl.scroll : undefined;
     expect(scroll).toBeDefined();
-    // jsdom 은 레이아웃이 없어 스크롤할 것이 없는 페이지 → 전부 본 것(1)으로 계측된다.
+    // jsdom has no layout, so the page is unscrollable and therefore fully viewed.
     expect(scroll!.max_scroll_percentage).toBe(1);
     expect(scroll!.max_content_percentage).toBe(1);
   });

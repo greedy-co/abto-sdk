@@ -91,6 +91,7 @@ export interface AbtoBrowserConfig<R extends EventRegistry = EventRegistry> {
     mask?: MaskMode;
   };
   autocapture?: {
+    /** Broad page and DOM collection is opt-in and disabled by default. */
     enabled?: boolean;
   };
   export?: {

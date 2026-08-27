@@ -10,7 +10,7 @@ afterEach(() => {
 
 const nextTick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-// jsdom 은 실제 레이아웃이 없어 스크롤 지표를 직접 정의해 흉내 낸다.
+// jsdom has no layout, so define scroll metrics directly.
 function defineScrollMetrics(metrics: {
   scrollY: number;
   scrollHeight: number;
@@ -76,7 +76,7 @@ describe('scroll depth tracker', () => {
 
     defineScrollMetrics({ scrollY: 0, scrollHeight: 2000, clientHeight: 500 });
     tracker.reset();
-    expect(tracker.snapshot()).toBeUndefined(); // 다음 tick 전에는 미측정
+    expect(tracker.snapshot()).toBeUndefined(); // Not measured until the next tick.
     await nextTick();
     expect(tracker.snapshot()!.max_scroll_y).toBe(0);
   });

@@ -1,5 +1,6 @@
 /**
- * Privacy layer — raw prompt/response 텍스트를 capture mode 에 맞는 파생 메타로 변환한다.
+ * Privacy layer that converts raw prompt and response text into derived metadata
+ * according to the configured capture mode.
  *
  * Raw content is opt-in. Default capture modes retain derived metadata only,
  * and DOM text/value stays masked unless data-abto-include explicitly allows it.

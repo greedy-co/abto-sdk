@@ -5,6 +5,8 @@ let client: AbtoBrowserClient | undefined;
 afterEach(() => {
   client?.shutdown();
   client = undefined;
+  localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe('init config validation', () => {
@@ -38,5 +40,12 @@ describe('init config validation', () => {
     expect(client.config.captureResponse).toBe('metadata_only');
     expect(client.config.mask).toBe('all');
     expect(client.config.hashSalt).toBe('ek_test');
+  });
+
+  it('emits no automatic events when autocapture is omitted', () => {
+    client = new AbtoBrowserClient({ projectKey: 'ek_no_automatic_events' });
+
+    expect(client.config.autocapture).toBe(false);
+    expect(localStorage.getItem('abto:outbox:v1:ek_no_automatic_events')).toBeNull();
   });
 });

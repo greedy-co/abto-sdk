@@ -1,6 +1,7 @@
 /**
- * Rageclick / deadclick 감지. click 위임 리스너에서 요소를 받아 UX 마찰 신호를 emit한다.
- * rageclick: 짧은 시간·좁은 반경 내 반복 클릭. deadclick: 클릭 후 DOM 변화·스크롤이 없는 클릭.
+ * Detect rage clicks and dead clicks from elements observed by a delegated click listener.
+ * A rage click repeats within a short window and narrow radius. A dead click has no
+ * subsequent DOM mutation or scroll activity.
  */
 
 import { serializeElementsChain } from './elements-chain.js';

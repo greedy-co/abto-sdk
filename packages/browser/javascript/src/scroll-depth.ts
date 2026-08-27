@@ -1,7 +1,8 @@
 /**
- * Scroll depth tracking (PostHog ScrollManager 모델).
- * scroll 은 사용자가 내린 스크롤 깊이, content 는 화면에 보인 콘텐츠의 하한이다
- * (예: 문서 1000px·뷰포트 500px 에서 스크롤 0 이면 scroll 0, content 500).
+ * Scroll depth tracking modeled after PostHog's ScrollManager.
+ * `scroll` is how far the user has scrolled, while `content` is the lower edge
+ * of visible content. For a 1000 px document and 500 px viewport at scroll 0,
+ * scroll is 0 and content is 500.
  */
 
 export interface ScrollDepthSnapshot {
@@ -25,19 +26,19 @@ interface ScrollContext {
 }
 
 export interface ScrollDepthTracker {
-  /** pageleave 에 실을 현재 페이지의 스크롤 깊이. 아직 측정 전이면 undefined. */
+  /** Current page scroll depth for pageleave, or undefined before the first measurement. */
   snapshot(): ScrollDepthSnapshot | undefined;
-  /** 새 pageview 에서 호출. 새 페이지 DOM 이 그려진 다음 tick 에 초기값을 심는다. */
+  /** Reset for a new pageview and measure after its DOM can render on the next tick. */
   reset(): void;
   dispose(): void;
 }
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
-// 스크롤 가능 높이가 0 에 가까우면(내릴 것이 없으면) 전부 본 것으로 친다.
+// Treat a page with no meaningful scrollable height as fully viewed.
 const percentage = (y: number, height: number): number => (height <= 1 ? 1 : clamp01(y / height));
 
-// window 밖 스크롤러(내부 스크롤 영역)의 scroll 이벤트도 받으려면 capture 가 필요하다.
+// Capture phase also receives scroll events from nested scrolling containers.
 const USE_CAPTURE = true;
 
 export function createScrollDepthTracker(): ScrollDepthTracker {
@@ -67,7 +68,7 @@ export function createScrollDepthTracker(): ScrollDepthTracker {
 
   const reset = (): void => {
     context = undefined;
-    // SPA 라우팅 직후에는 새 페이지 DOM 이 아직 없을 수 있어 다음 tick 에 측정한다.
+    // The next route's DOM may not exist immediately after SPA navigation.
     setTimeout(update, 0);
   };
 
@@ -79,7 +80,7 @@ export function createScrollDepthTracker(): ScrollDepthTracker {
   return {
     snapshot: () => {
       if (!context) return undefined;
-      // 999.5px/1000px 스크롤도 100% 로 치도록 px 는 ceil 후 비율을 구한다.
+      // Round pixels up before division so 999.5 px of 1000 px counts as 100%.
       const lastScrollY = Math.ceil(context.lastScrollY);
       const maxScrollY = Math.ceil(context.maxScrollY);
       const maxScrollHeight = Math.ceil(context.maxScrollHeight);
