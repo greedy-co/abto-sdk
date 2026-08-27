@@ -7,13 +7,13 @@ import {
 } from './credentials.js';
 
 export interface OpenAIDirectFallbackOptions {
-  /** OpenAI provider key source가 설정되어 있으면 기본값은 true입니다. */
+  /** Defaults to true when an OpenAI provider key source is configured. */
   enabled?: boolean;
-  /** 첫 direct OpenAI 요청 이후 재시도 횟수입니다. 기본값은 2이고 최댓값은 5입니다. */
+  /** Number of retries after the first direct OpenAI request. Defaults to 2 and is capped at 5. */
   maxRetries?: number;
-  /** Circuit을 열기 전 Gateway 응답 대기 시간입니다. 기본값은 30초입니다. */
+  /** How long to wait for a Gateway response before opening the circuit. Defaults to 30 seconds. */
   timeoutMs?: number;
-  /** Timeout 난 현재 요청을 direct 경로로 재시도할지 정합니다. 중복 실행 방지를 위해 기본값은 false입니다. */
+  /** Whether to retry the current timed-out request through the direct path. Defaults to false to avoid duplicate execution. */
   onTimeout?: boolean;
 }
 
@@ -28,7 +28,7 @@ export interface CreateAbtoOpenAIOptions {
   abtoApiKey?: string;
   /** Provider credentials forwarded to the Gateway for routed egress. */
   providerKeys?: ProviderKeys;
-  /** 안전하게 판별 가능한 Gateway 장애에서 사용하는 OpenAI direct fallback 설정입니다. */
+  /** OpenAI direct fallback settings for Gateway failures that can be identified safely. */
   fallback?: OpenAIDirectFallbackConfig;
   getContext?: () => AbtoContext | undefined;
   clientOptions?: Record<string, unknown>;

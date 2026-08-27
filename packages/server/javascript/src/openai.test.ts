@@ -477,7 +477,7 @@ describe('ABTO OpenAI Gateway client', () => {
         gatewaySignal = init?.signal;
         return new Response(new ReadableStream({
           start() {
-            // 응답 헤더 뒤에도 열려 있는 SSE body를 모사한다.
+            // Simulate an SSE body that remains open after the response headers.
           },
         }));
       },

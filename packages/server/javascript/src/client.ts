@@ -17,7 +17,7 @@ export interface AbtoConfig {
   abtoApiKey?: string;
   providerKeys?: ProviderKeys;
   gatewayBaseURL?: string;
-  /** 안전하게 판별 가능한 Gateway 장애에서 사용하는 OpenAI direct fallback 설정입니다. */
+  /** OpenAI direct fallback settings for Gateway failures that can be identified safely. */
   fallback?: OpenAIDirectFallbackConfig;
   /** Default device key when a request context does not provide one. */
   deviceId?: string;
