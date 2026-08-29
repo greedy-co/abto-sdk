@@ -10,6 +10,12 @@ final uuidV7Pattern = RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
 
 void main() {
+  test('response interaction runtime validation uses the generated contract', () {
+    expect(AbtoResponseInteraction.fromWireValue('copied'),
+        AbtoResponseInteraction.copied);
+    expect(AbtoResponseInteraction.fromWireValue('retried'), isNull);
+  });
+
   group('init config validation', () {
     test('accepts a minimal valid config', () {
       final config = AbtoConfig(projectKey: 'ek_test');
@@ -336,7 +342,9 @@ void main() {
             responseId: 'response-1',
             responseText: 'response-canary',
             timeToVisibleMs: 42);
-        trace.captureOutcome('copied', responseId: 'response-1');
+        trace.captureOutcome(AbtoResponseInteraction.copied,
+            responseId: 'response-1');
+        trace.captureOutcome('retried', responseId: 'response-1');
         await client.flush();
 
         final body = await received.future.timeout(const Duration(seconds: 5));
@@ -364,6 +372,7 @@ void main() {
         expect(rendered[r'$output_length_chars'], 15);
         expect(rendered[r'$time_to_render_ms'], 42);
         expect(interacted[r'$interaction_type'], 'copied');
+        expect(encoded, isNot(contains('retried')));
         expect(interacted[r'$request_id'], 'req_helper');
       } finally {
         await server.close(force: true);
@@ -471,7 +480,8 @@ void main() {
           responseId: 'resp_smoke_flutter',
           responseText: 'Flutter 응답',
           timeToVisibleMs: 42);
-      trace.captureOutcome('copied', responseId: 'resp_smoke_flutter');
+      trace.captureOutcome(AbtoResponseInteraction.copied,
+          responseId: 'resp_smoke_flutter');
       await client.flush();
     },
         skip: Platform.environment['ABTO_E2E'] == '1'

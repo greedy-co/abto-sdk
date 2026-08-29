@@ -226,10 +226,16 @@ class AbtoLlmTrace {
 
   void captureOutcome(String interactionType,
       {String? responseId, Map<String, Object?> extra = const {}}) {
+    final canonical = AbtoResponseInteraction.fromWireValue(interactionType);
+    if (canonical == null) {
+      print(
+          '[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.');
+      return;
+    }
     _client._captureSystemEvent(
       'llm_response_interacted',
       systemProperties: {
-        r'$interaction_type': interactionType,
+        r'$interaction_type': canonical.wireValue,
         if (responseId != null) r'$response_id': responseId,
         if (requestId != null) r'$request_id': requestId,
       },

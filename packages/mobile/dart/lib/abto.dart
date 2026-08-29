@@ -4,3 +4,4 @@ library abto;
 export 'src/config.dart';
 export 'src/context.dart';
 export 'src/client.dart';
+export 'src/contract.generated.dart' show AbtoResponseInteraction;

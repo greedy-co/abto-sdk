@@ -35,7 +35,7 @@ final trace = abto.startLlmTrace(nodeId: 'resume.make', taskType: 'draft_generat
 trace.submitPrompt(prompt: '이력서 초안 작성해줘', language: 'ko');
 trace.attachRequestIdFromHeaders(response.headers); // x-abto-request-id
 trace.markResponseVisible(responseId: 'resp_1', timeToVisibleMs: 1200);
-trace.captureOutcome('accepted', responseId: 'resp_1');
+trace.captureOutcome(AbtoResponseInteraction.accepted, responseId: 'resp_1');
 
 await abto.flush();
 ```
