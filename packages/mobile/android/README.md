@@ -35,7 +35,7 @@ val trace = abto.startLlmTrace(nodeId = "resume.make", taskType = "draft_generat
 trace.submitPrompt(prompt = "이력서 초안 작성해줘", language = "ko")
 trace.attachRequestId(connection.headerFields)  // x-abto-request-id
 trace.markResponseVisible(responseId = "resp_1", timeToVisibleMs = 1200)
-trace.captureOutcome("accepted", responseId = "resp_1")
+trace.captureOutcome(AbtoResponseInteraction.ACCEPTED, responseId = "resp_1")
 
 abto.flush()
 ```
@@ -63,7 +63,7 @@ class SharedPreferencesStore(private val prefs: SharedPreferences) : AbtoKeyValu
 
 ```kotlin
 dependencies {
-    implementation("app.abto:abto-app:0.1.5")
+    implementation("app.abto:abto-app:0.1.6")
 }
 ```
 

@@ -4,6 +4,7 @@ import app.abto.sdk.AbtoContext
 import app.abto.sdk.AbtoEnvironment
 import app.abto.sdk.AbtoInMemoryStore
 import app.abto.sdk.AbtoInitException
+import app.abto.sdk.AbtoResponseInteraction
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
@@ -32,6 +33,15 @@ fun isUuidV7(value: String): Boolean =
     Regex("^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").matches(value)
 
 fun main() {
+    check(
+        AbtoResponseInteraction.fromWireValue("copied") == AbtoResponseInteraction.COPIED,
+        "canonical response interaction is accepted at runtime",
+    )
+    check(
+        AbtoResponseInteraction.fromWireValue("retried") == null,
+        "unknown response interaction is rejected at runtime",
+    )
+
     // init config validation
     val config = AbtoConfig(projectKey = "ek_test")
     check(config.endpoint == "https://api.abto.app/v1/collect/events", "default endpoint derived")
@@ -325,7 +335,9 @@ fun main() {
             responseText = "response-canary",
             timeToVisibleMs = 42,
         )
-        privacyTrace.captureOutcome("copied", responseId = "response-1")
+        privacyTrace.captureOutcome(AbtoResponseInteraction.COPIED, responseId = "response-1")
+        @Suppress("DEPRECATION")
+        privacyTrace.captureOutcome("retried", responseId = "response-1")
         val privacyFlush = CountDownLatch(1)
         privacyClient.flush { privacyFlush.countDown() }
         check(privacyFlush.await(10, TimeUnit.SECONDS), "metadata-only LLM events flushed")
@@ -339,6 +351,7 @@ fun main() {
         check(privacyBody.contains("\"\$prompt_length_chars\":13"), "prompt length metadata is transmitted")
         check(privacyBody.contains("\"\$output_length_chars\":15"), "response length metadata is transmitted")
         check(privacyBody.contains("\"\$interaction_type\":\"copied\""), "LLM helper emits canonical interaction type")
+        check(!privacyBody.contains("retried"), "LLM helper drops non-canonical interaction types")
         check(privacyBody.contains("\"\$request_id\":\"req_helper\""), "LLM helper keeps request id in canonical context")
     } finally {
         server.stop(0)
@@ -359,7 +372,7 @@ fun main() {
         e2eTrace.submitPrompt(prompt = "Android 스모크 프롬프트", language = "ko")
         e2eTrace.attach("req_smoke_android")
         e2eTrace.markResponseVisible(responseId = "resp_smoke_android", responseText = "Android 응답", timeToVisibleMs = 42)
-        e2eTrace.captureOutcome("copied", responseId = "resp_smoke_android")
+        e2eTrace.captureOutcome(AbtoResponseInteraction.COPIED, responseId = "resp_smoke_android")
 
         val done = CountDownLatch(1)
         e2eClient.flush { done.countDown() }

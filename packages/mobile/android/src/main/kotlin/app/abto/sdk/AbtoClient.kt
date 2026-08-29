@@ -200,9 +200,31 @@ class AbtoLlmTrace internal constructor(
     }
 
     fun captureOutcome(
+        interactionType: AbtoResponseInteraction,
+        responseId: String? = null,
+        extra: Map<String, Any?> = emptyMap(),
+    ) {
+        captureCanonicalOutcome(interactionType.wireValue, responseId, extra)
+    }
+
+    @Deprecated("Use the AbtoResponseInteraction overload. String values remain supported during the 0.x compatibility window.")
+    fun captureOutcome(
         interactionType: String,
         responseId: String? = null,
         extra: Map<String, Any?> = emptyMap(),
+    ) {
+        val canonical = AbtoResponseInteraction.fromWireValue(interactionType)
+        if (canonical == null) {
+            System.err.println("[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.")
+            return
+        }
+        captureCanonicalOutcome(canonical.wireValue, responseId, extra)
+    }
+
+    private fun captureCanonicalOutcome(
+        interactionType: String,
+        responseId: String?,
+        extra: Map<String, Any?>,
     ) {
         client.captureSystemEvent(
             "llm_response_interacted",
