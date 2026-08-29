@@ -63,6 +63,11 @@ def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
     return { k: f(v) for (k, v) in x.items() }
 
 
+def from_int(x: Any) -> int:
+    assert isinstance(x, int) and not isinstance(x, bool)
+    return x
+
+
 class CaptureMode(Enum):
     FULL = "full"
     HASH = "hash"
@@ -1364,18 +1369,74 @@ class BrowserEvent:
 
 
 @dataclass
+class BrowserDiagnosticCounters:
+    identity_persist_failed: Optional[int] = None
+    outbox_write_failed: Optional[int] = None
+    send_failed: Optional[int] = None
+    storage_unavailable: Optional[int] = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'BrowserDiagnosticCounters':
+        assert isinstance(obj, dict)
+        identity_persist_failed = from_union([from_int, from_none], obj.get("identity_persist_failed"))
+        outbox_write_failed = from_union([from_int, from_none], obj.get("outbox_write_failed"))
+        send_failed = from_union([from_int, from_none], obj.get("send_failed"))
+        storage_unavailable = from_union([from_int, from_none], obj.get("storage_unavailable"))
+        return BrowserDiagnosticCounters(identity_persist_failed, outbox_write_failed, send_failed, storage_unavailable)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.identity_persist_failed is not None:
+            result["identity_persist_failed"] = from_union([from_int, from_none], self.identity_persist_failed)
+        if self.outbox_write_failed is not None:
+            result["outbox_write_failed"] = from_union([from_int, from_none], self.outbox_write_failed)
+        if self.send_failed is not None:
+            result["send_failed"] = from_union([from_int, from_none], self.send_failed)
+        if self.storage_unavailable is not None:
+            result["storage_unavailable"] = from_union([from_int, from_none], self.storage_unavailable)
+        return result
+
+
+class SDKName(Enum):
+    BROWSER_JAVASCRIPT = "browser-javascript"
+
+
+@dataclass
+class BrowserDiagnosticsEnvelope:
+    counters: BrowserDiagnosticCounters
+    sdk_name: SDKName
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'BrowserDiagnosticsEnvelope':
+        assert isinstance(obj, dict)
+        counters = BrowserDiagnosticCounters.from_dict(obj.get("counters"))
+        sdk_name = SDKName(obj.get("sdk_name"))
+        return BrowserDiagnosticsEnvelope(counters, sdk_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["counters"] = to_class(BrowserDiagnosticCounters, self.counters)
+        result["sdk_name"] = to_enum(SDKName, self.sdk_name)
+        return result
+
+
+@dataclass
 class BrowserEventBatchRequest:
     batch: List[BrowserEvent]
+    diagnostics: Optional[BrowserDiagnosticsEnvelope] = None
 
     @staticmethod
     def from_dict(obj: Any) -> 'BrowserEventBatchRequest':
         assert isinstance(obj, dict)
         batch = from_list(BrowserEvent.from_dict, obj.get("batch"))
-        return BrowserEventBatchRequest(batch)
+        diagnostics = from_union([BrowserDiagnosticsEnvelope.from_dict, from_none], obj.get("diagnostics"))
+        return BrowserEventBatchRequest(batch, diagnostics)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["batch"] = from_list(lambda x: to_class(BrowserEvent, x), self.batch)
+        if self.diagnostics is not None:
+            result["diagnostics"] = from_union([lambda x: to_class(BrowserDiagnosticsEnvelope, x), from_none], self.diagnostics)
         return result
 
 
