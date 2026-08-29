@@ -93,6 +93,10 @@ await trace.captureResponseInteraction("accepted", {
 });
 ```
 
+The public TypeScript literal union and JavaScript runtime accept exactly `copied`, `inserted`, `accepted`, `rejected`, `shared`, `downloaded`, `expanded`, `collapsed`, `rated_positive`, `rated_negative`, `regenerated`, and `aborted`.
+An unsupported runtime value is warned and dropped before enqueueing.
+Never cast around this guard or invent a system value; propose a user-selected custom event for a product-specific action.
+
 Do not return or expose `x-abto-request-id` from the product backend solely to demonstrate integration.
 Add that response path only when a selected supported system event consumes it.
 

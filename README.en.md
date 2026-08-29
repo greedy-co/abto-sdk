@@ -91,7 +91,7 @@ Capture product events and user outcomes in native apps. Mobile SDKs use only an
 | Runtime | Package | Install | Distribution |
 | --- | --- | --- | --- |
 | Flutter / Dart | [`abto`](./packages/mobile/dart) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
-| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.5")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.5) |
+| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.1.6")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.1.6) |
 | iOS / macOS | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
 
 The Android artifact is a pure Kotlin/JVM JAR with no `android.*` dependency. In Android apps, adapt the existing `SharedPreferences` store to `AbtoKeyValueStore`.
@@ -101,7 +101,7 @@ Add the repository as a Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.1.3"
+    from: "0.1.4"
 )
 ```
 

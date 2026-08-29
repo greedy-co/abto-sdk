@@ -49,6 +49,8 @@ Also verify:
 - Event payloads do not include unapproved prompt, response, DOM text, form values, or secrets.
 - A selected system event uses only its approved trigger and metadata.
 - A response-interaction system event uses only a canonical value exposed by the installed SDK.
+- Plain JavaScript and every selected mobile runtime reject one sanitized non-canonical response interaction without enqueueing or transmitting it.
+- The installed SDK's typed response-interaction values, when available, match the same canonical 12-value contract; legacy `0.x` string compatibility does not widen that contract.
 - A selected custom event has an explicit schema and only its approved capture locations.
 - Every new event call names the user-selected candidate ID and exact product trigger; no automatic DOM collection substitutes for that call.
 - When no event is selected, the diff contains no event schema, `capture` call, AI system-event call, or request-ID bridge.

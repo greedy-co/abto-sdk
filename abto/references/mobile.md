@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("app.abto:abto-app:0.1.5")
+    implementation("app.abto:abto-app:0.1.6")
 }
 ```
 
@@ -51,7 +51,7 @@ Add the public Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.1.3"
+    from: "0.1.4"
 )
 ```
 
@@ -85,6 +85,8 @@ Use the SDK's `deviceId` as the Gateway `x-abto-device-id`.
 Do not generate a separate server device identifier for the same app installation.
 Do not create a placeholder product event merely to demonstrate the SDK.
 Use `captureOutcome` only for the canonical interaction values exposed by the installed package: `copied`, `inserted`, `accepted`, `rejected`, `shared`, `downloaded`, `expanded`, `collapsed`, `rated_positive`, `rated_negative`, `regenerated`, and `aborted`.
+Prefer `AbtoResponseInteraction.ACCEPTED` on Android, `.accepted` on Swift, and `AbtoResponseInteraction.accepted` on Dart when those typed APIs exist in the installed public version.
+During the `0.x` compatibility window, legacy string calls remain accepted only when they match the same canonical list; unsupported values are warned and dropped before enqueueing.
 When a product action has no exact match, propose a selected custom event instead of passing an arbitrary string.
 Use platform lifecycle hooks that already exist in the application.
 Do not block the UI thread while flushing.
