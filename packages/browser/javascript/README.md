@@ -137,7 +137,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.1.6"
+        "$lib_version": "0.1.7"
       }
     }
   ]
@@ -162,6 +162,27 @@ const abto = initAbto({
 수신 계약의 상한은 요청당 100 events다. SDK 기본값은 20이며 약 60 KiB 이하 payload만 keepalive로 전송한다. malformed request와 인증 실패는 요청 단위 4xx, 개별 validation/storage 실패는 2xx 응답의 UUID별 `warning`, `drop`, `retry`로 처리한다.
 커스텀 `event_name`은 Backend와 같은 UTF-16 기준 최대 200자이며, `defineEvents()`와 runtime capture가 enqueue 전에 검증한다.
 metric `scale`은 최대 16자이며, 초과한 값은 event 전체가 drop되지 않도록 top-level metadata에서 제외한다.
+
+### SDK 자체 전송 진단
+
+Browser SDK는 `send_failed`, `outbox_write_failed`, `identity_persist_failed`, `storage_unavailable` 네 실패를
+메모리 counter로만 모은다. 다음 event batch가 있을 때 고정 스키마의 선택적 `diagnostics` 필드로 같은 요청에
+동승시키며, 이를 위한 별도 네트워크 요청이나 제품 event를 만들지 않는다. 성공 응답을 받은 counter만 차감하고
+전송 실패 시 보존한다.
+
+```json
+{
+  "batch": [{ "event_id": "019b...", "event_name": "checkout_started" }],
+  "diagnostics": {
+    "sdk_name": "browser-javascript",
+    "counters": { "send_failed": 1 }
+  }
+}
+```
+
+diagnostics는 위 고정 SDK 이름과 counter만 포함하고 사용자 ID, event property, URL, 오류 원문을 복사하지
+않는다. 고정된 네 counter만 직렬화하므로 별도 크기 제한이나 첨부 복구 경로가 필요하지 않다. event가 전혀
+없으면 진단만 보내는 요청도 생기지 않는다.
 
 SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고정 Event 계약은 `$` 접두
 `event_name`을 거절한다. Transport가 위 표의 canonical 이름으로만 변환해 전송하며 `$lib`,

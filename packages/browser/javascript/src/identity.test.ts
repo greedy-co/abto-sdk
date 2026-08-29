@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BrowserDiagnostics } from './diagnostics.js';
 import { BrowserIdentityStore, type StorageLike } from './identity.js';
 
 class MemoryStorage implements StorageLike {
@@ -15,7 +16,51 @@ class MemoryStorage implements StorageLike {
   }
 }
 
+class FailingWriteStorage extends MemoryStorage {
+  override setItem(): void {
+    throw new DOMException('quota exceeded', 'QuotaExceededError');
+  }
+}
+
+class FailingReadStorage extends MemoryStorage {
+  override getItem(): string | null {
+    throw new DOMException('storage disabled', 'SecurityError');
+  }
+}
+
 describe('BrowserIdentityStore lifecycle', () => {
+  it('reports identity persistence failure and keeps an in-memory identity', () => {
+    const diagnostics = new BrowserDiagnostics();
+    const store = new BrowserIdentityStore({
+      projectKey: 'project',
+      storage: new FailingWriteStorage(),
+      windowStorage: new MemoryStorage(),
+      diagnostics,
+    });
+
+    expect(store.current().deviceId).not.toBe('');
+    expect(diagnostics.snapshot()?.counters.identity_persist_failed).toBeGreaterThan(0);
+  });
+
+  it('reports unavailable storage once and falls back to memory', () => {
+    const diagnostics = new BrowserDiagnostics();
+    const store = new BrowserIdentityStore({
+      projectKey: 'project',
+      storage: new FailingReadStorage(),
+      windowStorage: new MemoryStorage(),
+      diagnostics,
+    });
+
+    expect(store.current().deviceId).not.toBe('');
+    const firstReport = diagnostics.snapshot();
+    expect(firstReport?.counters).toEqual({ storage_unavailable: 1 });
+
+    diagnostics.acknowledge(firstReport!);
+    store.current();
+
+    expect(diagnostics.snapshot()).toBeUndefined();
+  });
+
   it('rotates a session after idle timeout', () => {
     let now = 0;
     const storage = new MemoryStorage();

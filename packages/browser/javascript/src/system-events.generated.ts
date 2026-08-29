@@ -23,6 +23,15 @@ export function isAIInteractionType(value: unknown): value is AIInteractionType 
   return typeof value === 'string' && ABTO_AI_INTERACTION_TYPES.some((type) => type === value);
 }
 
+export const ABTO_BROWSER_DIAGNOSTIC_SDK_NAME = "browser-javascript" as const;
+export const ABTO_BROWSER_DIAGNOSTIC_MAX_COUNT = 1000000 as const;
+export const ABTO_BROWSER_DIAGNOSTIC_KINDS = [
+  "send_failed",
+  "outbox_write_failed",
+  "identity_persist_failed",
+  "storage_unavailable"
+] as const;
+
 export const BROWSER_SYSTEM_EVENT_WIRE_NAMES = {
   "$pageview": "pageview",
   "$pageleave": "pageleave",

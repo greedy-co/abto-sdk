@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BrowserDiagnostics } from './diagnostics.js';
 import { Transport } from './transport.js';
 import type { CapturedEvent, ResolvedConfig } from './types.js';
 
@@ -45,6 +46,62 @@ afterEach(() => {
 });
 
 describe('Transport durable outbox', () => {
+  it('reports a send failure with the next retry and clears it only after success', async () => {
+    const diagnostics = new BrowserDiagnostics();
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('network unavailable'))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const transport = new Transport(config, diagnostics);
+    transport.enqueue({
+      ...event(),
+      properties: { customer_email: 'private@example.com' },
+    });
+
+    await transport.flush();
+    const failedBody = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(failedBody).not.toHaveProperty('diagnostics');
+
+    await transport.flush();
+    const retryBody = JSON.parse((fetchMock.mock.calls[1]?.[1] as RequestInit).body as string);
+    expect(retryBody.diagnostics).toEqual({
+      sdk_name: 'browser-javascript',
+      counters: { send_failed: 1 },
+    });
+    expect(JSON.stringify(retryBody.diagnostics)).not.toContain('private@example.com');
+
+    transport.enqueue(event('019b5b74-11d0-7000-8000-000000000002'));
+    await transport.flush();
+    const nextBody = JSON.parse((fetchMock.mock.calls[2]?.[1] as RequestInit).body as string);
+    expect(nextBody).not.toHaveProperty('diagnostics');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    transport.shutdown();
+  });
+
+  it('reports outbox persistence failure without blocking the event batch', async () => {
+    const diagnostics = new BrowserDiagnostics();
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException('quota exceeded', 'QuotaExceededError');
+      },
+      clear: () => undefined,
+    });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const transport = new Transport(config, diagnostics);
+
+    transport.enqueue(event());
+    await transport.flush();
+
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(body.diagnostics.counters).toEqual({ outbox_write_failed: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    transport.shutdown();
+  });
+
   it('retains transient 5xx and removes the event after success', async () => {
     const fetchMock = vi
       .fn()
@@ -301,6 +358,38 @@ describe('Transport durable outbox', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).keepalive).toBe(true);
     expect(outbox()).toEqual([]);
+    transport.shutdown();
+  });
+
+  it('defers diagnostics that would disable keepalive until the next batch', async () => {
+    const diagnostics = new BrowserDiagnostics();
+    diagnostics.record('send_failed');
+    diagnostics.record('outbox_write_failed');
+    diagnostics.record('identity_persist_failed');
+    diagnostics.record('storage_unavailable');
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const transport = new Transport(config, diagnostics);
+    transport.enqueue(event('near-limit', 'x'.repeat(60 * 1024 - 300)));
+
+    await transport.flush(true);
+
+    const unloadRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(unloadRequest.keepalive).toBe(true);
+    expect(JSON.parse(unloadRequest.body as string)).not.toHaveProperty('diagnostics');
+    expect(diagnostics.snapshot()).toBeDefined();
+
+    transport.enqueue(event('019b5b74-11d0-7000-8000-000000000002'));
+    await transport.flush();
+
+    const nextBody = JSON.parse((fetchMock.mock.calls[1]?.[1] as RequestInit).body as string);
+    expect(nextBody.diagnostics.counters).toEqual({
+      send_failed: 1,
+      outbox_write_failed: 1,
+      identity_persist_failed: 1,
+      storage_unavailable: 1,
+    });
+    expect(diagnostics.snapshot()).toBeUndefined();
     transport.shutdown();
   });
 

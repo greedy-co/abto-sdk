@@ -1,4 +1,5 @@
 import { newUuidV7 } from './uuid.js';
+import type { BrowserDiagnostics } from './diagnostics.js';
 
 const IDENTITY_STORAGE_VERSION = 2;
 const WINDOW_STORAGE_VERSION = 1;
@@ -21,6 +22,7 @@ export interface IdentityStoreOptions {
   storage?: StorageLike;
   windowStorage?: StorageLike;
   now?: () => number;
+  diagnostics?: BrowserDiagnostics;
 }
 
 export interface StorageLike {
@@ -36,18 +38,24 @@ interface PersistedIdentity {
   lastSeenAt: number;
 }
 
-function resolveLocalStorage(): StorageLike | undefined {
+function resolveLocalStorage(diagnostics: BrowserDiagnostics | undefined): StorageLike | undefined {
   try {
-    return globalThis.localStorage;
+    const storage = globalThis.localStorage;
+    if (storage === undefined) diagnostics?.record('storage_unavailable');
+    return storage;
   } catch {
+    diagnostics?.record('storage_unavailable');
     return undefined;
   }
 }
 
-function resolveWindowStorage(): StorageLike | undefined {
+function resolveWindowStorage(diagnostics: BrowserDiagnostics | undefined): StorageLike | undefined {
   try {
-    return globalThis.sessionStorage;
+    const storage = globalThis.sessionStorage;
+    if (storage === undefined) diagnostics?.record('storage_unavailable');
+    return storage;
   } catch {
+    diagnostics?.record('storage_unavailable');
     return undefined;
   }
 }
@@ -77,13 +85,15 @@ export class BrowserIdentityStore {
   private readonly sessionMaxAgeMs: number;
   private readonly writeThrottleMs: number;
   private readonly now: () => number;
+  private readonly diagnostics: BrowserDiagnostics | undefined;
   private state: PersistedIdentity;
   private windowId: string;
   private lastPersistedAt = Number.NEGATIVE_INFINITY;
 
   constructor(options: IdentityStoreOptions) {
-    this.storage = options.storage ?? resolveLocalStorage();
-    this.windowStorage = options.windowStorage ?? resolveWindowStorage();
+    this.diagnostics = options.diagnostics;
+    this.storage = options.storage ?? resolveLocalStorage(this.diagnostics);
+    this.windowStorage = options.windowStorage ?? resolveWindowStorage(this.diagnostics);
     this.storageKey = `abto:identity:v${IDENTITY_STORAGE_VERSION}:${encodeURIComponent(options.projectKey)}`;
     this.windowStorageKey = `abto:window:v${WINDOW_STORAGE_VERSION}:${encodeURIComponent(options.projectKey)}`;
     this.sessionIdleMs = positiveOr(options.sessionIdleMs, DEFAULT_SESSION_IDLE_MS);
@@ -152,16 +162,22 @@ export class BrowserIdentityStore {
     try {
       this.windowStorage?.setItem(this.windowStorageKey, windowId);
     } catch {
-      // The in-memory window id still provides tab scoping.
+      this.diagnostics?.record('storage_unavailable');
     }
     return windowId;
   }
 
   private read(): PersistedIdentity | undefined {
     if (this.storage === undefined) return undefined;
+    let raw: string | null;
     try {
-      const raw = this.storage.getItem(this.storageKey);
-      if (raw === null) return undefined;
+      raw = this.storage.getItem(this.storageKey);
+    } catch {
+      this.diagnostics?.record('storage_unavailable');
+      return undefined;
+    }
+    if (raw === null) return undefined;
+    try {
       const value: unknown = JSON.parse(raw);
       return isPersistedIdentity(value) ? value : undefined;
     } catch {
@@ -174,6 +190,7 @@ export class BrowserIdentityStore {
       const value = this.windowStorage?.getItem(this.windowStorageKey);
       return value === undefined || value === null || value === '' ? undefined : value;
     } catch {
+      this.diagnostics?.record('storage_unavailable');
       return undefined;
     }
   }
@@ -181,11 +198,12 @@ export class BrowserIdentityStore {
   private persist(force = false): void {
     const now = this.now();
     if (!force && now - this.lastPersistedAt < this.writeThrottleMs) return;
+    if (this.storage === undefined) return;
     try {
-      this.storage?.setItem(this.storageKey, JSON.stringify(this.state));
+      this.storage.setItem(this.storageKey, JSON.stringify(this.state));
       this.lastPersistedAt = now;
     } catch {
-      // Storage failures degrade to in-memory identity.
+      this.diagnostics?.record('identity_persist_failed');
     }
   }
 }

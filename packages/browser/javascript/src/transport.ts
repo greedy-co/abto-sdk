@@ -5,6 +5,7 @@ import type {
   BrowserIngestEvent,
 } from './events.generated.js';
 import { toBrowserSystemEventWireName } from './system-events.generated.js';
+import type { BrowserDiagnostics } from './diagnostics.js';
 
 const MAX_BUFFER = 1000;
 const MAX_BATCH_SIZE = 100;
@@ -62,10 +63,13 @@ function toBackendEvent(event: CapturedEvent): BrowserIngestEvent {
   };
 }
 
-function resolveStorage(): StorageLike | undefined {
+function resolveStorage(diagnostics: BrowserDiagnostics | undefined): StorageLike | undefined {
   try {
-    return globalThis.localStorage;
+    const storage = globalThis.localStorage;
+    if (storage === undefined) diagnostics?.record('storage_unavailable');
+    return storage;
   } catch {
+    diagnostics?.record('storage_unavailable');
     return undefined;
   }
 }
@@ -101,10 +105,12 @@ export class Transport {
   private readonly cfg: ResolvedConfig;
   private readonly storage: StorageLike | undefined;
   private readonly outboxKey: string;
+  private readonly diagnostics: BrowserDiagnostics | undefined;
 
-  constructor(cfg: ResolvedConfig) {
+  constructor(cfg: ResolvedConfig, diagnostics?: BrowserDiagnostics) {
     this.cfg = cfg;
-    this.storage = resolveStorage();
+    this.diagnostics = diagnostics;
+    this.storage = resolveStorage(this.diagnostics);
     this.outboxKey = `abto:outbox:v1:${encodeURIComponent(cfg.projectKey)}`;
     this.queue = this.readOutbox();
     this.installLifecycleHooks();
@@ -160,7 +166,19 @@ export class Transport {
 
   private async flushBatch(useKeepalive: boolean): Promise<void> {
     const batch = this.selectBatch();
-    const body = JSON.stringify({ batch: batch.map(toBackendEvent) });
+    const envelope = { batch: batch.map(toBackendEvent) };
+    const envelopeBody = JSON.stringify(envelope);
+    let diagnostics = this.diagnostics?.snapshot();
+    let body = JSON.stringify(diagnostics === undefined ? envelope : { ...envelope, diagnostics });
+    if (
+      useKeepalive &&
+      diagnostics !== undefined &&
+      byteLength(envelopeBody) <= MAX_KEEPALIVE_BYTES &&
+      byteLength(body) > MAX_KEEPALIVE_BYTES
+    ) {
+      diagnostics = undefined;
+      body = envelopeBody;
+    }
     const safeForKeepalive = byteLength(body) <= MAX_KEEPALIVE_BYTES;
 
     try {
@@ -177,11 +195,15 @@ export class Transport {
       });
 
       if (!response.ok) {
-        if (isTransientStatus(response.status)) this.scheduleRetry();
+        if (isTransientStatus(response.status)) {
+          this.diagnostics?.record('send_failed');
+          this.scheduleRetry();
+        }
         else this.acknowledge(batch.map((event) => event.uuid));
         return;
       }
 
+      if (diagnostics !== undefined) this.diagnostics?.acknowledge(diagnostics);
       const result = await readBatchResponse(response);
       if (result.results === undefined) {
         this.acknowledge(batch.map((event) => event.uuid));
@@ -199,6 +221,7 @@ export class Transport {
       if (retry) this.scheduleRetry();
       else if (this.queue.length > 0) this.armTimer(0);
     } catch {
+      this.diagnostics?.record('send_failed');
       this.scheduleRetry();
     }
   }
@@ -236,9 +259,15 @@ export class Transport {
 
   private readOutbox(): CapturedEvent[] {
     if (this.storage === undefined) return [];
+    let raw: string | null;
     try {
-      const raw = this.storage.getItem(this.outboxKey);
-      if (raw === null) return [];
+      raw = this.storage.getItem(this.outboxKey);
+    } catch {
+      this.diagnostics?.record('storage_unavailable');
+      return [];
+    }
+    if (raw === null) return [];
+    try {
       const parsed: unknown = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed.filter(isCapturedEvent).slice(-MAX_BUFFER) : [];
     } catch {
@@ -247,10 +276,11 @@ export class Transport {
   }
 
   private persist(): void {
+    if (this.storage === undefined) return;
     try {
-      this.storage?.setItem(this.outboxKey, JSON.stringify(this.queue));
+      this.storage.setItem(this.outboxKey, JSON.stringify(this.queue));
     } catch {
-      // Quota/security failures degrade to the in-memory queue.
+      this.diagnostics?.record('outbox_write_failed');
     }
   }
 

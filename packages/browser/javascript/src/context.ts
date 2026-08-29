@@ -9,6 +9,7 @@
  */
 
 import type { CommonProperties, StartLlmTraceOptions } from './types.js';
+import type { BrowserDiagnostics } from './diagnostics.js';
 import { BrowserIdentityStore, type BrowserIdentity } from './identity.js';
 import { newUuidV7, newUuidV7TraceId, randomHex } from './uuid.js';
 
@@ -39,6 +40,7 @@ export interface ContextStoreOptions {
   projectKey: string;
   sessionIdleMs?: number;
   sessionMaxAgeMs?: number;
+  diagnostics?: BrowserDiagnostics;
 }
 
 /** 32-hex-character W3C-compatible trace id. */

@@ -357,7 +357,8 @@ export interface BrowserDeadClickEventExtraJSON {
 }
 
 export interface BrowserEventBatchRequest {
-    batch: BrowserEvent[];
+    batch:        BrowserEvent[];
+    diagnostics?: BrowserDiagnosticsEnvelope;
 }
 
 export interface BrowserEvent {
@@ -441,6 +442,20 @@ export interface ExtraJSONObject {
     $time_since_response_ms?:  Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     [property: string]: Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
 }
+
+export interface BrowserDiagnosticsEnvelope {
+    counters: BrowserDiagnosticCounters;
+    sdk_name: SDKName;
+}
+
+export interface BrowserDiagnosticCounters {
+    identity_persist_failed?: number;
+    outbox_write_failed?:     number;
+    send_failed?:             number;
+    storage_unavailable?:     number;
+}
+
+export type SDKName = "browser-javascript";
 
 export interface BrowserEventBatchResponse {
     results: { [key: string]: BrowserEventResult };

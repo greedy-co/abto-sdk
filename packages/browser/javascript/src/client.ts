@@ -1,5 +1,6 @@
 import { installAutocapture, type AutocaptureHit } from './autocapture.js';
 import { ContextStore, newEventId, type TraceHeaders } from './context.js';
+import { BrowserDiagnostics } from './diagnostics.js';
 import {
   validateCustomEventName,
   validateCustomPropertyNames,
@@ -31,7 +32,7 @@ import type {
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 
-export const SDK_VERSION = '0.1.6';
+export const SDK_VERSION = '0.1.7';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';
@@ -283,12 +284,14 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
 
   constructor(config: AbtoBrowserConfig<R>) {
     this.config = resolveConfig(config);
+    const diagnostics = new BrowserDiagnostics();
     this.context = new ContextStore({
       projectKey: this.config.projectKey,
       sessionIdleMs: this.config.sessionIdleMs,
       sessionMaxAgeMs: this.config.sessionMaxAgeMs,
+      diagnostics,
     });
-    this.transport = new Transport(this.config);
+    this.transport = new Transport(this.config, diagnostics);
     if (this.config.autocapture) {
       this.detachAutocapture = installAutocapture((hit) => this.onAutocapture(hit), {
         mask: this.config.mask,
