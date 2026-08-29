@@ -415,7 +415,8 @@ data class BrowserDeadClickEventExtraJSON (
 )
 
 data class BrowserEventBatchRequest (
-    val batch: List<BrowserEvent>
+    val batch: List<BrowserEvent>,
+    val diagnostics: BrowserDiagnosticsEnvelope? = null
 )
 
 data class BrowserEvent (
@@ -444,6 +445,22 @@ sealed class JSONValueElement {
     class DoubleValue(val value: Double) : JSONValueElement()
     class StringValue(val value: String) : JSONValueElement()
     class NullValue()                    : JSONValueElement()
+}
+
+data class BrowserDiagnosticsEnvelope (
+    val counters: BrowserDiagnosticCounters,
+    val sdkName: SDKName
+)
+
+data class BrowserDiagnosticCounters (
+    val identityPersistFailed: Long? = null,
+    val outboxWriteFailed: Long? = null,
+    val sendFailed: Long? = null,
+    val storageUnavailable: Long? = null
+)
+
+enum class SDKName {
+    BrowserJavascript
 }
 
 data class BrowserEventBatchResponse (
