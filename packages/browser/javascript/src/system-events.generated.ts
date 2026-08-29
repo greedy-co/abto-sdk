@@ -1,7 +1,27 @@
 // GENERATED FILE — DO NOT EDIT.
 
+import type { AIInteractionType } from './events.generated.js';
+
 export const ABTO_SCHEMA_VERSION = "2026-07-15" as const;
 export const ABTO_EVENT_NAME_MAX_LENGTH = 200 as const;
+
+export const ABTO_AI_INTERACTION_TYPES = [
+  "copied",
+  "inserted",
+  "accepted",
+  "rejected",
+  "shared",
+  "downloaded",
+  "expanded",
+  "collapsed",
+  "rated_positive",
+  "rated_negative",
+  "regenerated",
+  "aborted"
+] as const satisfies readonly AIInteractionType[];
+export function isAIInteractionType(value: unknown): value is AIInteractionType {
+  return typeof value === 'string' && ABTO_AI_INTERACTION_TYPES.some((type) => type === value);
+}
 
 export const BROWSER_SYSTEM_EVENT_WIRE_NAMES = {
   "$pageview": "pageview",

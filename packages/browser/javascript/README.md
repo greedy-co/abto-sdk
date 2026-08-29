@@ -137,7 +137,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.1.5"
+        "$lib_version": "0.1.6"
       }
     }
   ]
@@ -242,6 +242,9 @@ await trace.captureResponseInteraction('copied', {
   source: 'copy_button',
 });
 ```
+
+`captureResponseInteraction()`은 계약에 정의된 12개 interaction type만 enqueue한다.
+plain JavaScript에서 다른 값이 들어와도 경고 후 제외하며, 제품 고유 행동은 커스텀 이벤트로 기록한다.
 
 provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request 성공·실패는 Server SDK/Gateway가 소유한다. AI task 완료·이탈은 제품마다 의미가 다르므로 커스텀 이벤트 또는 분석 파생 지표로 둔다.
 

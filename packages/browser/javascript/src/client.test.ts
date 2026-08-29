@@ -193,6 +193,20 @@ describe('observable AI events', () => {
     expect(() => trace.setRequestId('   ')).toThrow('[abto] setRequestId');
   });
 
+  it('drops a non-canonical response interaction at runtime', async () => {
+    const fetchMock = installFetchStub();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const sdk = client();
+    const trace = sdk.startLlmTrace({ nodeId: 'chat.default' });
+
+    await trace.captureResponseInteraction('retried' as never);
+    await sdk.flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('response interaction was dropped'));
+    sdk.shutdown();
+  });
+
   it('sends annotated $autocapture as interaction_autocaptured with AI dimensions', async () => {
     const fetchMock = installFetchStub();
     document.body.innerHTML = `

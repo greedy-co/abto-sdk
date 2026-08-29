@@ -29,8 +29,9 @@ import type {
   StartLlmTraceOptions,
 } from './types.js';
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
+import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 
-export const SDK_VERSION = '0.1.5';
+export const SDK_VERSION = '0.1.6';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';
@@ -234,6 +235,12 @@ class BrowserLlmTrace implements LlmTrace {
     type: AIInteractionType,
     metadata: ResponseInteractionMetadata = {},
   ): Promise<void> {
+    if (!isAIInteractionType(type)) {
+      console.warn(
+        `[abto] response interaction was dropped: type must be one of ${ABTO_AI_INTERACTION_TYPES.join(', ')}. Use a custom event for other product actions.`,
+      );
+      return;
+    }
     const requestId = metadata.requestId ?? this.requestId;
     this.emitSystem(
       '$ai_response_interacted',

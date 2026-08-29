@@ -23,9 +23,11 @@ import type {
   InferCustomEventProperties,
 } from './event-registry.js';
 import {
+  ABTO_AI_INTERACTION_TYPES,
   ABTO_SCHEMA_VERSION,
   BROWSER_SYSTEM_EVENTS,
   BROWSER_SYSTEM_EVENT_WIRE_NAMES,
+  isAIInteractionType,
   type BrowserSystemEventName,
   type BrowserSystemEventWireName,
 } from './system-events.generated.js';
@@ -43,9 +45,11 @@ export type {
   InferCustomEventProperties,
 };
 export {
+  ABTO_AI_INTERACTION_TYPES,
   ABTO_SCHEMA_VERSION,
   BROWSER_SYSTEM_EVENTS,
   BROWSER_SYSTEM_EVENT_WIRE_NAMES,
+  isAIInteractionType,
   type BrowserSystemEventName,
   type BrowserSystemEventWireName,
 };
