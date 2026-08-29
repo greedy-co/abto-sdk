@@ -267,7 +267,28 @@ public final class AbtoLlmTrace {
         client.captureSystemEvent("llm_response_rendered", systemProperties: systemProperties, envelope: envelope(["response_id": responseId]))
     }
 
+    public func captureOutcome(
+        _ interactionType: AbtoResponseInteraction,
+        responseId: String? = nil,
+        properties extra: [String: Any] = [:]
+    ) {
+        captureCanonicalOutcome(interactionType.rawValue, responseId: responseId, properties: extra)
+    }
+
+    @available(*, deprecated, message: "Use the AbtoResponseInteraction overload. String values remain supported during the 0.x compatibility window.")
     public func captureOutcome(_ interactionType: String, responseId: String? = nil, properties extra: [String: Any] = [:]) {
+        guard let canonical = AbtoResponseInteraction(rawValue: interactionType) else {
+            print("[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.")
+            return
+        }
+        captureCanonicalOutcome(canonical.rawValue, responseId: responseId, properties: extra)
+    }
+
+    private func captureCanonicalOutcome(
+        _ interactionType: String,
+        responseId: String?,
+        properties extra: [String: Any]
+    ) {
         var systemProperties: [String: Any] = ["$interaction_type": interactionType]
         if let responseId { systemProperties["$response_id"] = responseId }
         if let requestId { systemProperties["$request_id"] = requestId }

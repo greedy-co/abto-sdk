@@ -1785,6 +1785,7 @@ extension BrowserDeadClickEventExtraJSON {
 // MARK: - BrowserEventBatchRequest
 struct BrowserEventBatchRequest: Codable {
     let batch: [BrowserEvent]
+    let diagnostics: BrowserDiagnosticsEnvelope?
 }
 
 // MARK: BrowserEventBatchRequest convenience initializers and mutators
@@ -1806,10 +1807,12 @@ extension BrowserEventBatchRequest {
     }
 
     func with(
-        batch: [BrowserEvent]? = nil
+        batch: [BrowserEvent]? = nil,
+        diagnostics: BrowserDiagnosticsEnvelope?? = nil
     ) -> BrowserEventBatchRequest {
         return BrowserEventBatchRequest(
-            batch: batch ?? self.batch
+            batch: batch ?? self.batch,
+            diagnostics: diagnostics ?? self.diagnostics
         )
     }
 
@@ -1993,6 +1996,111 @@ enum JSONValueElement: Codable {
             try container.encodeNil()
         }
     }
+}
+
+// MARK: - BrowserDiagnosticsEnvelope
+struct BrowserDiagnosticsEnvelope: Codable {
+    let counters: BrowserDiagnosticCounters
+    let sdkName: SDKName
+
+    enum CodingKeys: String, CodingKey {
+        case counters
+        case sdkName = "sdk_name"
+    }
+}
+
+// MARK: BrowserDiagnosticsEnvelope convenience initializers and mutators
+
+extension BrowserDiagnosticsEnvelope {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(BrowserDiagnosticsEnvelope.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        counters: BrowserDiagnosticCounters? = nil,
+        sdkName: SDKName? = nil
+    ) -> BrowserDiagnosticsEnvelope {
+        return BrowserDiagnosticsEnvelope(
+            counters: counters ?? self.counters,
+            sdkName: sdkName ?? self.sdkName
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+// MARK: - BrowserDiagnosticCounters
+struct BrowserDiagnosticCounters: Codable {
+    let identityPersistFailed, outboxWriteFailed, sendFailed, storageUnavailable: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case identityPersistFailed = "identity_persist_failed"
+        case outboxWriteFailed = "outbox_write_failed"
+        case sendFailed = "send_failed"
+        case storageUnavailable = "storage_unavailable"
+    }
+}
+
+// MARK: BrowserDiagnosticCounters convenience initializers and mutators
+
+extension BrowserDiagnosticCounters {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(BrowserDiagnosticCounters.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        identityPersistFailed: Int?? = nil,
+        outboxWriteFailed: Int?? = nil,
+        sendFailed: Int?? = nil,
+        storageUnavailable: Int?? = nil
+    ) -> BrowserDiagnosticCounters {
+        return BrowserDiagnosticCounters(
+            identityPersistFailed: identityPersistFailed ?? self.identityPersistFailed,
+            outboxWriteFailed: outboxWriteFailed ?? self.outboxWriteFailed,
+            sendFailed: sendFailed ?? self.sendFailed,
+            storageUnavailable: storageUnavailable ?? self.storageUnavailable
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+enum SDKName: String, Codable {
+    case browserJavascript = "browser-javascript"
 }
 
 // MARK: - BrowserEventBatchResponse

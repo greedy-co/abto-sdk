@@ -19,6 +19,15 @@ func isUUIDv7(_ value: String) -> Bool {
     value.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression) != nil
 }
 
+check(
+    AbtoResponseInteraction(rawValue: "copied") == .copied,
+    "canonical response interaction is accepted at runtime"
+)
+check(
+    AbtoResponseInteraction(rawValue: "retried") == nil,
+    "unknown response interaction is rejected at runtime"
+)
+
 // init config validation
 do {
     let config = try AbtoConfig(projectKey: "ek_test")
@@ -209,7 +218,7 @@ if ProcessInfo.processInfo.environment["ABTO_E2E"] == "1" {
     trace.submitPrompt(prompt: "iOS 스모크 프롬프트", language: "ko")
     trace.attach(requestId: "req_smoke_ios")
     trace.markResponseVisible(responseId: "resp_smoke_ios", responseText: "iOS 응답", timeToVisibleMs: 42)
-    trace.captureOutcome("copied", responseId: "resp_smoke_ios")
+    trace.captureOutcome(.copied, responseId: "resp_smoke_ios")
 
     let done = DispatchSemaphore(value: 0)
     client.flush { done.signal() }

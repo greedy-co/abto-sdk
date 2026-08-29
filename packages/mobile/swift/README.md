@@ -15,7 +15,7 @@ https://github.com/greedy-co/abto-sdk
 다른 Swift package에서는 dependency를 직접 추가한다.
 
 ```swift
-.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.1.3")
+.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.1.5")
 ```
 
 공개 mirror 저장소는 루트 `Package.swift`와 Swift 릴리스용 `vX.Y.Z` 태그를 함께 제공한다.
@@ -45,7 +45,7 @@ trace.submitPrompt(prompt: "이력서 초안 작성해줘", language: "ko")
 // 게이트웨이 응답을 받으면:
 trace.attachRequestId(fromHeaders: httpResponse.allHeaderFields)  // x-abto-request-id
 trace.markResponseVisible(responseId: "resp_1", timeToVisibleMs: 1200)
-trace.captureOutcome("accepted", responseId: "resp_1")
+trace.captureOutcome(.accepted, responseId: "resp_1")
 
 abto.flush()
 ```
