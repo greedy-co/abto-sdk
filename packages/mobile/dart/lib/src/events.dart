@@ -1494,17 +1494,21 @@ class BrowserDeadClickEventExtraJson {
 
 class BrowserEventBatchRequest {
     List<BrowserEvent> batch;
+    BrowserDiagnosticsEnvelope? diagnostics;
 
     BrowserEventBatchRequest({
         required this.batch,
+        this.diagnostics,
     });
 
     factory BrowserEventBatchRequest.fromJson(Map<String, dynamic> json) => BrowserEventBatchRequest(
         batch: List<BrowserEvent>.from(json["batch"].map((x) => BrowserEvent.fromJson(x))),
+        diagnostics: json["diagnostics"] == null ? null : BrowserDiagnosticsEnvelope.fromJson(json["diagnostics"]),
     );
 
     Map<String, dynamic> toJson() => {
         "batch": List<dynamic>.from(batch.map((x) => x.toJson())),
+        "diagnostics": diagnostics?.toJson(),
     };
 }
 
@@ -1555,6 +1559,62 @@ class BrowserEvent {
         "value": value,
     };
 }
+
+class BrowserDiagnosticsEnvelope {
+    BrowserDiagnosticCounters counters;
+    SdkName sdkName;
+
+    BrowserDiagnosticsEnvelope({
+        required this.counters,
+        required this.sdkName,
+    });
+
+    factory BrowserDiagnosticsEnvelope.fromJson(Map<String, dynamic> json) => BrowserDiagnosticsEnvelope(
+        counters: BrowserDiagnosticCounters.fromJson(json["counters"]),
+        sdkName: sdkNameValues.map[json["sdk_name"]]!,
+    );
+
+    Map<String, dynamic> toJson() => {
+        "counters": counters.toJson(),
+        "sdk_name": sdkNameValues.reverse[sdkName],
+    };
+}
+
+class BrowserDiagnosticCounters {
+    int? identityPersistFailed;
+    int? outboxWriteFailed;
+    int? sendFailed;
+    int? storageUnavailable;
+
+    BrowserDiagnosticCounters({
+        this.identityPersistFailed,
+        this.outboxWriteFailed,
+        this.sendFailed,
+        this.storageUnavailable,
+    });
+
+    factory BrowserDiagnosticCounters.fromJson(Map<String, dynamic> json) => BrowserDiagnosticCounters(
+        identityPersistFailed: json["identity_persist_failed"],
+        outboxWriteFailed: json["outbox_write_failed"],
+        sendFailed: json["send_failed"],
+        storageUnavailable: json["storage_unavailable"],
+    );
+
+    Map<String, dynamic> toJson() => {
+        "identity_persist_failed": identityPersistFailed,
+        "outbox_write_failed": outboxWriteFailed,
+        "send_failed": sendFailed,
+        "storage_unavailable": storageUnavailable,
+    };
+}
+
+enum SdkName {
+    BROWSER_JAVASCRIPT
+}
+
+final sdkNameValues = EnumValues({
+    "browser-javascript": SdkName.BROWSER_JAVASCRIPT
+});
 
 class BrowserEventBatchResponse {
     Map<String, BrowserEventResult> results;
