@@ -48,7 +48,7 @@ Use one row per executable call path:
 | ID | Capability | Repository/runtime | Exact call site | API surface | Client/device path | Provider/fallback path | Proposed `nodeKey` | Status and action |
 |---|---|---|---|---|---|---|---|---|
 
-Resolve the installed Calling SDK's fallback configuration instead of inferring it from the normal Gateway path.
+Resolve the installed Calling SDK's fallback configuration and native OpenAI retry setting instead of inferring either from the normal Gateway path.
 When direct fallback is enabled, report the trigger conditions, direct provider, and absence of Gateway policy, ABTO telemetry, and `request_id`.
 
 Use only these pre-approval statuses:

@@ -9,6 +9,9 @@ Before checking builds, verify the interaction record:
 - Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
 - Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `nodeKey`.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
+- Every approved OpenAI call preserves its native retry setting or official SDK default; no ABTO-specific fallback attempt counter was introduced.
+- Every other native OpenAI client option is preserved unless it is a documented ABTO-owned routing, credential, or transport field; every composition, override, or rejection is disclosed.
+- A caller-provided Node.js `clientOptions.fetch` remains the underlying transport, and Python reserved arguments fail explicitly instead of being silently discarded.
 - No incompatible or ambiguous API was silently converted into OpenAI Chat Completions.
 - Every event-related edit maps to a user-selected event candidate ID and exact trigger.
 - Every ABTO-specific uncertainty is resolved through the official [ABTO Docs](https://docs.abto.app/) or remains explicitly unresolved without a guessed implementation.
@@ -97,7 +100,7 @@ State:
 - Event candidates, selected or declined IDs, Event files changed, and privacy impact.
 - A Core-versus-Event change ledger.
 - A Mermaid diagram using the actual device, trace, Gateway, provider, and selected event paths.
-- The resolved direct-fallback setting and any provider path without Gateway policy, ABTO telemetry, or `request_id`.
+- The resolved direct-fallback and native OpenAI retry settings, plus any provider path without Gateway policy, ABTO telemetry, or `request_id`.
 - The observed ABTO receiving surface or the exact reason a live check was skipped.
 - The exact official ABTO Docs page and installed package coordinate and version used for any resolved knowledge gap.
 - Each SDK defect's classification, previous and installed versions, checked public versions, customer impact, update or upstream changes, release state, and re-verification result.

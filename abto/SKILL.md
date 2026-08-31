@@ -68,6 +68,10 @@ If a change cannot be tied to an approved customer outcome, do not make it.
   Never invent, print, or commit credentials.
 - Preserve the Calling SDK's resolved direct-fallback behavior unless the user approves an availability-policy change.
   Inventory and report every Gateway and direct provider path, including which path lacks ABTO telemetry and `request_id`.
+- Preserve the customer's native OpenAI `maxRetries` or `max_retries` setting and SDK default.
+  Do not add a separate fallback attempt counter or change retry policy merely to wire ABTO.
+- Preserve every other native OpenAI client option unless the installed Calling SDK explicitly documents it as ABTO-owned routing, credential, or transport state.
+  Report each composed, overridden, or rejected option; treat an undocumented silent discard as an SDK defect instead of deleting the customer's configuration.
 - Do not create an event schema, event call, response-ID bridge, or unrelated product-code change during core wiring.
 - If an installed SDK appears to violate its documented contract, pause only the affected path and follow [SDK defect handling](references/sdk-defect-handling.md).
   Prefer the smallest compatible public SDK update that already fixes the defect, apply it with the customer's existing package manager and lockfile, re-verify the original path, and continue wiring when it passes.

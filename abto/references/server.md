@@ -115,9 +115,19 @@ Do not introduce a second concurrency model only for ABTO.
 
 When an OpenAI key source is present, the current Node.js and Python Calling SDKs enable direct OpenAI fallback by default for safely classified Gateway failures.
 Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
-Do not set `fallback: false`, enable timeout replay, or change retry counts merely to make ABTO reporting simpler.
+Do not set `fallback: false` or enable timeout replay merely to make ABTO reporting simpler.
+The Calling SDK owns only Gateway-outage failover. Do not add Calling SDK retries or error classification for OpenAI or model-provider failures.
+Preserve the customer's native OpenAI `maxRetries` or `max_retries` setting and SDK default.
+Do not add a fallback attempt counter, translate retry semantics, or silently set native retries to zero.
+An ambiguous timeout or disconnect must not become a direct replay unless the installed SDK exposes an explicit timeout-replay opt-in and the user approves it.
 
-Record the exact fallback setting for every approved call path.
+Preserve the rest of the official OpenAI client configuration too.
+For Node.js, the Calling SDK owns `baseURL` and `apiKey` and keeps its ABTO wrapper as the outer `fetch`; a caller-provided `clientOptions.fetch` is the underlying transport and must not be deleted.
+For Python, the Calling SDK owns `api_key`, `base_url`, and `http_client` and rejects those three reserved arguments; it forwards other `abto.openai(**kwargs)` unchanged.
+Do not remove a customer's custom transport at the call site to make integration easier.
+Record these documented exceptions, and follow SDK defect handling if the installed SDK silently drops another option.
+
+Record the exact fallback setting and resolved native OpenAI retry setting for every approved call path.
 Gateway-served calls receive Gateway policy, telemetry, and `request_id`; direct fallback calls do not.
 Show both branches in the final inventory, summary, and Mermaid diagram when fallback is enabled.
 If the user values complete ABTO observation over direct availability, present that tradeoff and obtain approval before disabling fallback.

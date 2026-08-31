@@ -81,7 +81,10 @@ Do not generate a second server device identifier for the same client installati
 For a server-only call with no stable product identifier, ask before defining a new identity policy.
 
 For a Gateway-served call, the Gateway owns provider execution, token usage, cost, latency, provider routing, variant assignment, and `request_id`.
-When Node.js or Python direct OpenAI fallback is enabled, the Calling SDK owns that fallback decision and its direct retries; the direct call bypasses Gateway policy, ABTO telemetry, and `request_id`.
+When Node.js or Python direct OpenAI fallback is enabled, the Calling SDK owns only the decision to bypass a safely classified Gateway availability failure.
+It does not classify or retry OpenAI or model-provider errors after that switch; the official OpenAI SDK keeps its configured retry policy.
+Do not add a second fallback retry setting or override the customer's native OpenAI retry configuration.
+The direct call bypasses Gateway policy, ABTO telemetry, and `request_id`.
 Do not recreate Gateway facts in an Event SDK, and do not report a direct fallback call as Gateway-observed.
 
 ## Key boundary
