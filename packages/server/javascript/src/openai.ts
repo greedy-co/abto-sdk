@@ -9,9 +9,7 @@ import {
 export interface OpenAIDirectFallbackOptions {
   /** Defaults to true when an OpenAI provider key source is configured. */
   enabled?: boolean;
-  /** Number of retries after the first direct OpenAI request. Defaults to 2 and is capped at 5. */
-  maxRetries?: number;
-  /** How long to wait for a Gateway response before opening the circuit. Defaults to 30 seconds. */
+  /** How long to wait for a Gateway response. Defaults to 30 seconds. */
   timeoutMs?: number;
   /** Whether to retry the current timed-out request through the direct path. Defaults to false to avoid duplicate execution. */
   onTimeout?: boolean;
@@ -31,6 +29,10 @@ export interface CreateAbtoOpenAIOptions {
   /** OpenAI direct fallback settings for Gateway failures that can be identified safely. */
   fallback?: OpenAIDirectFallbackConfig;
   getContext?: () => AbtoContext | undefined;
+  /**
+   * Official OpenAI client options. ABTO owns baseURL, apiKey, and the outer
+   * fetch wrapper; a caller-provided fetch is used as that wrapper's transport.
+   */
   clientOptions?: Record<string, unknown>;
 }
 
@@ -64,7 +66,6 @@ export interface OpenAIFallbackCircuit {
 
 interface ResolvedFallback {
   enabled: boolean;
-  maxRetries: number;
   timeoutMs: number;
   onTimeout: boolean;
 }
@@ -94,7 +95,6 @@ const SAFE_CONNECT_ERROR_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
 const SAFE_TLS_ERROR_PREFIXES = ['CERT_', 'ERR_SSL_', 'ERR_TLS_'];
-const RETRYABLE_OPENAI_STATUSES = new Set([408, 409, 429]);
 
 export function createOpenAIFallbackCircuit(): OpenAIFallbackCircuit {
   return { halfOpenInFlight: false };
@@ -117,14 +117,6 @@ function requireGatewayURL(value: string): URL {
   return parsed;
 }
 
-function positiveInteger(value: number | undefined, fallback: number, max: number, name: string): number {
-  const resolved = value ?? fallback;
-  if (!Number.isInteger(resolved) || resolved < 0 || resolved > max) {
-    throw new Error(`[abto] ${name} must be an integer between 0 and ${max}.`);
-  }
-  return resolved;
-}
-
 function positiveTimeout(value: number | undefined): number {
   const resolved = value ?? 30_000;
   if (!Number.isFinite(resolved) || resolved <= 0) {
@@ -142,7 +134,6 @@ function resolveFallback(
     enabled: typeof config === 'boolean'
       ? config
       : options.enabled ?? hasOpenAIKeySource,
-    maxRetries: positiveInteger(options.maxRetries, 2, 5, 'fallback.maxRetries'),
     timeoutMs: positiveTimeout(options.timeoutMs),
     onTimeout: options.onTimeout ?? false,
   };
@@ -293,42 +284,6 @@ function directHeaders(source: Headers, openAIKey: string): Headers {
   return headers;
 }
 
-function retryableDirectResponse(response: Response): boolean {
-  return RETRYABLE_OPENAI_STATUSES.has(response.status) || response.status >= 500;
-}
-
-function retryAfterMs(response: Response, attempt: number): number {
-  const raw = response.headers.get('retry-after');
-  if (raw !== null) {
-    const seconds = Number(raw);
-    if (Number.isFinite(seconds) && seconds >= 0) {
-      return Math.min(seconds * 1_000, 60_000);
-    }
-    const date = Date.parse(raw);
-    if (Number.isFinite(date)) {
-      return Math.min(Math.max(date - Date.now(), 0), 60_000);
-    }
-  }
-  return Math.min(500 * 2 ** attempt, 8_000);
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) {
-    return Promise.reject(signal.reason);
-  }
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
 function observeResponseBody(
   response: Response,
   {
@@ -464,20 +419,16 @@ export function createGatewayFetch({
         closeCircuit();
         return observeResponseBody(response, {
           onComplete: () => undefined,
-          onError: () => {
-            if (!original.signal.aborted) openCircuit();
-          },
+          onError: releaseHalfOpenProbe,
           onCancel: () => undefined,
         });
       } catch (error) {
         if (original.signal.aborted) {
           releaseHalfOpenProbe();
-        } else if (
-          isSafeConnectFailure(error)
-          || isTimeoutFailure(error, false)
-          || error instanceof TypeError
-        ) {
+        } else if (isSafeConnectFailure(error)) {
           openCircuit();
+        } else {
+          releaseHalfOpenProbe();
         }
         throw error;
       }
@@ -491,35 +442,10 @@ export function createGatewayFetch({
         throw new Error('[abto] OpenAI direct fallback is unavailable.');
       }
       const headersForDirect = directHeaders(headers, openAIKey);
-      let lastError: unknown;
-      for (let attempt = 0; attempt <= resolvedFallback.maxRetries; attempt += 1) {
-        try {
-          const response = await fetchImpl(
-            directURL,
-            requestInitWithBody(original, body, headersForDirect, init),
-          );
-          if (
-            attempt < resolvedFallback.maxRetries
-            && retryableDirectResponse(response)
-          ) {
-            await response.body?.cancel();
-            await sleep(retryAfterMs(response, attempt), original.signal);
-            continue;
-          }
-          return response;
-        } catch (error) {
-          lastError = error;
-          if (
-            attempt >= resolvedFallback.maxRetries
-            || original.signal.aborted
-            || (error instanceof Error && error.name === 'AbortError')
-          ) {
-            throw error;
-          }
-          await sleep(Math.min(500 * 2 ** attempt, 8_000), original.signal);
-        }
-      }
-      throw lastError;
+      return fetchImpl(
+        directURL,
+        requestInitWithBody(original, body, headersForDirect, init),
+      );
     };
 
     if (circuit.openedAt !== undefined) {
@@ -563,8 +489,7 @@ export function createGatewayFetch({
         onComplete: cleanupGatewaySignal,
         onError: () => {
           cleanupGatewaySignal();
-          if (callerSignal.aborted) releaseHalfOpenProbe();
-          else openCircuit();
+          releaseHalfOpenProbe();
         },
         onCancel: () => {
           cleanupGatewaySignal();
@@ -583,13 +508,12 @@ export function createGatewayFetch({
         return sendDirect();
       }
       if (isTimeoutFailure(error, timedOut)) {
-        openCircuit();
         if (resolvedFallback.onTimeout) {
+          openCircuit();
           return sendDirect();
         }
-      } else if (error instanceof TypeError || circuit.halfOpenInFlight) {
-        openCircuit();
       }
+      releaseHalfOpenProbe();
       throw error;
     }
   };
@@ -605,7 +529,6 @@ export function buildOpenAIClientOptions({
     ...clientOptions,
     baseURL: gatewayBaseURL,
     apiKey: abtoApiKey,
-    maxRetries: 0,
     fetch,
   };
 }
@@ -640,12 +563,17 @@ export async function createAbtoOpenAIWithCircuit<T = unknown>(
     default: new (opts: Record<string, unknown>) => unknown;
   };
 
+  const callerFetch = clientOptions.fetch;
+  if (callerFetch !== undefined && typeof callerFetch !== 'function') {
+    throw new Error('[abto] clientOptions.fetch must be a function.');
+  }
   const abtoFetch = createGatewayFetch({
     gatewayBaseURL: resolvedBaseURL,
     abtoApiKey,
     providerKeys,
     fallback,
     getContext,
+    fetchImpl: callerFetch as FetchLike | undefined,
   }, circuit);
 
   return new OpenAI(

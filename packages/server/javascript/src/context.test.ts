@@ -227,7 +227,7 @@ describe('server context headers', () => {
       abtoApiKey: 'abto-test',
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
     });
     const first = await abto.openai({
       clientOptions: { timeout: 1_000 },
@@ -275,7 +275,10 @@ describe('server context headers', () => {
       providerKeys: { openai: 'sk-openai' },
       fallback: true,
     });
-    const openai = await abto.openai({ fallback: false }) as {
+    const openai = await abto.openai({
+      fallback: false,
+      clientOptions: { maxRetries: 0 },
+    }) as {
       chat: {
         completions: {
           create(input: Record<string, unknown>): Promise<unknown>;

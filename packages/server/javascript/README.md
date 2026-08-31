@@ -1,17 +1,16 @@
 # @abto-app/calling
 
-ABTO JavaScript Server SDK는 provider 요청을 ABTO Gateway로 라우팅하고 요청 단위 식별 문맥과 provider credential을 전달하는 Node.js 전용 패키지다.
+The ABTO JavaScript Server SDK routes provider requests through the ABTO Gateway and carries request-scoped identity context and provider credentials. It is designed for Node.js servers.
 
-Browser autocapture, DOM, 공개 project key는 다루지 않는다.
-브라우저에서 사용자 행동을 수집하려면 `@abto-app/event`를 설치한다.
+It does not collect browser events, access the DOM, or use a public project key. Install `@abto-app/event` separately when the browser needs explicit customer-selected events.
 
-## 설치
+## Install
 
 ```bash
 pnpm add @abto-app/calling openai
 ```
 
-## 빠른 시작
+## Quick start
 
 ```ts
 import { initAbto } from '@abto-app/calling';
@@ -29,7 +28,7 @@ const abto = initAbto({
 const openai = await abto.openai<OpenAI>();
 ```
 
-## 요청 문맥
+## Request context
 
 ```ts
 import {
@@ -46,20 +45,16 @@ await runWithAbtoContext(
   },
   async () => {
     const headers = getAbtoHeaders();
-    // 이 문맥에서 생성한 provider 요청에 동일한 ABTO 식별자를 전달한다.
+    // Provider requests created here carry the same ABTO identifiers.
   },
 );
 ```
 
-Gateway는 provider 요청과 응답, token, cost, latency, `request_id`, variant 배정의 정본이다.
-Server SDK는 원본 provider 요청을 재작성하지 않고 Gateway 주소와 ABTO header를 운반한다.
+The Gateway is the source of truth for provider requests and responses, tokens, cost, latency, `request_id`, and variant assignment. The Server SDK preserves the provider request body while routing it to the Gateway with trusted ABTO headers.
 
-## Gateway 장애 시 OpenAI direct fallback
+## OpenAI direct fallback during Gateway outages
 
-`providerKeys.openai` 또는 `OPENAI_API_KEY`가 있으면 안전한 Gateway 장애에 대한 OpenAI direct fallback이 기본 활성화된다.
-이 경로는 Gateway의 provider/model 배정을 재현하지 않는 비상 경로다.
-원본 Chat Completions body와 `model`을 그대로 `https://api.openai.com/v1/chat/completions`로 보내므로,
-요청의 model도 OpenAI가 지원하는 이름이어야 한다.
+When `providerKeys.openai` or `OPENAI_API_KEY` is available, OpenAI direct fallback is enabled by default for Gateway failures that can be classified safely. This emergency path does not reproduce the Gateway's provider or model assignment. It sends the original Chat Completions body and `model` to `https://api.openai.com/v1/chat/completions`, so the model must be supported by OpenAI.
 
 ```ts
 const abto = initAbto({
@@ -70,30 +65,28 @@ const abto = initAbto({
     gemini: process.env.GEMINI_API_KEY,
   },
   fallback: {
-    maxRetries: 2,     // direct OpenAI 요청만 최대 두 번 재시도
-    timeoutMs: 30_000, // Gateway 응답 header 대기 상한
-    onTimeout: false,  // timeout 난 현재 요청은 기본적으로 재전송하지 않음
+    timeoutMs: 30_000, // Gateway response-header deadline
+    onTimeout: false,  // Do not replay a timed-out request by default
   },
 });
 ```
 
-기본 동작은 다음과 같다.
+Default behavior:
 
-- DNS·연결 수립·TLS 실패: provider에 전송되지 않은 것이 확실하므로 현재 요청을 OpenAI로 직접 전송
-- `x-abto-request-id`가 없는 edge `502`·`503`·`504`: Gateway 도달 전 실패로 보고 현재 요청을 직접 전송
-- `x-abto-request-id`는 있지만 `x-abto-error-source`가 없는 admission `503`: provider 호출 전 실패로 보고 현재 요청을 직접 전송
-- Gateway timeout·전송 여부가 모호한 disconnect: circuit만 30초 동안 열고 현재 요청은 원래 오류 반환; 이후 새 요청은 OpenAI direct 경로 사용
-- `fallback.onTimeout: true`: timeout 난 현재 요청도 직접 재전송; Gateway가 이미 provider를 실행했을 수 있어 중복 실행·과금 위험이 있음
-- `x-abto-error-source: provider|transport|internal`, 모호한 disconnect, 결정적인 `4xx`·`429`, caller abort, streaming 시작 이후 실패: 현재 요청 direct fallback 없음
+- DNS, connection-establishment, or TLS failure: send the current request directly because the provider was not reached.
+- Edge `502`, `503`, or `504` without `x-abto-request-id`: treat it as a pre-Gateway failure and send the current request directly.
+- Admission `503` with `x-abto-request-id` but no `x-abto-error-source`: treat it as a pre-provider failure and send the current request directly.
+- Gateway timeout, ambiguous disconnect, or interrupted response body: return the original error and keep the direct circuit closed.
+- `fallback.onTimeout: true`: replay the timed-out request directly, explicitly accepting duplicate execution and billing risk.
+- `x-abto-error-source: provider|transport|internal`, deterministic `4xx` and `429`, or caller abort: do not fall back for the current request.
 
-Circuit이 열린 30초 동안 새 요청은 Gateway를 건너뛰고,
-기간이 끝나면 한 요청만 Gateway 회복 여부를 확인한다.
-Direct 경로에는 ABTO header와 Calling Key를 보내지 않고 OpenAI key만 사용한다.
-또한 `accept`, `content-type`, `idempotency-key`, `openai-*`, `x-stainless-*`처럼
-OpenAI에 필요한 header만 전달하고 Cookie·proxy credential·사용자 정의 Gateway header는 제거한다.
-이 호출은 Gateway policy, ABTO retry, telemetry, `request_id`의 적용 대상이 아니다.
+A safely classified failure, or an explicitly enabled timeout replay, opens the circuit for 30 seconds. New requests bypass the Gateway during that interval; afterward, one request probes Gateway recovery.
 
-필요하면 전체 기능을 끌 수 있다.
+The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
+
+The ABTO transport performs at most one Gateway decision and one direct send per official OpenAI SDK attempt. It returns direct responses and errors to the official SDK, which remains the only retry authority.
+
+Disable direct fallback when required:
 
 ```ts
 initAbto({
@@ -102,12 +95,29 @@ initAbto({
 });
 ```
 
-`fallback.maxRetries`는 `0`부터 `5`까지 설정할 수 있고 direct OpenAI 요청에만 적용된다.
-`fallback.timeoutMs`는 로컬 dispatcher 대기부터 Gateway 응답 헤더까지의 end-to-end 상한이며, direct 요청은 OpenAI client의 timeout 설정을 유지한다.
-Caller 또는 OpenAI client deadline으로 abort된 direct 요청은 재시도하지 않고, `maxRetries`는 caller deadline이 남은 direct 실패에만 적용된다.
-Gateway 요청의 OpenAI SDK retry는 중첩 실행을 막기 위해 항상 `0`이다.
-Anthropic·Gemini key는 Gateway 라우팅 후보로 계속 전달되지만,
-현재 SDK는 두 provider의 네이티브 direct fallback을 제공하지 않는다.
+## OpenAI client options
+
+`clientOptions` keeps the official OpenAI SDK contract. ABTO preserves options such as `maxRetries`, `timeout`, `organization`, `project`, `defaultHeaders`, and `fetchOptions`, with these routing and credential rules:
+
+- `baseURL` is always the configured ABTO Gateway URL.
+- `apiKey` is always the ABTO Calling Key.
+- `fetch` is wrapped so ABTO can route safely. A caller-provided `fetch` remains the underlying transport instead of being discarded.
+
+`fallback.timeoutMs` is the end-to-end limit from local dispatcher wait through Gateway response headers. Direct requests retain the OpenAI client's timeout.
+
+There is no fallback retry count. `clientOptions.maxRetries` alone controls official OpenAI SDK retries and remains unset when the customer does not configure it.
+
+```ts
+const openai = await abto.openai({
+  clientOptions: { maxRetries: 2 },
+});
+```
+
+`maxRetries` keeps the official OpenAI meaning: retries after the initial request. `0` means one total attempt and `1` means two. OpenAI and model-provider error policy belongs to the customer application and the official OpenAI SDK.
+
+Anthropic and Gemini keys remain Gateway routing candidates. This SDK does not provide native direct fallback for those providers.
+
+See the [full Server JavaScript guide](https://docs.abto.app/en/sdk/javascript/server/).
 
 ## Public API
 
@@ -121,7 +131,7 @@ Anthropic·Gemini key는 Gateway 라우팅 후보로 계속 전달되지만,
 - `createTraceId`
 - `createTraceparent`
 
-## 개발 검증
+## Development
 
 ```bash
 pnpm test

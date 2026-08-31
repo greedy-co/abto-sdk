@@ -2,9 +2,11 @@
  * ABTO request context propagation for Node.js.
  *
  * Server SDK scope: thin helper only. It routes provider SDK calls through the
- * ABTO Gateway and carries the gateway identifier headers. The gateway remains
- * the source of truth for token, cost, latency, retry, fallback, request_id,
- * and variant assignment.
+ * ABTO Gateway and carries the gateway identifier headers. The ABTO transport owns
+ * only direct fallback for safely classified Gateway availability failures. It
+ * does not classify or retry OpenAI or model-provider errors; the official OpenAI
+ * SDK remains the retry authority. The Gateway remains the source of truth for
+ * token, cost, latency, request_id, and variant assignment.
  *
  * Gateway identifier contract:
  *   - device_id -> header `x-abto-device-id` (optional; without it the call still

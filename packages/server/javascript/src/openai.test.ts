@@ -118,8 +118,18 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(options.baseURL).toBe('https://gateway.abto.app/v1');
     expect(options.apiKey).toBe('abto-test');
     expect(options.fetch).toBe(protectedFetch);
-    expect(options.maxRetries).toBe(0);
+    expect(options.maxRetries).toBe(9);
     expect(options.timeout).toBe(12_345);
+  });
+
+  it('leaves the official OpenAI retry default unset when the caller does not configure it', () => {
+    const options = buildOpenAIClientOptions({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      fetch: async () => new Response('{}'),
+    });
+
+    expect(options).not.toHaveProperty('maxRetries');
   });
 
   it('rejects absolute requests outside the configured Gateway origin before resolving keys', async () => {
@@ -185,7 +195,7 @@ describe('ABTO OpenAI Gateway client', () => {
         openai: 'sk-openai',
         anthropic: 'sk-anthropic',
       },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         requests.push(request);
@@ -246,7 +256,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         observedDispatchers.push(init?.dispatcher);
         const request = receivedRequest(input, init);
@@ -273,7 +283,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
@@ -310,7 +320,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -359,7 +369,7 @@ describe('ABTO OpenAI Gateway client', () => {
         gatewayBaseURL: 'https://gateway.abto.app/v1',
         abtoApiKey: 'abto-test',
         providerKeys: { openai: 'sk-openai' },
-        fallback: { maxRetries: 0 },
+        fallback: {},
         fetchImpl: async (input, init) => {
           const request = receivedRequest(input, init);
           urls.push(request.url);
@@ -382,20 +392,22 @@ describe('ABTO OpenAI Gateway client', () => {
     }
   });
 
-  it('opens the circuit on timeout without duplicating the current request by default', async () => {
+  it('does not open the direct circuit on an ambiguous timeout by default', async () => {
     const urls: string[] = [];
     let gatewayCalls = 0;
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
           gatewayCalls += 1;
-          throw new DOMException('Gateway request timed out.', 'TimeoutError');
+          if (gatewayCalls === 1) {
+            throw new DOMException('Gateway request timed out.', 'TimeoutError');
+          }
         }
         return new Response('{}', { status: 200 });
       },
@@ -419,10 +431,10 @@ describe('ABTO OpenAI Gateway client', () => {
     );
 
     expect(second.status).toBe(200);
-    expect(gatewayCalls).toBe(1);
+    expect(gatewayCalls).toBe(2);
     expect(urls).toEqual([
       'https://gateway.abto.app/v1/chat/completions',
-      'https://api.openai.com/v1/chat/completions',
+      'https://gateway.abto.app/v1/chat/completions',
     ]);
   });
 
@@ -435,7 +447,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -472,7 +484,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (_input, init) => {
         gatewaySignal = init?.signal;
         return new Response(new ReadableStream({
@@ -502,7 +514,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -555,7 +567,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: () => currentKey },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -598,22 +610,25 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(directCalls).toBe(1);
   });
 
-  it('opens the circuit after an ambiguous disconnect without replaying the current request', async () => {
+  it('does not open the direct circuit after an ambiguous disconnect', async () => {
     let gatewayCalls = 0;
     let directCalls = 0;
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
           gatewayCalls += 1;
-          const cause = Object.assign(new Error('socket closed'), {
-            code: 'ECONNRESET',
-          });
-          throw new TypeError('fetch failed', { cause });
+          if (gatewayCalls === 1) {
+            const cause = Object.assign(new Error('socket closed'), {
+              code: 'ECONNRESET',
+            });
+            throw new TypeError('fetch failed', { cause });
+          }
+          return new Response('{}', { status: 200 });
         }
         directCalls += 1;
         return new Response('{}', { status: 200 });
@@ -632,22 +647,25 @@ describe('ABTO OpenAI Gateway client', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(gatewayCalls).toBe(1);
-    expect(directCalls).toBe(1);
+    expect(gatewayCalls).toBe(2);
+    expect(directCalls).toBe(0);
   });
 
-  it('reopens the circuit when the Gateway body disconnects after headers', async () => {
+  it('does not open the direct circuit when the Gateway body disconnects after headers', async () => {
     let gatewayCalls = 0;
     let directCalls = 0;
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
           gatewayCalls += 1;
+          if (gatewayCalls > 1) {
+            return new Response('{}', { status: 200 });
+          }
           return new Response(new ReadableStream({
             pull(controller) {
               controller.error(new TypeError('Gateway body disconnected.'));
@@ -670,8 +688,8 @@ describe('ABTO OpenAI Gateway client', () => {
     );
 
     expect(recovered.status).toBe(200);
-    expect(gatewayCalls).toBe(1);
-    expect(directCalls).toBe(1);
+    expect(gatewayCalls).toBe(2);
+    expect(directCalls).toBe(0);
   });
 
   it('can opt into direct fallback for the timed-out current request', async () => {
@@ -680,7 +698,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0, onTimeout: true },
+      fallback: { onTimeout: true },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
@@ -703,14 +721,14 @@ describe('ABTO OpenAI Gateway client', () => {
     ]);
   });
 
-  it('applies maxRetries only to the direct OpenAI path', async () => {
+  it('returns a direct OpenAI error without retrying or reclassifying it', async () => {
     let gatewayCalls = 0;
     let directCalls = 0;
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 1 },
+      fallback: {},
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -719,9 +737,7 @@ describe('ABTO OpenAI Gateway client', () => {
           throw new TypeError('fetch failed', { cause });
         }
         directCalls += 1;
-        return directCalls === 1
-          ? new Response('{}', { status: 500, headers: { 'retry-after': '0' } })
-          : new Response('{}', { status: 200 });
+        return new Response('{}', { status: 500 });
       },
     });
 
@@ -730,44 +746,7 @@ describe('ABTO OpenAI Gateway client', () => {
       { method: 'POST', body: '{}' },
     );
 
-    expect(response.status).toBe(200);
-    expect(gatewayCalls).toBe(1);
-    expect(directCalls).toBe(2);
-  });
-
-  it('cancels direct retry backoff as soon as the caller aborts', async () => {
-    const controller = new AbortController();
-    let gatewayCalls = 0;
-    let directCalls = 0;
-    const gatewayFetch = createGatewayFetch({
-      gatewayBaseURL: 'https://gateway.abto.app/v1',
-      abtoApiKey: 'abto-test',
-      providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 1 },
-      fetchImpl: async (input, init) => {
-        const request = receivedRequest(input, init);
-        if (new URL(request.url).hostname === 'gateway.abto.app') {
-          gatewayCalls += 1;
-          const cause = Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
-          throw new TypeError('fetch failed', { cause });
-        }
-        directCalls += 1;
-        controller.abort(new DOMException('Caller cancelled.', 'AbortError'));
-        return new Response('{}', {
-          status: 503,
-          headers: { 'retry-after': '60' },
-        });
-      },
-    });
-
-    await expect(
-      gatewayFetch('https://gateway.abto.app/v1/chat/completions', {
-        method: 'POST',
-        body: '{}',
-        signal: controller.signal,
-      }),
-    ).rejects.toMatchObject({ name: 'AbortError' });
-
+    expect(response.status).toBe(500);
     expect(gatewayCalls).toBe(1);
     expect(directCalls).toBe(1);
   });
@@ -822,14 +801,7 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(observedBody).toBeInstanceOf(ReadableStream);
   });
 
-  it('validates direct fallback retry and timeout settings', () => {
-    expect(() =>
-      createGatewayFetch({
-        gatewayBaseURL: 'https://gateway.abto.app/v1',
-        abtoApiKey: 'abto-test',
-        fallback: { maxRetries: 6 },
-      }),
-    ).toThrow('fallback.maxRetries');
+  it('validates direct fallback timeout settings', () => {
     expect(() =>
       createGatewayFetch({
         gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -839,8 +811,69 @@ describe('ABTO OpenAI Gateway client', () => {
     ).toThrow('fallback.timeoutMs');
   });
 
-  it('returns a normal OpenAI SDK completion after direct fallback', async () => {
+  it('uses a caller OpenAI fetch underneath the ABTO routing wrapper', async () => {
+    const requests: Request[] = [];
+    const callerFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push(receivedRequest(input, init));
+      return new Response(JSON.stringify({
+        id: 'chatcmpl-gateway',
+        object: 'chat.completion',
+        created: 1,
+        model: 'gpt-4o-mini',
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: 'ok' },
+          finish_reason: 'stop',
+        }],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2,
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    const client = await createAbtoOpenAI({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      clientOptions: {
+        fetch: callerFetch,
+        maxRetries: 0,
+      },
+    }) as {
+      chat: {
+        completions: {
+          create(input: Record<string, unknown>): Promise<{ id: string }>;
+        };
+      };
+    };
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(completion.id).toBe('chatcmpl-gateway');
+    expect(callerFetch).toHaveBeenCalledTimes(1);
+    expect(requests[0]?.url).toBe('https://gateway.abto.app/v1/chat/completions');
+    expect(requests[0]?.headers.get('authorization')).toBe('Bearer abto-test');
+    expect(requests[0]?.headers.get('x-abto-key-openai')).toBe('sk-openai');
+  });
+
+  it('rejects a non-function OpenAI fetch option before creating a client', async () => {
+    await expect(createAbtoOpenAI({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      clientOptions: { fetch: 'not-a-function' },
+    })).rejects.toThrow('clientOptions.fetch must be a function');
+  });
+
+  it('preserves the OpenAI SDK retry setting across direct fallback', async () => {
     const urls: string[] = [];
+    let directCalls = 0;
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const request = receivedRequest(input, init);
       urls.push(request.url);
@@ -848,7 +881,19 @@ describe('ABTO OpenAI Gateway client', () => {
         const cause = Object.assign(new Error('refused'), { code: 'ECONNREFUSED' });
         throw new TypeError('fetch failed', { cause });
       }
+      directCalls += 1;
       expect(request.headers.get('authorization')).toBe('Bearer sk-openai');
+      if (directCalls === 1) {
+        return new Response(JSON.stringify({
+          error: { message: 'temporary', type: 'server_error' },
+        }), {
+          status: 500,
+          headers: {
+            'content-type': 'application/json',
+            'retry-after-ms': '1',
+          },
+        });
+      }
       return new Response(JSON.stringify({
         id: 'chatcmpl-direct',
         object: 'chat.completion',
@@ -873,9 +918,10 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { maxRetries: 0 },
-      clientOptions: { maxRetries: 9 },
+      fallback: {},
+      clientOptions: { maxRetries: 1 },
     }) as {
+      maxRetries: number;
       chat: {
         completions: {
           create(input: Record<string, unknown>): Promise<{
@@ -891,10 +937,12 @@ describe('ABTO OpenAI Gateway client', () => {
       messages: [{ role: 'user', content: 'hello' }],
     });
 
+    expect(client.maxRetries).toBe(1);
     expect(completion.id).toBe('chatcmpl-direct');
     expect(completion.choices[0]?.message.content).toBe('fallback ok');
     expect(urls).toEqual([
       'https://gateway.abto.app/v1/chat/completions',
+      'https://api.openai.com/v1/chat/completions',
       'https://api.openai.com/v1/chat/completions',
     ]);
   });
