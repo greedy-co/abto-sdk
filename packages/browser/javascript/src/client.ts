@@ -32,7 +32,7 @@ import type {
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 
-export const SDK_VERSION = '0.1.7';
+export const SDK_VERSION = '0.2.0';
 
 function normalizeEnvironment(value: string | undefined): Environment {
   return value === 'development' ? 'development' : 'production';
