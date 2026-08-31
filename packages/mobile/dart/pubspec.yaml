@@ -2,7 +2,7 @@ name: abto
 description: >-
   ABTO analytics SDK for Flutter/Dart — user behavior x LLM cost/latency/quality attribution.
   Follows the same event contract as the browser SDK (packages/browser/javascript).
-version: 0.1.7
+version: 0.2.0
 homepage: https://docs.abto.app/sdk/flutter/
 repository: https://github.com/greedy-co/abto-sdk
 issue_tracker: https://github.com/greedy-co/abto-sdk/issues
