@@ -122,7 +122,7 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
             "anthropic": "sk-anthropic",
         },
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -188,7 +188,7 @@ def test_direct_fallback_preserves_the_request_timeout():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -225,7 +225,7 @@ def test_open_circuit_never_bypasses_the_gateway_origin_boundary():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(
@@ -268,7 +268,7 @@ def test_non_fallback_request_reaches_transport_without_sdk_buffering():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=InspectingTransport(),
@@ -356,7 +356,7 @@ def test_callable_provider_key_is_resolved_once_per_request():
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -394,7 +394,6 @@ def test_fallback_timeout_only_applies_to_eligible_gateway_requests():
             fallback=_resolve_fallback(
                 OpenAIDirectFallbackOptions(
                     enabled=enabled,
-                    max_retries=0,
                     timeout_seconds=2.5,
                 ),
                 has_openai_key_source=provider_keys.get("openai") is not None,
@@ -475,7 +474,6 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
             OpenAIDirectFallbackOptions(
-                max_retries=0,
                 timeout_seconds=2.5,
             ),
             has_openai_key_source=True,
@@ -539,7 +537,7 @@ def test_only_admission_503_falls_back(headers, expected_direct_calls):
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -558,7 +556,7 @@ def test_only_admission_503_falls_back(headers, expected_direct_calls):
     assert direct_calls == expected_direct_calls
 
 
-def test_timeout_opens_circuit_without_replaying_current_request():
+def test_timeout_does_not_open_direct_circuit_without_explicit_opt_in():
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -566,7 +564,9 @@ def test_timeout_opens_circuit_without_replaying_current_request():
     def gateway_handler(request):
         nonlocal gateway_calls
         gateway_calls += 1
-        raise httpx.ReadTimeout("gateway timed out", request=request)
+        if gateway_calls == 1:
+            raise httpx.ReadTimeout("gateway timed out", request=request)
+        return httpx.Response(200, json={})
 
     def direct_handler(_request):
         nonlocal direct_calls
@@ -579,7 +579,7 @@ def test_timeout_opens_circuit_without_replaying_current_request():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -600,8 +600,56 @@ def test_timeout_opens_circuit_without_replaying_current_request():
         client.close()
 
     assert response.status_code == 200
-    assert gateway_calls == 1
-    assert direct_calls == 1
+    assert gateway_calls == 2
+    assert direct_calls == 0
+
+
+def test_ambiguous_disconnect_does_not_open_direct_circuit():
+    httpx = pytest.importorskip("httpx")
+    gateway_calls = 0
+    direct_calls = 0
+
+    def gateway_handler(request):
+        nonlocal gateway_calls
+        gateway_calls += 1
+        if gateway_calls == 1:
+            raise httpx.ReadError("gateway disconnected", request=request)
+        return httpx.Response(200, json={})
+
+    def direct_handler(_request):
+        nonlocal direct_calls
+        direct_calls += 1
+        return httpx.Response(200, json={})
+
+    client = _build_fallback_http_client(
+        httpx,
+        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        api_key="abto-test",
+        provider_keys={"openai": "sk-openai"},
+        fallback=_resolve_fallback(
+            OpenAIDirectFallbackOptions(),
+            has_openai_key_source=True,
+        ),
+        gateway_transport=httpx.MockTransport(gateway_handler),
+        direct_transport=httpx.MockTransport(direct_handler),
+    )
+
+    try:
+        with pytest.raises(httpx.ReadError):
+            client.post(
+                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                content=b"{}",
+            )
+        response = client.post(
+            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            content=b"{}",
+        )
+    finally:
+        client.close()
+
+    assert response.status_code == 200
+    assert gateway_calls == 2
+    assert direct_calls == 0
 
 
 def test_timeout_can_replay_current_request_when_explicitly_enabled():
@@ -623,7 +671,6 @@ def test_timeout_can_replay_current_request_when_explicitly_enabled():
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
             OpenAIDirectFallbackOptions(
-                max_retries=0,
                 on_timeout=True,
             ),
             has_openai_key_source=True,
@@ -667,7 +714,7 @@ def test_pool_timeout_does_not_open_the_gateway_circuit():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -721,7 +768,7 @@ def test_keyless_pool_timeout_does_not_open_the_gateway_circuit():
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -755,8 +802,6 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
         nonlocal gateway_calls
         gateway_calls += 1
         if gateway_calls == 1:
-            raise httpx.ReadTimeout("gateway timed out", request=request)
-        if gateway_calls == 2:
             raise httpx.PoolTimeout("local pool exhausted", request=request)
         return httpx.Response(200, json={})
 
@@ -771,7 +816,7 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -779,11 +824,7 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
     )
 
     try:
-        with pytest.raises(httpx.ReadTimeout):
-            client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
-                content=b"{}",
-            )
+        client._circuit.open()
         client._circuit._opened_at = (
             client_module.time.monotonic()
             - client_module._CIRCUIT_OPEN_SECONDS
@@ -802,7 +843,7 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
         client.close()
 
     assert response.status_code == 200
-    assert gateway_calls == 3
+    assert gateway_calls == 2
     assert direct_calls == 0
 
 
@@ -833,7 +874,7 @@ def test_keyless_gateway_recovery_closes_the_completion_circuit():
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -879,7 +920,7 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
         nonlocal gateway_calls
         gateway_calls += 1
         if request.url.path.endswith("/chat/completions"):
-            raise httpx.ReadTimeout("gateway timed out", request=request)
+            raise httpx.ConnectError("gateway unavailable", request=request)
         return httpx.Response(200, json={"data": []})
 
     def direct_handler(_request):
@@ -893,7 +934,7 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -901,11 +942,10 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
     )
 
     try:
-        with pytest.raises(httpx.ReadTimeout):
-            client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
-                content=b"{}",
-            )
+        first_completion = client.post(
+            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            content=b"{}",
+        )
         models = client.get(f"{DEFAULT_GATEWAY_BASE_URL}/models")
         completion = client.post(
             f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
@@ -914,10 +954,11 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
     finally:
         client.close()
 
+    assert first_completion.status_code == 200
     assert models.status_code == 200
     assert completion.status_code == 200
     assert gateway_calls == 2
-    assert direct_calls == 1
+    assert direct_calls == 2
 
 
 def test_separate_openai_clients_can_share_the_completion_circuit():
@@ -936,7 +977,7 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
         return httpx.Response(200, json={})
 
     fallback = _resolve_fallback(
-        OpenAIDirectFallbackOptions(max_retries=0),
+        OpenAIDirectFallbackOptions(),
         has_openai_key_source=True,
     )
     first = _build_fallback_http_client(
@@ -978,7 +1019,7 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
     assert direct_calls == 2
 
 
-def test_max_retries_only_applies_to_direct_openai_requests():
+def test_direct_openai_error_is_returned_without_retry_or_reclassification():
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -991,9 +1032,7 @@ def test_max_retries_only_applies_to_direct_openai_requests():
     def direct_handler(_request):
         nonlocal direct_calls
         direct_calls += 1
-        if direct_calls == 1:
-            return httpx.Response(500, headers={"retry-after": "0"}, json={})
-        return httpx.Response(200, json={})
+        return httpx.Response(500, json={})
 
     client = _build_fallback_http_client(
         httpx,
@@ -1001,7 +1040,7 @@ def test_max_retries_only_applies_to_direct_openai_requests():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=1),
+            OpenAIDirectFallbackOptions(),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -1016,9 +1055,9 @@ def test_max_retries_only_applies_to_direct_openai_requests():
     finally:
         client.close()
 
-    assert response.status_code == 200
+    assert response.status_code == 500
     assert gateway_calls == 1
-    assert direct_calls == 2
+    assert direct_calls == 1
 
 
 def test_fallback_defaults_off_without_an_openai_key_source():
@@ -1028,11 +1067,6 @@ def test_fallback_defaults_off_without_an_openai_key_source():
 
 
 def test_fallback_configuration_is_validated():
-    with pytest.raises(ValueError, match="fallback.max_retries"):
-        init_abto(
-            api_key="abto-test",
-            fallback=OpenAIDirectFallbackOptions(max_retries=6),
-        )
     with pytest.raises(ValueError, match="fallback.timeout_seconds"):
         init_abto(
             api_key="abto-test",
@@ -1061,6 +1095,8 @@ def test_stream_failure_after_response_headers_is_not_replayed():
     def gateway_handler(_request):
         nonlocal gateway_calls
         gateway_calls += 1
+        if gateway_calls > 1:
+            return httpx.Response(200, json={})
         return httpx.Response(
             200,
             headers={"content-type": "text/event-stream"},
@@ -1078,7 +1114,7 @@ def test_stream_failure_after_response_headers_is_not_replayed():
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(max_retries=0, on_timeout=True),
+            OpenAIDirectFallbackOptions(on_timeout=True),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -1101,11 +1137,35 @@ def test_stream_failure_after_response_headers_is_not_replayed():
         client.close()
 
     assert recovered.status_code == 200
-    assert gateway_calls == 1
-    assert direct_calls == 1
+    assert gateway_calls == 2
+    assert direct_calls == 0
 
 
-def test_openai_client_disables_outer_retries(monkeypatch):
+def test_openai_client_keeps_official_retry_default(monkeypatch):
+    httpx = pytest.importorskip("httpx")
+    openai_module = pytest.importorskip("openai")
+    http_client = httpx.Client(
+        transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={}))
+    )
+
+    monkeypatch.setattr(
+        client_module,
+        "_build_fallback_http_client",
+        lambda *_args, **_kwargs: http_client,
+    )
+    abto = init_abto(
+        api_key="abto-test",
+        provider_keys={"openai": "sk-openai"},
+    )
+    openai = abto.openai()
+
+    try:
+        assert openai.max_retries == openai_module.DEFAULT_MAX_RETRIES
+    finally:
+        openai.close()
+
+
+def test_openai_client_preserves_outer_retry_setting(monkeypatch):
     httpx = pytest.importorskip("httpx")
     pytest.importorskip("openai")
 
@@ -1158,7 +1218,7 @@ def test_openai_client_disables_outer_retries(monkeypatch):
     finally:
         openai.close()
 
-    assert openai.max_retries == 0
+    assert openai.max_retries == 9
     assert captured_builder_options["direct_timeout"] == 123.0
     assert completion.id == "chatcmpl-gateway"
     assert completion.choices[0].message.content == "ok"

@@ -1,8 +1,11 @@
 """Request-scoped ABTO identifier context for the `abto` Python package.
 
 Mirrors @abto-app/calling: carries the gateway identifier headers via
-contextvars so outbound provider calls can attach them. The gateway remains the
-source of truth for token, cost, latency, request_id, and variant assignment.
+contextvars so outbound provider calls can attach them. The ABTO transport owns
+only direct fallback for safely classified Gateway availability failures. It
+does not classify or retry OpenAI or model-provider errors; the official OpenAI
+SDK remains the retry authority. The gateway remains the source of truth for
+token, cost, latency, request_id, and variant assignment.
 """
 
 from __future__ import annotations

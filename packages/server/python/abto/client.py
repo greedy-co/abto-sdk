@@ -11,7 +11,6 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
 from urllib.parse import SplitResult, urlsplit
 
@@ -20,7 +19,6 @@ from .context import AbtoContext, create_trace_id, get_headers, with_context
 DEFAULT_GATEWAY_BASE_URL = "https://gateway.abto.app/v1"
 _OPENAI_BASE_URL = "https://api.openai.com/v1"
 _CIRCUIT_OPEN_SECONDS = 30.0
-_RETRYABLE_OPENAI_STATUSES = {408, 409, 429}
 _DIRECT_HEADER_NAMES = {
     "accept",
     "content-type",
@@ -40,7 +38,6 @@ class OpenAIDirectFallbackOptions:
     """Configure OpenAI direct fallback for safely identifiable Gateway failures."""
 
     enabled: Optional[bool] = None
-    max_retries: int = 2
     timeout_seconds: float = 30.0
     on_timeout: bool = False
 
@@ -51,7 +48,6 @@ OpenAIDirectFallbackConfig = Union[bool, OpenAIDirectFallbackOptions]
 @dataclass(frozen=True)
 class _ResolvedFallback:
     enabled: bool
-    max_retries: int
     timeout_seconds: float
     on_timeout: bool
 
@@ -72,13 +68,6 @@ def _resolve_fallback(
             "[abto] fallback must be a bool or OpenAIDirectFallbackOptions."
         )
     if (
-        not isinstance(options.max_retries, int)
-        or isinstance(options.max_retries, bool)
-        or options.max_retries < 0
-        or options.max_retries > 5
-    ):
-        raise ValueError("[abto] fallback.max_retries must be an integer between 0 and 5.")
-    if (
         not math.isfinite(options.timeout_seconds)
         or options.timeout_seconds <= 0
     ):
@@ -87,7 +76,6 @@ def _resolve_fallback(
         enabled=options.enabled
         if options.enabled is not None
         else has_openai_key_source,
-        max_retries=options.max_retries,
         timeout_seconds=float(options.timeout_seconds),
         on_timeout=options.on_timeout,
     )
@@ -241,20 +229,6 @@ def _safe_gateway_response(response: Any) -> bool:
     )
 
 
-def _retry_after_seconds(response: Any, attempt: int) -> float:
-    raw = response.headers.get("retry-after")
-    if raw is not None:
-        try:
-            return min(max(float(raw), 0.0), 60.0)
-        except ValueError:
-            try:
-                date = parsedate_to_datetime(raw)
-                return min(max(date.timestamp() - time.time(), 0.0), 60.0)
-            except (TypeError, ValueError, OverflowError):
-                pass
-    return min(0.5 * (2**attempt), 8.0)
-
-
 class _CircuitBreaker:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -324,7 +298,7 @@ def _build_fallback_http_client(
             try:
                 yield from self._stream
             except httpx.RequestError:
-                self._circuit.open()
+                self._circuit.release_half_open_probe()
                 raise
 
         def close(self) -> None:
@@ -394,45 +368,22 @@ def _build_fallback_http_client(
             content: bytes,
             stream: bool,
         ) -> Any:
-            last_error: Optional[BaseException] = None
-            for attempt in range(fallback.max_retries + 1):
-                direct_request = self._direct_client.build_request(
-                    request.method,
-                    direct_url,
-                    headers=_direct_headers(request.headers, openai_key),
-                    content=content,
-                    extensions={
-                        "timeout": request.extensions.get(
-                            "timeout",
-                            self._direct_client.timeout.as_dict(),
-                        )
-                    },
-                )
-                try:
-                    response = self._direct_client.send(
-                        direct_request,
-                        stream=stream,
+            direct_request = self._direct_client.build_request(
+                request.method,
+                direct_url,
+                headers=_direct_headers(request.headers, openai_key),
+                content=content,
+                extensions={
+                    "timeout": request.extensions.get(
+                        "timeout",
+                        self._direct_client.timeout.as_dict(),
                     )
-                except httpx.RequestError as error:
-                    last_error = error
-                    if attempt >= fallback.max_retries:
-                        raise
-                    time.sleep(min(0.5 * (2**attempt), 8.0))
-                    continue
-                if (
-                    attempt < fallback.max_retries
-                    and (
-                        response.status_code in _RETRYABLE_OPENAI_STATUSES
-                        or response.status_code >= 500
-                    )
-                ):
-                    response.close()
-                    time.sleep(_retry_after_seconds(response, attempt))
-                    continue
-                return response
-            if last_error is not None:
-                raise last_error
-            raise RuntimeError("[abto] OpenAI direct fallback failed.")
+                },
+            )
+            return self._direct_client.send(
+                direct_request,
+                stream=stream,
+            )
 
         def send(
             self,
@@ -473,8 +424,11 @@ def _build_fallback_http_client(
                 except httpx.PoolTimeout:
                     self._circuit.release_half_open_probe()
                     raise
-                except httpx.RequestError:
+                except (httpx.ConnectError, httpx.ConnectTimeout):
                     self._circuit.open()
+                    raise
+                except httpx.RequestError:
+                    self._circuit.release_half_open_probe()
                     raise
                 if _safe_gateway_response(response):
                     self._circuit.open()
@@ -513,8 +467,8 @@ def _build_fallback_http_client(
                     stream=stream,
                 )
             except (httpx.ReadTimeout, httpx.WriteTimeout):
-                self._circuit.open()
                 if fallback.on_timeout:
+                    self._circuit.open()
                     return self._send_direct(
                         request,
                         direct_url=direct_url,
@@ -522,12 +476,13 @@ def _build_fallback_http_client(
                         content=content,
                         stream=stream,
                     )
+                self._circuit.release_half_open_probe()
                 raise
             except httpx.PoolTimeout:
                 self._circuit.release_half_open_probe()
                 raise
             except httpx.RequestError:
-                self._circuit.open()
+                self._circuit.release_half_open_probe()
                 raise
 
             if _safe_gateway_response(response):
@@ -597,6 +552,8 @@ class Abto:
     def openai(self, **client_kwargs: Any) -> Any:
         """Construct an OpenAI client pointed at the gateway with header injection.
 
+        Official OpenAI options are forwarded unchanged except for api_key,
+        base_url, and http_client, which ABTO owns for trusted Gateway routing.
         Requires the optional `openai` and `httpx` extras.
         """
         try:
@@ -622,7 +579,6 @@ class Abto:
                 httpx.Timeout(600.0, connect=5.0),
             ),
         )
-        client_kwargs["max_retries"] = 0
         return OpenAI(
             api_key=self.api_key,
             base_url=self.gateway_base_url,
