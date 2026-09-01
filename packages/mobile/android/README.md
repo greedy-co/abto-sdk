@@ -31,7 +31,7 @@ val gatewayDeviceId = abto.deviceId
 abto.capture("checkout_started", mapOf("cart_size" to 3))
 
 // LLM 호출 생애주기 — request_id 로 게이트웨이 비용/latency 와 조인
-val trace = abto.startLlmTrace(nodeId = "resume.make", taskType = "draft_generation")
+val trace = abto.startLlmTrace(featureId = "resume.make", taskType = "draft_generation")
 trace.submitPrompt(prompt = "이력서 초안 작성해줘", language = "ko")
 trace.attachRequestId(connection.headerFields)  // x-abto-request-id
 trace.markResponseVisible(responseId = "resp_1", timeToVisibleMs = 1200)
@@ -63,7 +63,7 @@ class SharedPreferencesStore(private val prefs: SharedPreferences) : AbtoKeyValu
 
 ```kotlin
 dependencies {
-    implementation("app.abto:abto-app:0.2.0")
+    implementation("app.abto:abto-app:0.3.0")
 }
 ```
 

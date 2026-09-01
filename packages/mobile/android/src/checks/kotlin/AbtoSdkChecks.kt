@@ -123,7 +123,8 @@ fun main() {
 
     // trace request id join
     val client = AbtoClient(AbtoConfig("ek_test"), AbtoInMemoryStore())
-    val trace = client.startLlmTrace(nodeId = "smoke.demo")
+    val trace = client.startLlmTrace(featureId = "smoke.demo")
+    check(trace.featureId == "smoke.demo", "featureId retained on trace")
     check(Regex("^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$").matches(trace.traceId), "trace_id uses UUIDv7 bits")
     check(trace.attachRequestId(mapOf("X-Abto-Request-Id" to listOf("req_1"))) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")
@@ -327,7 +328,7 @@ fun main() {
             ),
             AbtoInMemoryStore(),
         )
-        val privacyTrace = privacyClient.startLlmTrace(nodeId = "assistant.reply", taskType = "answer")
+        val privacyTrace = privacyClient.startLlmTrace(featureId = "assistant.reply", taskType = "answer")
         privacyTrace.submitPrompt(prompt = "prompt-canary")
         privacyTrace.attach("req_helper")
         privacyTrace.markResponseVisible(
@@ -351,6 +352,7 @@ fun main() {
         check(privacyBody.contains("\"\$prompt_length_chars\":13"), "prompt length metadata is transmitted")
         check(privacyBody.contains("\"\$output_length_chars\":15"), "response length metadata is transmitted")
         check(privacyBody.contains("\"\$interaction_type\":\"copied\""), "LLM helper emits canonical interaction type")
+        check(privacyBody.contains("\"\$node_key\":\"assistant.reply\""), "featureId maps to the collector contract")
         check(!privacyBody.contains("retried"), "LLM helper drops non-canonical interaction types")
         check(privacyBody.contains("\"\$request_id\":\"req_helper\""), "LLM helper keeps request id in canonical context")
     } finally {
@@ -368,7 +370,7 @@ fun main() {
             AbtoInMemoryStore(),
         )
         e2eClient.identify("u_smoke_android")
-        val e2eTrace = e2eClient.startLlmTrace(nodeId = "smoke.android", taskType = "smoke_test", surface = "sdk_checks")
+        val e2eTrace = e2eClient.startLlmTrace(featureId = "smoke.android", taskType = "smoke_test", surface = "sdk_checks")
         e2eTrace.submitPrompt(prompt = "Android 스모크 프롬프트", language = "ko")
         e2eTrace.attach("req_smoke_android")
         e2eTrace.markResponseVisible(responseId = "resp_smoke_android", responseText = "Android 응답", timeToVisibleMs = 42)

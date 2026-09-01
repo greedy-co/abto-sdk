@@ -30,8 +30,7 @@ internal fun abtoEventNameIssue(event: String, allowSystemEvent: Boolean = false
 
 private val envelopeContextKeys = mapOf(
     "trace_id" to "\$trace_id",
-    "node_id" to "\$node_key",
-    "node_key" to "\$node_key",
+    "feature_id" to "\$node_key",
     "task_type" to "\$task_type",
     "surface" to "\$surface",
     "request_id" to "\$request_id",
@@ -140,8 +139,8 @@ class AbtoClient(
         return true
     }
 
-    fun startLlmTrace(nodeId: String, taskType: String? = null, surface: String? = null): AbtoLlmTrace =
-        AbtoLlmTrace(this, nodeId, taskType, surface)
+    fun startLlmTrace(featureId: String, taskType: String? = null, surface: String? = null): AbtoLlmTrace =
+        AbtoLlmTrace(this, featureId, taskType, surface)
 
     fun flush(onComplete: Runnable? = null) {
         transport.flush(onComplete)
@@ -151,7 +150,7 @@ class AbtoClient(
 /** Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id. */
 class AbtoLlmTrace internal constructor(
     private val client: AbtoClient,
-    val nodeId: String,
+    val featureId: String,
     private val taskType: String?,
     private val surface: String?,
 ) {
@@ -239,7 +238,7 @@ class AbtoLlmTrace internal constructor(
     }
 
     private fun envelope(overrides: Map<String, Any?> = emptyMap()): Map<String, Any?> = buildMap {
-        put("node_key", nodeId)
+        put("feature_id", featureId)
         put("trace_id", traceId)
         taskType?.let { put("task_type", it) }
         surface?.let { put("surface", it) }
