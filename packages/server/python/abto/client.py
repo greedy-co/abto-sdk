@@ -151,7 +151,7 @@ def abto_request_hook(
                 "[abto] Refusing to send ABTO context outside the configured Gateway origin."
             )
         trusted_headers = get_headers()
-        for name in ("authorization", "x-abto-device-id", "x-abto-node-key", "traceparent"):
+        for name in ("authorization", "x-abto-device-id", "x-abto-feature-id", "traceparent"):
             _remove_header(request.headers, name)
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):

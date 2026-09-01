@@ -55,7 +55,7 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
             "x-client-header": "preserved",
             "Authorization": "Bearer attacker-abto-key",
             "x-abto-device-id": "attacker-device",
-            "x-abto-node-key": "attacker-feature",
+            "x-abto-feature-id": "attacker-feature",
             "x-abto-key-openai": "attacker-openai-key",
             "x-abto-key-gemini": "attacker-gemini-key",
             "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
@@ -68,7 +68,7 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
     assert request.headers["x-client-header"] == "preserved"
     assert request.headers["Authorization"] == "Bearer abto-test"
     assert request.headers["x-abto-device-id"] == "trusted-device"
-    assert request.headers["x-abto-node-key"] == "trusted.feature"
+    assert request.headers["x-abto-feature-id"] == "trusted.feature"
     assert request.headers["x-abto-key-openai"] == "openai-trusted"
     assert request.headers["x-abto-key-anthropic"] == "anthropic-trusted"
     assert "x-abto-key-gemini" not in request.headers
@@ -161,7 +161,7 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
     assert direct.headers["openai-project"] == "project-safe"
     assert direct.headers["idempotency-key"] == "request-safe"
     assert "x-abto-key-anthropic" not in direct.headers
-    assert "x-abto-node-key" not in direct.headers
+    assert "x-abto-feature-id" not in direct.headers
 
 
 def test_direct_fallback_preserves_the_request_timeout():

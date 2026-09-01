@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterator, Optional
 
 ABTO_HEADER = {
     "device_id": "x-abto-device-id",
-    "feature_id": "x-abto-node-key",
+    "feature_id": "x-abto-feature-id",
     "traceparent": "traceparent",
 }
 

@@ -59,7 +59,7 @@ with with_context(device_id="d1", feature_id="resume.make"):
 
 ```text
 x-abto-device-id    optional; without it, user analytics and sticky assignment are unavailable
-x-abto-node-key     required; dot-separated feature ID, for example resume.make
+x-abto-feature-id   required; dot-separated feature ID, for example resume.make
 traceparent         derived from trace_id; Gateway-deferred in Round 1
 x-abto-key-openai   candidate provider key; add only the providers the project may route to
 Authorization       required; Bearer ABTO Calling Key
