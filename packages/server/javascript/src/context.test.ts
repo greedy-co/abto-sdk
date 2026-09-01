@@ -51,7 +51,7 @@ describe('server context headers', () => {
       abto.withContext({ featureId: 'chat.default' }, () => abto.getHeaders()),
     ).toMatchObject({
       'x-abto-device-id': 'service-device',
-      'x-abto-node-key': 'chat.default',
+      'x-abto-feature-id': 'chat.default',
     });
   });
 
@@ -90,7 +90,7 @@ describe('server context headers', () => {
     });
 
     expect(headers['x-abto-device-id']).toBe('device-1');
-    expect(headers['x-abto-node-key']).toBe('chat.default');
+    expect(headers['x-abto-feature-id']).toBe('chat.default');
     expect(headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
     expect(headers).not.toHaveProperty('x-abto-request-id');
     expect(headers).not.toHaveProperty('x-abto-variant-id');
@@ -104,7 +104,7 @@ describe('server context headers', () => {
 
     expect(headers).toEqual({
       'x-abto-device-id': 'device-1',
-      'x-abto-node-key': 'chat.default',
+      'x-abto-feature-id': 'chat.default',
     });
   });
 
@@ -131,7 +131,7 @@ describe('server context headers', () => {
       traceId: '0123456789abcdef0123456789abcdef',
     });
     expect(observed.headers['x-abto-device-id']).toBe('device-1');
-    expect(observed.headers['x-abto-node-key']).toBe('chat.rewrite');
+    expect(observed.headers['x-abto-feature-id']).toBe('chat.rewrite');
     expect(observed.headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
   });
 
@@ -162,7 +162,7 @@ describe('server context headers', () => {
 
     expect(headers).toMatchObject({
       'x-abto-device-id': 'request-device',
-      'x-abto-node-key': 'chat.rewrite',
+      'x-abto-feature-id': 'chat.rewrite',
     });
   });
 
@@ -182,7 +182,7 @@ describe('server context headers', () => {
 
     expect(headers).toEqual({
       'x-abto-device-id': 'device-1',
-      'x-abto-node-key': 'chat.default',
+      'x-abto-feature-id': 'chat.default',
     });
   });
 

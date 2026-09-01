@@ -156,7 +156,7 @@ function trustedBaseHeaders(input: string | URL | Request, init?: RequestInit): 
     if (
       normalized === 'authorization'
       || normalized === 'x-abto-device-id'
-      || normalized === 'x-abto-node-key'
+      || normalized === 'x-abto-feature-id'
       || normalized === 'traceparent'
       || normalized.startsWith('x-abto-key-')
     ) {

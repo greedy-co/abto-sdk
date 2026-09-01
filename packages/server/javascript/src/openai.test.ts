@@ -50,7 +50,7 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(capturedHeaders?.get('x-abto-key-openai')).toBe('sk-openai');
     expect(capturedHeaders?.get('x-abto-key-anthropic')).toBe('sk-anthropic');
     expect(capturedHeaders?.get('x-abto-device-id')).toBe('device-1');
-    expect(capturedHeaders?.get('x-abto-node-key')).toBe('chat.default');
+    expect(capturedHeaders?.get('x-abto-feature-id')).toBe('chat.default');
   });
 
   it('resolves Provider credentials again for every request', async () => {
@@ -246,7 +246,7 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(requests[1]?.headers.get('openai-project')).toBe('project-safe');
     expect(requests[1]?.headers.get('idempotency-key')).toBe('request-safe');
     expect(requests[1]?.headers.has('x-abto-key-anthropic')).toBe(false);
-    expect(requests[1]?.headers.has('x-abto-node-key')).toBe(false);
+    expect(requests[1]?.headers.has('x-abto-feature-id')).toBe(false);
   });
 
   it('preserves caller transport options on Gateway and direct requests', async () => {

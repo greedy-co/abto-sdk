@@ -11,7 +11,7 @@
  * Gateway identifier contract:
  *   - device_id -> header `x-abto-device-id` (optional; without it the call still
  *                 succeeds but drops out of user-level analytics and sticky assignment)
- *   - feature_id -> header `x-abto-node-key` (required by the gateway). Dot-separated
+ *   - feature_id -> header `x-abto-feature-id` (required by the gateway). Dot-separated
  *                  feature ID, e.g. "resume.make".
  *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
  *
@@ -25,14 +25,14 @@ import { newUuidV7TraceId, randomHex } from './uuid.js';
 /** Gateway-facing header names. Only what the gateway reads. */
 export const ABTO_HEADER = {
   deviceId: "x-abto-device-id",
-  featureId: "x-abto-node-key",
+  featureId: "x-abto-feature-id",
   traceparent: "traceparent",
 } as const;
 
 export interface AbtoContext {
   /** Device id. Sent as `x-abto-device-id` (optional for the gateway). */
   deviceId?: string;
-  /** Dot-separated feature ID (e.g. "resume.make"). Sent as `x-abto-node-key`. */
+  /** Dot-separated feature ID (e.g. "resume.make"). Sent as `x-abto-feature-id`. */
   featureId?: string;
   /** End-user action bundle id. Sent as W3C `traceparent`. Gateway-deferred. */
   traceId?: string;

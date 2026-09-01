@@ -1,6 +1,6 @@
 {
   "name": "@abto-app/calling",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "ABTO JavaScript Server SDK — Gateway routing, provider credentials, and request-scoped context propagation.",
   "type": "module",
   "license": "MIT",
