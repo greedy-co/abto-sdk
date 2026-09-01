@@ -142,7 +142,7 @@ describe('observable AI events', () => {
 
     const [event] = postedBatch(fetchMock);
     expect(event.properties.$trace_id).toBeUndefined();
-    expect(event.properties.$node_key).toBeUndefined();
+    expect(event.properties.$feature_id).toBeUndefined();
     expect(event.properties.$surface).toBeUndefined();
     sdk.shutdown();
   });
@@ -173,7 +173,7 @@ describe('observable AI events', () => {
     ]);
     expect(batch[0].properties.$prompt_text).toBeUndefined();
     expect(batch[0].properties.$trace_id).toBe(trace.traceId);
-    expect(batch[0].properties.$node_key).toBeUndefined();
+    expect(batch[0].properties.$feature_id).toBeUndefined();
     expect(batch[0].properties.$surface).toBeUndefined();
     expect(batch[1].properties.$response_text).toBeUndefined();
     expect(batch[1].properties.$output_length_chars).toBe(15);
@@ -233,7 +233,7 @@ describe('observable AI events', () => {
     const interactions = batch.filter((event) => event.event === 'interaction_autocaptured');
     expect(interactions).toHaveLength(1);
     expect(interactions[0].properties.$ai_action).toBe('accept');
-    expect(interactions[0].properties.$node_key).toBe('resume.make');
+    expect(interactions[0].properties.$feature_id).toBe('resume.make');
     expect(interactions[0].properties.$response_id).toBe('resp_1');
     expect(interactions[0].properties.$request_id).toBe('req_dom');
     expect(batch.some((event) => event.event === 'llm_response_interacted')).toBe(false);

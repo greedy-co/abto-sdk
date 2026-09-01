@@ -67,7 +67,7 @@ describe('custom event boundary', () => {
       currency: 'KRW',
       $user_id: 'user-9',
       $tenant_id: 'tenant-9',
-      $schema_version: '2026-07-15',
+      $schema_version: '2026-09-02',
     });
   });
 

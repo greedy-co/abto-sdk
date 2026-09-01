@@ -149,7 +149,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.3.0"
+        "$lib_version": "0.3.1"
       }
     }
   ]
@@ -214,7 +214,7 @@ autocapture를 명시적으로 켠 경우 annotation은 원시 `$autocapture`를
 </button>
 ```
 
-autocapture를 켰다면 위 클릭은 `$autocapture`로 수집되며 `$ai_action`, `$surface`, `$node_key`, `$response_id`, `$request_id`가 함께 실린다. 업무 의미가 확정된 행동은 앱 코드에서 커스텀 이벤트 또는 AI 전용 메서드로 별도 기록한다.
+autocapture를 켰다면 위 클릭은 `$autocapture`로 수집되며 `$ai_action`, `$surface`, `$feature_id`, `$response_id`, `$request_id`가 함께 실린다. 업무 의미가 확정된 행동은 앱 코드에서 커스텀 이벤트 또는 AI 전용 메서드로 별도 기록한다.
 
 ## 개인정보 기본값
 

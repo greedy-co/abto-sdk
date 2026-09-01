@@ -2,7 +2,7 @@
 
 import type { AIInteractionType } from './events.generated.js';
 
-export const ABTO_SCHEMA_VERSION = "2026-07-15" as const;
+export const ABTO_SCHEMA_VERSION = "2026-09-02" as const;
 export const ABTO_EVENT_NAME_MAX_LENGTH = 200 as const;
 
 export const ABTO_AI_INTERACTION_TYPES = [

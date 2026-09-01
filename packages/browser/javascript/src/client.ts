@@ -33,7 +33,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '0.3.0';
+const SDK_VERSION = '0.3.1';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -122,7 +122,7 @@ function contextProperties(
     $session_id: common.session_id,
     $window_id: common.window_id,
     $pageview_id: common.pageview_id,
-    $node_key: common.feature_id,
+    $feature_id: common.feature_id,
     $trace_id: common.trace_id,
     $request_id: common.request_id,
     $response_id: common.response_id,
