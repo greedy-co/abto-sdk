@@ -55,20 +55,20 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
             "x-client-header": "preserved",
             "Authorization": "Bearer attacker-abto-key",
             "x-abto-device-id": "attacker-device",
-            "x-abto-node-key": "attacker-node",
+            "x-abto-node-key": "attacker-feature",
             "x-abto-key-openai": "attacker-openai-key",
             "x-abto-key-gemini": "attacker-gemini-key",
             "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         },
     )
 
-    with abto.with_context(device_id="trusted-device", node_key="trusted.node"):
+    with abto.with_context(device_id="trusted-device", feature_id="trusted.feature"):
         abto.httpx_event_hooks()["request"][0](request)
 
     assert request.headers["x-client-header"] == "preserved"
     assert request.headers["Authorization"] == "Bearer abto-test"
     assert request.headers["x-abto-device-id"] == "trusted-device"
-    assert request.headers["x-abto-node-key"] == "trusted.node"
+    assert request.headers["x-abto-node-key"] == "trusted.feature"
     assert request.headers["x-abto-key-openai"] == "openai-trusted"
     assert request.headers["x-abto-key-anthropic"] == "anthropic-trusted"
     assert "x-abto-key-gemini" not in request.headers

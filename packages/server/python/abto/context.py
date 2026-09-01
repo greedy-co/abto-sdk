@@ -18,17 +18,17 @@ from typing import Any, Dict, Iterator, Optional
 
 ABTO_HEADER = {
     "device_id": "x-abto-device-id",
-    "node_key": "x-abto-node-key",
+    "feature_id": "x-abto-node-key",
     "traceparent": "traceparent",
 }
 
 
 @dataclass(frozen=True)
 class AbtoContext:
-    """Device id, "feature.node" node key, and end-user action trace id."""
+    """Device id, dot-separated feature id, and end-user action trace id."""
 
     device_id: Optional[str] = None
-    node_key: Optional[str] = None
+    feature_id: Optional[str] = None
     trace_id: Optional[str] = None
 
 
@@ -47,13 +47,13 @@ _UNSET = object()
 @contextmanager
 def with_context(
     device_id: Any = _UNSET,
-    node_key: Any = _UNSET,
+    feature_id: Any = _UNSET,
     trace_id: Any = _UNSET,
 ) -> Iterator[AbtoContext]:
     patch = {
         k: v
         for k, v in dict(
-            device_id=device_id, node_key=node_key, trace_id=trace_id
+            device_id=device_id, feature_id=feature_id, trace_id=trace_id
         ).items()
         if v is not _UNSET
     }
@@ -79,8 +79,8 @@ def get_headers(ctx: Optional[AbtoContext] = None) -> Dict[str, str]:
     headers: Dict[str, str] = {}
     if c.device_id:
         headers[ABTO_HEADER["device_id"]] = c.device_id
-    if c.node_key:
-        headers[ABTO_HEADER["node_key"]] = c.node_key
+    if c.feature_id:
+        headers[ABTO_HEADER["feature_id"]] = c.feature_id
     if c.trace_id:
         headers[ABTO_HEADER["traceparent"]] = create_traceparent(c.trace_id)
     return headers

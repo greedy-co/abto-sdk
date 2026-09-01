@@ -3,7 +3,7 @@
   "targets": {
     "event-js": "6017ac99c4f2e5a8310f5965f6e0a23ac709cc95211fb755c47b4a93ae222984",
     "calling-js": "28dded9b4238f8388e5a85bc18233187ad4adceee5c944aea9fce45cebfdb5e7",
-    "calling-python": "5e7275e99bf7d6d41a56b595fd231456001d03f44a8ed6af3b8c6bd29939a03a",
+    "calling-python": "7aad91b4a2b3ccad2ff97b0207dc16c183ea9f9b6350f5278bf666b1202132c0",
     "dart": "58b2f6963fb167805cd5403ed906ef70ca443877f3f18dbf3c37bfd8bb802b9c",
     "android": "074cf7381049bb3d8be34b8c53a8e79b403e16c29f9cd71a21f55ed7d2b98ff5",
     "swift": "4acf5dc058e5a66de9c244148c5e1a5f1733c8082cccbbabd36374ba689d3265"

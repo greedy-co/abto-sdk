@@ -34,7 +34,7 @@ openai = abto.openai()
 def generate(device_id: str, trace_id: str):
     with abto.with_context(
         device_id=device_id,
-        node_key="resume.make",
+        feature_id="resume.make",
         trace_id=trace_id,
     ):
         return openai.chat.completions.create(
@@ -51,7 +51,7 @@ from abto import with_context
 
 client = httpx.Client(event_hooks=abto.httpx_event_hooks())
 
-with with_context(device_id="d1", node_key="resume.make"):
+with with_context(device_id="d1", feature_id="resume.make"):
     client.post("https://gateway.abto.app/v1/...")  # Adds x-abto-* headers
 ```
 
@@ -59,7 +59,7 @@ with with_context(device_id="d1", node_key="resume.make"):
 
 ```text
 x-abto-device-id    optional; without it, user analytics and sticky assignment are unavailable
-x-abto-node-key     required; "feature.node" dot notation, for example resume.make
+x-abto-node-key     required; dot-separated feature ID, for example resume.make
 traceparent         derived from trace_id; Gateway-deferred in Round 1
 x-abto-key-openai   candidate provider key; add only the providers the project may route to
 Authorization       required; Bearer ABTO Calling Key
@@ -130,7 +130,7 @@ See the [full Python guide](https://docs.abto.app/en/sdk/python/).
 - `init_abto(api_key=None, gateway_base_url=None, provider_keys=None, fallback=None) -> Abto`
 - `abto.openai(**kwargs)`
 - `OpenAIDirectFallbackOptions`
-- `abto.with_context(device_id=?, node_key=?, trace_id=?)`
+- `abto.with_context(device_id=?, feature_id=?, trace_id=?)`
 - `abto.get_headers(ctx=None)` / `abto.create_trace_id()` / `abto.httpx_event_hooks()`
 - Lower-level helpers: `with_context`, `get_context`, `get_headers`, `create_trace_id`, `create_traceparent`, `abto_request_hook`, `ABTO_HEADER`, and `AbtoContext`
 
