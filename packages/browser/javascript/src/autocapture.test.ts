@@ -13,7 +13,7 @@ beforeEach(() => {
 afterEach(() => teardown());
 
 function click(el: Element): void {
-  el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
 describe('broad autocapture', () => {
@@ -32,12 +32,12 @@ describe('broad autocapture', () => {
 
   it('reads data-abto-* annotation as raw-event dimensions', () => {
     document.body.innerHTML =
-      '<button data-abto-action="accept" data-abto-node-key="resume.make">ok</button>';
+      '<button data-abto-action="accept" data-abto-feature-id="resume.make">ok</button>';
     click(document.querySelector('button')!);
     const hit = hits.find((h) => h.kind === 'interaction');
     if (hit && hit.kind === 'interaction') {
       expect(hit.target.action).toBe('accept');
-      expect(hit.target.node_key).toBe('resume.make');
+      expect(hit.target.feature_id).toBe('resume.make');
     }
   });
 
@@ -102,12 +102,12 @@ describe('broad autocapture', () => {
 
   it('omits unsafe semantic annotation values', () => {
     document.body.innerHTML =
-      '<button data-abto-action="accept user@example.com" data-abto-node-key="safe.node">ok</button>';
+      '<button data-abto-action="accept user@example.com" data-abto-feature-id="safe.feature">ok</button>';
     click(document.querySelector('button')!);
     const hit = hits.find((h) => h.kind === 'interaction');
     if (hit && hit.kind === 'interaction') {
       expect(hit.target.action).toBe('');
-      expect(hit.target.node_key).toBe('safe.node');
+      expect(hit.target.feature_id).toBe('safe.feature');
     }
   });
 });

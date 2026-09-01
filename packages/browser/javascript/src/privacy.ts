@@ -1,29 +1,22 @@
 /**
- * Privacy layer that converts raw prompt and response text into derived metadata
- * according to the configured capture mode.
+ * Privacy layer for prompt metadata and DOM text masking.
  *
  * Raw content is opt-in. Default capture modes retain derived metadata only,
  * and DOM text/value stays masked unless data-abto-include explicitly allows it.
  */
 
-import type {
-  CaptureMode,
-  DerivedTextMeta,
-  MaskMode,
-  SensitiveCategory,
-  TokenBucket,
-} from './types.js';
+import type { CaptureMode, MaskMode, SensitiveCategory } from './types.js';
 
 /* ────────────────────────────────────────────────────────────────────────
- * DOM markers (Part 3 §9, §33)
+ * DOM capture markers
  *
  * Mirrors PostHog's ph-no-capture / ph-sensitive / ph-include with ABTO-owned
  * attributes so it can coexist with PostHog.
  * ──────────────────────────────────────────────────────────────────────── */
 
-export const NO_CAPTURE_ATTR = 'data-abto-no-capture';
-export const SENSITIVE_ATTR = 'data-abto-sensitive';
-export const INCLUDE_ATTR = 'data-abto-include';
+const NO_CAPTURE_ATTR = 'data-abto-no-capture';
+const SENSITIVE_ATTR = 'data-abto-sensitive';
+const INCLUDE_ATTR = 'data-abto-include';
 
 /**
  * Walk from `el` up to the document root looking for a capture marker.
@@ -36,7 +29,7 @@ export const INCLUDE_ATTR = 'data-abto-include';
  * - `include`    : explicit allow when no sensitive/no-capture ancestor exists.
  * - `default`    : follow the configured capture mode.
  */
-export type DomCapturePolicy = 'no-capture' | 'sensitive' | 'include' | 'default';
+type DomCapturePolicy = 'no-capture' | 'sensitive' | 'include' | 'default';
 
 export function resolveDomPolicy(el: Element | null): DomCapturePolicy {
   let sensitive = false;
@@ -53,32 +46,12 @@ export function resolveDomPolicy(el: Element | null): DomCapturePolicy {
   return 'default';
 }
 
-/* ────────────────────────────────────────────────────────────────────────
- * Derived value helpers (Part 4 §15)
- * ──────────────────────────────────────────────────────────────────────── */
-
-/** Map an exact token estimate into a coarse bucket so we don't leak length. */
-export function tokenBucket(tokens: number): TokenBucket {
-  if (tokens <= 0) return '0';
-  if (tokens <= 50) return '1-50';
-  if (tokens <= 200) return '51-200';
-  if (tokens <= 500) return '201-500';
-  if (tokens <= 1000) return '501-1000';
-  if (tokens <= 2000) return '1001-2000';
-  return '2000+';
-}
-
-/** Very rough token estimate (~4 chars/token). Replace with a real tokenizer if needed. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
 /**
  * Salted SHA-256 hash, returned as `sha256:<hex>`.
- * Async because SubtleCrypto is async. TODO: sync fallback for non-secure
- * contexts (currently returns a marker so we never accidentally ship raw text).
+ * Async because SubtleCrypto is async. When it is unavailable, return a marker
+ * rather than risk sending raw text.
  */
-export async function saltedHash(text: string, salt = ''): Promise<string> {
+async function saltedHash(text: string, salt: string): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) return 'sha256:unavailable';
   const bytes = new TextEncoder().encode(`${salt}\u0000${text}`);
@@ -89,10 +62,7 @@ export async function saltedHash(text: string, salt = ''): Promise<string> {
   return `sha256:${hex}`;
 }
 
-/* ── lightweight content heuristics (Part 4 §15) ───────────────────────────
- * These are intentionally cheap and conservative. The semantic task/PII
- * classifier is a P2 item (Part 6 §29). TODO: pluggable classifier hook.
- */
+/* ── Lightweight content heuristics. These are intentionally cheap and conservative. */
 
 const CODE_HINT = /(function\s|=>|;\n|\{\n|import\s|class\s|def\s|<\/?[a-z]+>)/;
 const PII_PATTERN =
@@ -115,17 +85,12 @@ function detectPII(text: string): boolean {
 function detectSensitiveCategory(text: string): SensitiveCategory {
   if (SECRET_HINT.test(text)) return 'credential';
   if (PII_HINT.test(text)) return 'pii';
-  // TODO: healthcare/legal/finance classification (P2).
   return null;
 }
 
 /* ────────────────────────────────────────────────────────────────────────
  * The main entry point
  * ──────────────────────────────────────────────────────────────────────── */
-
-export interface DeriveOptions {
-  salt?: string;
-}
 
 /** Mask runs that look like PII / secrets before producing an excerpt. */
 function redact(text: string): string {
@@ -143,33 +108,32 @@ export function maskText(text: string, mode: MaskMode): string {
 }
 
 /**
- * Convert raw text into the metadata permitted by `mode`.
- *
- * The host app passes the raw text; this function guarantees the raw text never
- * appears in the returned object unless an explicit opt-in mode was chosen.
+ * Convert raw prompt text into the metadata permitted by a non-full mode.
+ * Full capture is handled by the caller and never reaches this helper.
  */
-export async function deriveTextMeta(
+interface DerivedPromptMeta {
+  hash?: string;
+  lengthChars?: number;
+  containsCode?: boolean;
+  piiDetected?: boolean;
+  sensitiveCategory?: SensitiveCategory;
+}
+
+export async function derivePromptMeta(
   text: string,
-  mode: CaptureMode,
-  opts: DeriveOptions = {},
-): Promise<DerivedTextMeta> {
-  const meta: DerivedTextMeta = { capture_mode: mode };
+  mode: Exclude<CaptureMode, 'full'>,
+  projectKey: string,
+): Promise<DerivedPromptMeta> {
+  if (mode === 'off') return {};
 
-  if (mode === 'off') return meta;
+  const hash = await saltedHash(text, projectKey);
+  if (mode === 'hash') return { hash };
 
-  // hash is included for every non-off mode (cheap join key without content).
-  meta.hash = await saltedHash(text, opts.salt ?? '');
-  if (mode === 'hash') return meta;
-
-  // metadata_only and full: length + bucket + heuristic flags.
-  meta.length_chars = text.length;
-  meta.token_bucket = tokenBucket(estimateTokens(text));
-  meta.contains_code = containsCode(text);
-  meta.pii_detected = detectPII(text);
-  meta.sensitive_category = detectSensitiveCategory(text);
-  if (mode === 'metadata_only') return meta;
-
-  // mode === 'full' — strong opt-in. Callers must enforce consent/retention.
-  meta.excerpt = text;
-  return meta;
+  return {
+    hash,
+    lengthChars: text.length,
+    containsCode: containsCode(text),
+    piiDetected: detectPII(text),
+    sensitiveCategory: detectSensitiveCategory(text),
+  };
 }

@@ -25,7 +25,7 @@ interface ScrollContext {
   maxContentHeight: number;
 }
 
-export interface ScrollDepthTracker {
+interface ScrollDepthTracker {
   /** Current page scroll depth for pageleave, or undefined before the first measurement. */
   snapshot(): ScrollDepthSnapshot | undefined;
   /** Reset for a new pageview and measure after its DOM can render on the next tick. */

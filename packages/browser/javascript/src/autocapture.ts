@@ -11,12 +11,12 @@ import {
   createScrollDepthTracker,
   type ScrollDepthSnapshot,
 } from './scroll-depth.js';
-import type { AIInteractionType, AutocaptureEventType, MaskMode } from './types.js';
+import type { AutocaptureEventType, MaskMode } from './types.js';
 
-export const ATTR = {
+const ATTR = {
   action: 'data-abto-action',
   surface: 'data-abto-surface',
-  nodeId: 'data-abto-node-key',
+  featureId: 'data-abto-feature-id',
   requestId: 'data-abto-request-id',
   conversationId: 'data-abto-conversation-id',
   messageId: 'data-abto-message-id',
@@ -24,10 +24,10 @@ export const ATTR = {
   templateId: 'data-abto-template-id',
 } as const;
 
-export interface SemanticTarget {
+interface SemanticTarget {
   action: string;
   surface?: string;
-  node_key?: string;
+  feature_id?: string;
   request_id?: string;
   conversation_id?: string;
   message_id?: string;
@@ -35,7 +35,7 @@ export interface SemanticTarget {
   template_id?: string;
 }
 
-export interface CapturedElement {
+interface CapturedElement {
   tag: string;
   text?: string;
   value?: string;
@@ -44,7 +44,7 @@ export interface CapturedElement {
   href?: string;
 }
 
-export interface InteractionHit {
+interface InteractionHit {
   kind: 'interaction';
   eventType: AutocaptureEventType;
   target: SemanticTarget;
@@ -53,7 +53,7 @@ export interface InteractionHit {
   selectionLength?: number;
 }
 
-export interface PageviewHit {
+interface PageviewHit {
   kind: 'pageview';
   eventType: 'pageview' | 'pageleave';
   path: string;
@@ -74,7 +74,7 @@ export interface SignalHit {
 }
 
 export type AutocaptureHit = InteractionHit | PageviewHit | SignalHit;
-export type AutocaptureSink = (hit: AutocaptureHit) => void;
+type AutocaptureSink = (hit: AutocaptureHit) => void;
 
 const HREF_CAP = 2048;
 const NEVER_CAPTURE_INPUT_TYPES = new Set(['password', 'hidden']);
@@ -115,25 +115,6 @@ function sanitizeUrl(raw: string): string | undefined {
   }
 }
 
-export function actionToInteraction(action: string): AIInteractionType | undefined {
-  switch (action) {
-    case 'copy':
-    case 'copied':
-      return 'copied';
-    case 'insert':
-    case 'inserted':
-      return 'inserted';
-    case 'accept':
-    case 'accepted':
-      return 'accepted';
-    case 'reject':
-    case 'rejected':
-      return 'rejected';
-    default:
-      return undefined;
-  }
-}
-
 function readSemanticTarget(el: Element): SemanticTarget {
   const inherited = (attr: string): string | undefined => {
     for (let node: Element | null = el; node; node = node.parentElement) {
@@ -145,14 +126,14 @@ function readSemanticTarget(el: Element): SemanticTarget {
 
   const target: SemanticTarget = { action: safeSemanticValue(inherited(ATTR.action)) ?? '' };
   const surface = safeSemanticValue(inherited(ATTR.surface));
-  const nodeId = safeSemanticValue(inherited(ATTR.nodeId));
+  const featureId = safeSemanticValue(inherited(ATTR.featureId));
   const requestId = safeSemanticValue(inherited(ATTR.requestId));
   const conversationId = safeSemanticValue(inherited(ATTR.conversationId));
   const messageId = safeSemanticValue(inherited(ATTR.messageId));
   const responseId = safeSemanticValue(inherited(ATTR.responseId));
   const templateId = safeSemanticValue(inherited(ATTR.templateId));
   if (surface !== undefined) target.surface = surface;
-  if (nodeId !== undefined) target.node_key = nodeId;
+  if (featureId !== undefined) target.feature_id = featureId;
   if (requestId !== undefined) target.request_id = requestId;
   if (conversationId !== undefined) target.conversation_id = conversationId;
   if (messageId !== undefined) target.message_id = messageId;
@@ -188,9 +169,11 @@ function readElementMeta(el: Element, eventType: AutocaptureEventType, mask: Mas
 // capture phase: run before the host so a stopped propagation still reaches us.
 const USE_CAPTURE = true;
 
-export function installAutocapture(sink: AutocaptureSink, options: { mask?: MaskMode } = {}): () => void {
+export function installAutocapture(
+  sink: AutocaptureSink,
+  maskMode: MaskMode = 'all',
+): () => void {
   if (typeof document === 'undefined') return () => {};
-  const maskMode = options.mask ?? 'all';
 
   const emitInteraction = (el: Element | null, eventType: AutocaptureEventType): void => {
     if (!el) return;

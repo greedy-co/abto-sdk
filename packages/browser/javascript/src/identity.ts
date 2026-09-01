@@ -14,18 +14,15 @@ export interface BrowserIdentity {
   windowId: string;
 }
 
-export interface IdentityStoreOptions {
+interface IdentityStoreOptions {
   projectKey: string;
-  sessionIdleMs?: number;
-  sessionMaxAgeMs?: number;
-  writeThrottleMs?: number;
   storage?: StorageLike;
   windowStorage?: StorageLike;
   now?: () => number;
   diagnostics?: BrowserDiagnostics;
 }
 
-export interface StorageLike {
+interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
@@ -81,9 +78,6 @@ export class BrowserIdentityStore {
   private readonly windowStorage: StorageLike | undefined;
   private readonly storageKey: string;
   private readonly windowStorageKey: string;
-  private readonly sessionIdleMs: number;
-  private readonly sessionMaxAgeMs: number;
-  private readonly writeThrottleMs: number;
   private readonly now: () => number;
   private readonly diagnostics: BrowserDiagnostics | undefined;
   private state: PersistedIdentity;
@@ -96,9 +90,6 @@ export class BrowserIdentityStore {
     this.windowStorage = options.windowStorage ?? resolveWindowStorage(this.diagnostics);
     this.storageKey = `abto:identity:v${IDENTITY_STORAGE_VERSION}:${encodeURIComponent(options.projectKey)}`;
     this.windowStorageKey = `abto:window:v${WINDOW_STORAGE_VERSION}:${encodeURIComponent(options.projectKey)}`;
-    this.sessionIdleMs = positiveOr(options.sessionIdleMs, DEFAULT_SESSION_IDLE_MS);
-    this.sessionMaxAgeMs = positiveOr(options.sessionMaxAgeMs, DEFAULT_SESSION_MAX_AGE_MS);
-    this.writeThrottleMs = positiveOr(options.writeThrottleMs, DEFAULT_WRITE_THROTTLE_MS);
     this.now = options.now ?? Date.now;
     this.state = this.read() ?? this.create();
     this.windowId = this.readWindowId() ?? this.createWindowId();
@@ -133,8 +124,8 @@ export class BrowserIdentityStore {
     const persisted = this.read();
     if (persisted !== undefined) this.state = persisted;
 
-    const idleExpired = now - this.state.lastSeenAt > this.sessionIdleMs;
-    const maxAgeExpired = now - this.state.sessionStartedAt >= this.sessionMaxAgeMs;
+    const idleExpired = now - this.state.lastSeenAt > DEFAULT_SESSION_IDLE_MS;
+    const maxAgeExpired = now - this.state.sessionStartedAt >= DEFAULT_SESSION_MAX_AGE_MS;
     if (idleExpired || maxAgeExpired) this.rotateSession(now);
     this.state.lastSeenAt = now;
     this.persist(force || idleExpired || maxAgeExpired);
@@ -197,7 +188,7 @@ export class BrowserIdentityStore {
 
   private persist(force = false): void {
     const now = this.now();
-    if (!force && now - this.lastPersistedAt < this.writeThrottleMs) return;
+    if (!force && now - this.lastPersistedAt < DEFAULT_WRITE_THROTTLE_MS) return;
     if (this.storage === undefined) return;
     try {
       this.storage.setItem(this.storageKey, JSON.stringify(this.state));
@@ -206,8 +197,4 @@ export class BrowserIdentityStore {
       this.diagnostics?.record('identity_persist_failed');
     }
   }
-}
-
-function positiveOr(value: number | undefined, fallback: number): number {
-  return typeof value === 'number' && value > 0 ? value : fallback;
 }

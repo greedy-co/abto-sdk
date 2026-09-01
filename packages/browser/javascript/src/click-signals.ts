@@ -8,13 +8,6 @@ import { serializeElementsChain } from './elements-chain.js';
 import type { SignalHit } from './autocapture.js';
 import type { MaskMode } from './types.js';
 
-export interface ClickSignalOptions {
-  rageClicks?: number;
-  rageWindowMs?: number;
-  rageRadiusPx?: number;
-  deadClickTimeoutMs?: number;
-}
-
 const DEFAULTS = {
   rageClicks: 3,
   rageWindowMs: 1000,
@@ -28,30 +21,21 @@ interface ClickMark {
   y: number;
 }
 
-export interface ClickSignalDetector {
-  onClick(el: Element, x: number, y: number, mask?: MaskMode): void;
-  dispose(): void;
-}
-
 export function createClickSignalDetector(
   emit: (hit: SignalHit) => void,
-  options: ClickSignalOptions = {},
-): ClickSignalDetector {
-  const rageClicks = options.rageClicks ?? DEFAULTS.rageClicks;
-  const rageWindowMs = options.rageWindowMs ?? DEFAULTS.rageWindowMs;
-  const rageRadiusPx = options.rageRadiusPx ?? DEFAULTS.rageRadiusPx;
-  const deadClickTimeoutMs = options.deadClickTimeoutMs ?? DEFAULTS.deadClickTimeoutMs;
-
+) {
   const recentClicks: ClickMark[] = [];
   const pendingDeadClicks = new Set<ReturnType<typeof setTimeout>>();
 
   const detectRageclick = (el: Element, mark: ClickMark, mask: MaskMode): void => {
-    while (recentClicks.length && mark.t - recentClicks[0]!.t > rageWindowMs) recentClicks.shift();
+    while (recentClicks.length && mark.t - recentClicks[0]!.t > DEFAULTS.rageWindowMs) recentClicks.shift();
     recentClicks.push(mark);
     const nearby = recentClicks.filter(
-      (c) => Math.abs(c.x - mark.x) <= rageRadiusPx && Math.abs(c.y - mark.y) <= rageRadiusPx,
+      (c) =>
+        Math.abs(c.x - mark.x) <= DEFAULTS.rageRadiusPx &&
+        Math.abs(c.y - mark.y) <= DEFAULTS.rageRadiusPx,
     );
-    if (nearby.length >= rageClicks) {
+    if (nearby.length >= DEFAULTS.rageClicks) {
       emit({ kind: 'signal', eventType: 'rageclick', elementsChain: serializeElementsChain(el, mask), clickCount: nearby.length });
       recentClicks.length = 0;
     }
@@ -78,12 +62,12 @@ export function createClickSignalDetector(
       if (!activity && !scrolled) {
         emit({ kind: 'signal', eventType: 'deadclick', elementsChain: serializeElementsChain(el, mask) });
       }
-    }, deadClickTimeoutMs);
+    }, DEFAULTS.deadClickTimeoutMs);
     pendingDeadClicks.add(timer);
   };
 
   return {
-    onClick(el, x, y, mask = 'all') {
+    onClick(el: Element, x: number, y: number, mask: MaskMode = 'all') {
       detectRageclick(el, { t: Date.now(), x, y }, mask);
       detectDeadclick(el, mask);
     },

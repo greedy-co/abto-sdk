@@ -22,14 +22,11 @@ export interface EventsGenerated {
     BrowserRageclickEvent?:            BrowserRageclickEvent;
     CustomEvent?:                      CustomEvent;
     DeadClickProps?:                   DeadClickProps;
-    DerivedTextMeta?:                  DerivedTextMeta;
-    MaskMode?:                         MaskMode;
     MetricValue?:                      number;
     PageleaveProps?:                   PageleaveProps;
     PageviewProps?:                    PageviewProps;
     RageclickProps?:                   RageclickProps;
     ScrollDepthProps?:                 ScrollDepthProps;
-    TokenBucket?:                      TokenBucket;
 }
 
 export interface AIPromptSubmittedProps {
@@ -62,13 +59,15 @@ export interface AIResponseInteractedProps {
 export type AIInteractionType = "copied" | "inserted" | "accepted" | "rejected" | "shared" | "downloaded" | "expanded" | "collapsed" | "rated_positive" | "rated_negative" | "regenerated" | "aborted";
 
 export interface AIResponseRenderedProps {
-    $capture_mode:          CaptureMode;
+    $capture_mode:          ResponseCaptureMode;
     $output_length_chars?:  number;
     $response_id:           string;
     $response_text?:        string;
     $time_to_render_ms?:    number;
     $visible_output_ratio?: number;
 }
+
+export type ResponseCaptureMode = "off" | "metadata_only" | "full";
 
 export interface AutocaptureProps {
     $ai_action?:        string;
@@ -206,7 +205,7 @@ export type BrowserAIResponseRenderedEventEventName = "llm_response_rendered";
 export interface BrowserAIResponseRenderedEventExtraJSON {
     $anonymous_id?:         string;
     $app_version?:          string;
-    $capture_mode:          CaptureMode;
+    $capture_mode:          ResponseCaptureMode;
     $conversation_id?:      string;
     $device_id?:            string;
     $entry_point?:          string;
@@ -639,22 +638,6 @@ export interface CustomEvent {
 export interface DeadClickProps {
     $elements_chain: string;
 }
-
-export interface DerivedTextMeta {
-    capture_mode:         CaptureMode;
-    contains_attachment?: boolean;
-    contains_code?:       boolean;
-    excerpt?:             string;
-    hash?:                string;
-    length_chars?:        number;
-    pii_detected?:        boolean;
-    sensitive_category?:  SensitiveCategory | null;
-    token_bucket?:        TokenBucket;
-}
-
-export type TokenBucket = "0" | "1-50" | "51-200" | "201-500" | "501-1000" | "1001-2000" | "2000+";
-
-export type MaskMode = "off" | "sensitive" | "all";
 
 export interface PageleaveProps {
     $current_url:              string;

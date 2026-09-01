@@ -7,15 +7,13 @@ import type {
   AutocaptureProps,
   CaptureMode,
   DeadClickProps,
-  DerivedTextMeta,
   Environment,
-  MaskMode,
   PageleaveProps,
   PageviewProps,
   RageclickProps,
+  ResponseCaptureMode,
   ScrollDepthProps,
   SensitiveCategory as ContractSensitiveCategory,
-  TokenBucket,
 } from './events.generated.js';
 import type {
   CustomEventPayloadMap,
@@ -36,11 +34,8 @@ export type {
   AIInteractionType,
   AutocaptureEventType,
   CaptureMode,
-  DerivedTextMeta,
   Environment,
-  MaskMode,
   ScrollDepthProps,
-  TokenBucket,
   EventRegistry,
   InferCustomEventProperties,
 };
@@ -54,6 +49,7 @@ export {
   type BrowserSystemEventWireName,
 };
 export type SensitiveCategory = ContractSensitiveCategory | null;
+export type MaskMode = 'off' | 'sensitive' | 'all';
 
 export interface BrowserSystemEventPropsMap {
   $pageview: PageviewProps;
@@ -70,27 +66,23 @@ export type JsonScalar = string | number | boolean | null;
 export type JsonValue = JsonScalar | JsonScalar[] | Record<string, JsonScalar>;
 export type CustomEventProperties = Record<string, JsonValue>;
 
-export interface CapturedEvent<E extends string = string> {
+export interface CapturedEvent {
   uuid: string;
-  event: E;
+  event: string;
   timestamp: string;
   distinct_id: string;
   properties: CustomEventProperties;
-  set?: CustomEventProperties;
-  set_once?: CustomEventProperties;
 }
 
 export interface AbtoBrowserConfig<R extends EventRegistry = EventRegistry> {
   projectKey: string;
   apiHost?: string;
-  endpoint?: string;
   environment?: Environment;
   appVersion?: string;
   events?: R;
-  debug?: boolean;
   capture?: {
     prompt?: CaptureMode;
-    response?: CaptureMode;
+    response?: ResponseCaptureMode;
     /** Raw DOM text/value is masked by default. Use data-abto-include for explicit opt-in. */
     mask?: MaskMode;
   };
@@ -98,37 +90,18 @@ export interface AbtoBrowserConfig<R extends EventRegistry = EventRegistry> {
     /** Broad page and DOM collection is opt-in and disabled by default. */
     enabled?: boolean;
   };
-  export?: {
-    flushIntervalMs?: number;
-    maxBatchSize?: number;
-    disabled?: boolean;
-  };
-  identity?: {
-    sessionIdleMs?: number;
-    sessionMaxAgeMs?: number;
-  };
-  hashSalt?: string;
 }
 
 export interface ResolvedConfig<R extends EventRegistry = EventRegistry> {
   endpoint: string;
-  apiKey: string;
   projectKey: string;
-  apiHost: string;
   environment: Environment;
-  appVersion: string;
+  appVersion: string | undefined;
   events: R;
-  debug: boolean;
   capturePrompt: CaptureMode;
-  captureResponse: CaptureMode;
+  captureResponse: ResponseCaptureMode;
   mask: MaskMode;
   autocapture: boolean;
-  batchSize: number;
-  flushIntervalMs: number;
-  sessionIdleMs: number;
-  sessionMaxAgeMs: number;
-  disabled: boolean;
-  hashSalt: string;
 }
 
 /** Internal context keys are converted to `$` wire properties by the client. */
@@ -140,27 +113,20 @@ export interface CommonProperties {
   session_id?: string;
   window_id?: string;
   pageview_id?: string;
-  node_key?: string;
+  feature_id?: string;
   trace_id?: string;
   request_id?: string;
   response_id?: string;
   surface?: string;
-  task_type?: string;
-  entry_point?: string;
   conversation_id?: string;
   message_id?: string;
   prompt_template_id?: string;
 }
 
-export interface StartLlmTraceOptions {
-  nodeId: string;
-  taskType?: string;
-  surface?: string;
-  entryPoint?: string;
-  traceId?: string;
-  conversationId?: string;
-  messageId?: string;
-  promptTemplateId?: string;
+export interface TraceHeaders {
+  'x-abto-device-id': string;
+  /** Raw trace id for the browser-to-backend hop. */
+  'x-abto-trace-id': string;
 }
 
 export interface PromptMetadata {
@@ -179,7 +145,7 @@ export interface PromptMetadata {
 export interface ResponseRenderedMetadata {
   responseId: string;
   requestId?: string;
-  responseCaptureMode?: CaptureMode;
+  responseCaptureMode?: ResponseCaptureMode;
   responseText?: string;
   timeToRenderMs?: number;
   outputLengthChars?: number;
@@ -209,11 +175,8 @@ export type RequestIdSource =
 
 export interface LlmTrace {
   readonly traceId: string;
-  readonly nodeId: string;
-  readonly taskType?: string;
   readonly requestId?: string;
-  getHeaders(): Record<string, string | undefined>;
-  setRequestId(requestId: string): this;
+  getHeaders(): TraceHeaders;
   attachRequestId(source: RequestIdSource): string | undefined;
   submitPrompt(metadata?: PromptMetadata): Promise<void>;
   markResponseRendered(metadata: ResponseRenderedMetadata): Promise<void>;

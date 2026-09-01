@@ -7,8 +7,11 @@ import type {
 import { toBrowserSystemEventWireName } from './system-events.generated.js';
 import type { BrowserDiagnostics } from './diagnostics.js';
 
+type TransportConfig = Pick<ResolvedConfig, 'endpoint' | 'projectKey'>;
+
 const MAX_BUFFER = 1000;
-const MAX_BATCH_SIZE = 100;
+const BATCH_SIZE = 20;
+const FLUSH_INTERVAL_MS = 5000;
 const MAX_KEEPALIVE_BYTES = 60 * 1024;
 const RETRY_BASE_MS = 1000;
 const RETRY_MAX_MS = 60_000;
@@ -102,27 +105,27 @@ export class Transport {
   private retryAttempt = 0;
   private disposed = false;
   private detachLifecycle: (() => void) | undefined;
-  private readonly cfg: ResolvedConfig;
+  private readonly cfg: TransportConfig;
   private readonly storage: StorageLike | undefined;
   private readonly outboxKey: string;
   private readonly diagnostics: BrowserDiagnostics | undefined;
 
-  constructor(cfg: ResolvedConfig, diagnostics?: BrowserDiagnostics) {
+  constructor(cfg: TransportConfig, diagnostics?: BrowserDiagnostics) {
     this.cfg = cfg;
     this.diagnostics = diagnostics;
     this.storage = resolveStorage(this.diagnostics);
     this.outboxKey = `abto:outbox:v1:${encodeURIComponent(cfg.projectKey)}`;
     this.queue = this.readOutbox();
     this.installLifecycleHooks();
-    if (this.queue.length > 0 && !this.cfg.disabled) this.armTimer();
+    if (this.queue.length > 0) this.armTimer();
   }
 
   enqueue(event: CapturedEvent): void {
-    if (this.cfg.disabled || this.disposed) return;
+    if (this.disposed) return;
     this.queue.push(event);
     this.trimQueue();
     this.persist();
-    if (this.queue.length >= this.cfg.batchSize) void this.flush();
+    if (this.queue.length >= BATCH_SIZE) void this.flush();
     else this.armTimer();
   }
 
@@ -132,7 +135,7 @@ export class Transport {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    if (this.queue.length === 0 || this.cfg.disabled) return;
+    if (this.queue.length === 0) return;
 
     this.flushPromise = this.flushBatch(useKeepalive).finally(() => {
       this.flushPromise = null;
@@ -156,7 +159,7 @@ export class Transport {
     this.persist();
   }
 
-  private armTimer(delay = this.cfg.flushIntervalMs): void {
+  private armTimer(delay = FLUSH_INTERVAL_MS): void {
     if (this.disposed || this.timer !== null) return;
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -189,7 +192,7 @@ export class Transport {
         keepalive: useKeepalive && safeForKeepalive,
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${this.cfg.apiKey}`,
+          authorization: `Bearer ${this.cfg.projectKey}`,
         },
         body,
       });
@@ -227,9 +230,8 @@ export class Transport {
   }
 
   private selectBatch(): CapturedEvent[] {
-    const maxCount = Math.max(1, Math.min(this.cfg.batchSize, MAX_BATCH_SIZE));
     const selected: CapturedEvent[] = [];
-    for (const event of this.queue.slice(0, maxCount)) {
+    for (const event of this.queue.slice(0, BATCH_SIZE)) {
       const candidate = [...selected, event];
       const body = JSON.stringify({ batch: candidate.map(toBackendEvent) });
       if (selected.length > 0 && byteLength(body) > MAX_KEEPALIVE_BYTES) break;

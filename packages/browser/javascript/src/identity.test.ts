@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BrowserDiagnostics } from './diagnostics.js';
-import { BrowserIdentityStore, type StorageLike } from './identity.js';
+import { BrowserIdentityStore } from './identity.js';
 
-class MemoryStorage implements StorageLike {
+class MemoryStorage {
   readonly values = new Map<string, string>();
   writes = 0;
 
@@ -69,7 +69,6 @@ describe('BrowserIdentityStore lifecycle', () => {
       storage,
       windowStorage: new MemoryStorage(),
       now: () => now,
-      sessionIdleMs: 30 * 60 * 1000,
     });
     const first = store.current();
 
@@ -88,8 +87,6 @@ describe('BrowserIdentityStore lifecycle', () => {
       storage,
       windowStorage: new MemoryStorage(),
       now: () => now,
-      sessionIdleMs: 30 * 60 * 1000,
-      sessionMaxAgeMs: 24 * 60 * 60 * 1000,
     });
     const first = store.current();
 
@@ -136,7 +133,6 @@ describe('BrowserIdentityStore lifecycle', () => {
       storage,
       windowStorage: new MemoryStorage(),
       now: () => now,
-      writeThrottleMs: 1000,
     });
     const writesAfterCreate = storage.writes;
 

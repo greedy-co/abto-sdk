@@ -3,8 +3,8 @@ import {
   BROWSER_SYSTEM_EVENT_WIRE_NAMES,
 } from './system-events.generated.js';
 
-export type CustomPropertyType = 'string' | 'number' | 'boolean';
-export type CustomPropertyScalar = string | number | boolean;
+type CustomPropertyType = 'string' | 'number' | 'boolean';
+type CustomPropertyScalar = string | number | boolean;
 
 export interface CustomPropertyDefinition<
   T extends CustomPropertyType = CustomPropertyType,
@@ -90,11 +90,6 @@ export function defineEvents<const R extends EventRegistry>(registry: R): R {
   return registry;
 }
 
-export interface EventValidationResult {
-  valid: boolean;
-  issues: string[];
-}
-
 export function validateCustomPropertyNames(properties: Record<string, unknown>): string[] {
   return Object.keys(properties)
     .filter((name) => name.startsWith('$'))
@@ -104,7 +99,7 @@ export function validateCustomPropertyNames(properties: Record<string, unknown>)
 export function validateEventProperties(
   definition: CustomEventDefinition,
   properties: Record<string, unknown>,
-): EventValidationResult {
+) {
   const issues = validateCustomPropertyNames(properties);
   for (const [name, property] of Object.entries(definition.properties)) {
     const value = properties[name];

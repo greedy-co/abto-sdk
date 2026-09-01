@@ -5,7 +5,7 @@ import {
   ABTO_BROWSER_DIAGNOSTIC_SDK_NAME,
 } from './system-events.generated.js';
 
-export type BrowserDiagnosticSnapshot = BrowserDiagnosticsEnvelope;
+type BrowserDiagnosticSnapshot = BrowserDiagnosticsEnvelope;
 type BrowserDiagnosticKind = (typeof ABTO_BROWSER_DIAGNOSTIC_KINDS)[number];
 
 export class BrowserDiagnostics {

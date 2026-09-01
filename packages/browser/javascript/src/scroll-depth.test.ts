@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { createScrollDepthTracker, type ScrollDepthTracker } from './scroll-depth.js';
+import { createScrollDepthTracker } from './scroll-depth.js';
 
-let tracker: ScrollDepthTracker | undefined;
+let tracker: ReturnType<typeof createScrollDepthTracker> | undefined;
 
 afterEach(() => {
   tracker?.dispose();

@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  AbtoBrowserClient,
-  getIdentity,
-  initAbto,
-  SDK_VERSION,
-} from './client.js';
+import { initAbto } from './client.js';
 import { defineEvents } from './event-registry.js';
 
 const UUID_V7_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -43,9 +38,9 @@ function postedBatch(fetchMock: ReturnType<typeof vi.fn>): any[] {
 }
 
 function client(options: { autocapture?: boolean } = {}) {
-  return new AbtoBrowserClient({
+  return initAbto({
     projectKey: 'public_project_key',
-    endpoint: 'https://collector.test/v1/collect/events',
+    apiHost: 'https://collector.test',
     events,
     autocapture: { enabled: options.autocapture ?? false },
   });
@@ -95,20 +90,11 @@ describe('Browser event envelope and identity', () => {
     expect(identified.properties.$session_id).toBe(anonymous.properties.$session_id);
   });
 
-  it('replaces tenant identity and clears all scoped context on reset', async () => {
+  it('replaces tenant identity and clears it on reset', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     sdk.identify('user-1', 'tenant-1');
     sdk.identify('user-2');
-    sdk.startLlmTrace({
-      nodeId: 'chat.private',
-      taskType: 'answer',
-      surface: 'composer',
-      entryPoint: 'home',
-      conversationId: 'conversation-1',
-      messageId: 'message-1',
-      promptTemplateId: 'template-1',
-    });
     sdk.reset();
     sdk.capture('user_action', { name: 'after-reset' });
     await sdk.flush();
@@ -116,22 +102,14 @@ describe('Browser event envelope and identity', () => {
     const [event] = postedBatch(fetchMock);
     expect(event.properties.$user_id).toBeUndefined();
     expect(event.properties.$tenant_id).toBeUndefined();
-    expect(event.properties.$node_key).toBeUndefined();
-    expect(event.properties.$trace_id).toBeUndefined();
-    expect(event.properties.$task_type).toBeUndefined();
-    expect(event.properties.$surface).toBeUndefined();
-    expect(event.properties.$entry_point).toBeUndefined();
-    expect(event.properties.$conversation_id).toBeUndefined();
-    expect(event.properties.$message_id).toBeUndefined();
-    expect(event.properties.$prompt_template_id).toBeUndefined();
     sdk.shutdown();
   });
 
   it('keeps SDK and host app versions in separate system properties', async () => {
     const fetchMock = installFetchStub();
-    const sdk = new AbtoBrowserClient({
+    const sdk = initAbto({
       projectKey: 'public_project_key',
-      endpoint: 'https://collector.test/v1/collect/events',
+      apiHost: 'https://collector.test',
       appVersion: 'host-1.2.3',
       events,
       autocapture: { enabled: false },
@@ -140,26 +118,39 @@ describe('Browser event envelope and identity', () => {
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
-    expect(event.properties.$lib_version).toBe(SDK_VERSION);
+    expect(event.properties.$lib_version).toMatch(/^\d+\.\d+\.\d+/);
     expect(event.properties.$app_version).toBe('host-1.2.3');
     sdk.shutdown();
-  });
-
-  it('keeps the initialized identity available through the singleton API', () => {
-    const sdk = initAbto({
-      projectKey: 'public_project_key',
-      events,
-      autocapture: { enabled: false },
-    });
-    expect(getIdentity()).toEqual(sdk.getIdentity());
   });
 });
 
 describe('observable AI events', () => {
+  it('forwards only device and trace identifiers without leaking trace state', async () => {
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    sdk.identify('user-1');
+    const trace = sdk.startLlmTrace();
+
+    expect(trace.traceId).toMatch(/^[0-9a-f]{32}$/);
+    expect(trace.getHeaders()).toEqual({
+      'x-abto-device-id': sdk.getIdentity().deviceId,
+      'x-abto-trace-id': trace.traceId,
+    });
+
+    sdk.capture('user_action', { name: 'after-trace-start' });
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.properties.$trace_id).toBeUndefined();
+    expect(event.properties.$node_key).toBeUndefined();
+    expect(event.properties.$surface).toBeUndefined();
+    sdk.shutdown();
+  });
+
   it('emits only prompt submitted, response rendered, and response interacted', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-    const trace = sdk.startLlmTrace({ nodeId: 'chat.default', surface: 'composer' });
+    const trace = sdk.startLlmTrace();
     trace.attachRequestId(new Response(null, { headers: { 'x-abto-request-id': 'req_123' } }));
 
     await trace.submitPrompt({ prompt: 'secret prompt' });
@@ -181,6 +172,9 @@ describe('observable AI events', () => {
       'llm_response_interacted',
     ]);
     expect(batch[0].properties.$prompt_text).toBeUndefined();
+    expect(batch[0].properties.$trace_id).toBe(trace.traceId);
+    expect(batch[0].properties.$node_key).toBeUndefined();
+    expect(batch[0].properties.$surface).toBeUndefined();
     expect(batch[1].properties.$response_text).toBeUndefined();
     expect(batch[1].properties.$output_length_chars).toBe(15);
     expect(batch[1].properties.$request_id).toBe('req_123');
@@ -188,16 +182,28 @@ describe('observable AI events', () => {
     expect(batch[2].properties.$request_id).toBe('req_123');
   });
 
-  it('rejects an empty request_id', () => {
-    const trace = client().startLlmTrace({ nodeId: 'chat.default' });
-    expect(() => trace.setRequestId('   ')).toThrow('[abto] setRequestId');
+  it('does not derive response metadata when capture is off', async () => {
+    const fetchMock = installFetchStub();
+    const sdk = client();
+
+    await sdk.startLlmTrace().markResponseRendered({
+      responseId: 'resp_off',
+      responseCaptureMode: 'off',
+      responseText: 'do not derive from this',
+    });
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.properties.$response_text).toBeUndefined();
+    expect(event.properties.$output_length_chars).toBeUndefined();
+    sdk.shutdown();
   });
 
   it('drops a non-canonical response interaction at runtime', async () => {
     const fetchMock = installFetchStub();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client();
-    const trace = sdk.startLlmTrace({ nodeId: 'chat.default' });
+    const trace = sdk.startLlmTrace();
 
     await trace.captureResponseInteraction('retried' as never);
     await sdk.flush();
@@ -212,6 +218,7 @@ describe('observable AI events', () => {
     document.body.innerHTML = `
       <button
         data-abto-action="accept"
+        data-abto-feature-id="resume.make"
         data-abto-response-id="resp_1"
         data-abto-request-id="req_dom">
         Apply
@@ -226,6 +233,7 @@ describe('observable AI events', () => {
     const interactions = batch.filter((event) => event.event === 'interaction_autocaptured');
     expect(interactions).toHaveLength(1);
     expect(interactions[0].properties.$ai_action).toBe('accept');
+    expect(interactions[0].properties.$node_key).toBe('resume.make');
     expect(interactions[0].properties.$response_id).toBe('resp_1');
     expect(interactions[0].properties.$request_id).toBe('req_dom');
     expect(batch.some((event) => event.event === 'llm_response_interacted')).toBe(false);

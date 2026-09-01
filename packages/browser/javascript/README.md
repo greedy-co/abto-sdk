@@ -106,6 +106,18 @@ const abto = initAbto({
 });
 ```
 
+| 설정 | 기본값 | 역할 |
+|---|---|---|
+| `projectKey` | 필수 | 브라우저에 둘 수 있는 공개 Event Key |
+| `apiHost` | `https://api.abto.app` | Event API host. SDK가 `/v1/collect/events`를 붙인다 |
+| `environment` | `production` | `development`에서는 미등록 event와 schema drift를 경고 후 전송한다 |
+| `appVersion` | 미설정 | 지정하면 event context의 `$app_version`으로 전송한다 |
+| `events` | `{}` | `defineEvents()`로 만든 Custom Event registry |
+| `capture.prompt` | `metadata_only` | `off`, `hash`, `metadata_only`, `full` 중 prompt 수집 정책 |
+| `capture.response` | `metadata_only` | `off`, `metadata_only`, `full` 중 response 수집 정책 |
+| `capture.mask` | `all` | `off`, `sensitive`, `all` 중 autocapture DOM text/value 마스킹 정책 |
+| `autocapture.enabled` | `false` | 페이지와 DOM 자동 수집의 명시적 opt-in |
+
 페이지와 DOM 상호작용을 넓게 수집해야 하고 데이터 정책 검토를 마친 경우에만 autocapture를 명시적으로 켠다.
 
 ```ts
@@ -137,7 +149,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.2.0"
+        "$lib_version": "0.3.0"
       }
     }
   ]
@@ -195,7 +207,7 @@ autocapture를 명시적으로 켠 경우 annotation은 원시 `$autocapture`를
 <button
   data-abto-action="accept"
   data-abto-surface="generator"
-  data-abto-node-key="resume.make"
+  data-abto-feature-id="resume.make"
   data-abto-response-id="resp_123"
   data-abto-request-id="req_123">
   적용
@@ -208,19 +220,8 @@ autocapture를 켰다면 위 클릭은 `$autocapture`로 수집되며 `$ai_actio
 
 prompt, response, DOM text/value는 기본적으로 원문을 수집하지 않는다.
 
-```ts
-initAbto({
-  projectKey: 'public_project_key',
-  events,
-  capture: {
-    prompt: 'metadata_only',
-    response: 'metadata_only',
-    mask: 'all',
-  },
-});
-```
-
-위 값들이 생략됐을 때도 같은 안전한 기본값이 적용된다.
+위 설정 표의 `capture.prompt`, `capture.response`, `capture.mask`를 생략해도
+각각 `metadata_only`, `metadata_only`, `all`의 안전한 기본값이 적용된다.
 
 | annotation | 동작 |
 |---|---|
@@ -235,11 +236,7 @@ initAbto({
 브라우저가 확실히 아는 세 가지 사실만 전용 API로 제공한다.
 
 ```ts
-const trace = abto.startLlmTrace({
-  nodeId: 'resume.make',
-  taskType: 'draft_generation',
-  surface: 'editor',
-});
+const trace = abto.startLlmTrace();
 
 await trace.submitPrompt({
   prompt: promptText,
@@ -268,6 +265,9 @@ await trace.captureResponseInteraction('copied', {
 plain JavaScript에서 다른 값이 들어와도 경고 후 제외하며, 제품 고유 행동은 커스텀 이벤트로 기록한다.
 
 provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request 성공·실패는 Server SDK/Gateway가 소유한다. AI task 완료·이탈은 제품마다 의미가 다르므로 커스텀 이벤트 또는 분석 파생 지표로 둔다.
+
+`trace.getHeaders()`는 브라우저가 소유하는 `x-abto-device-id`와 `x-abto-trace-id`만 반환한다.
+실제 모델 호출의 `featureId`는 브라우저 입력을 신뢰하지 않고 백엔드가 Calling SDK context에 설정한다.
 
 ## 식별자와 세션
 
@@ -300,7 +300,7 @@ abto.forgetDevice(); // outbox와 device identity 제거
 
 ## Public API (browser)
 
-`initAbto` · `defineEvents` · `identify` · `getIdentity` · `reset` · `forgetDevice` · `startLlmTrace` · `setNode` · `getTraceHeaders` · `client.capture` · `trace.submitPrompt` · `trace.markResponseRendered` · `trace.captureResponseInteraction` · `flush`.
+`initAbto` · `defineEvents` · `client.identify` · `client.getIdentity` · `client.reset` · `client.forgetDevice` · `client.startLlmTrace` · `client.capture` · `client.flush` · `client.shutdown` · `trace.getHeaders` · `trace.submitPrompt` · `trace.markResponseRendered` · `trace.captureResponseInteraction`.
 
 ## 개발 검증
 

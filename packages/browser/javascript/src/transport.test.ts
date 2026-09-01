@@ -1,27 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserDiagnostics } from './diagnostics.js';
 import { Transport } from './transport.js';
-import type { CapturedEvent, ResolvedConfig } from './types.js';
+import type { CapturedEvent } from './types.js';
 
-const config: ResolvedConfig = {
+const config = {
   endpoint: 'https://collector.test/v1/collect/events',
-  apiKey: 'public_project_key',
   projectKey: 'public_project_key',
-  apiHost: 'https://collector.test',
-  environment: 'production',
-  appVersion: 'test',
-  events: {},
-  debug: false,
-  capturePrompt: 'metadata_only',
-  captureResponse: 'metadata_only',
-  mask: 'all',
-  hashSalt: 'test-salt',
-  autocapture: false,
-  batchSize: 20,
-  flushIntervalMs: 5000,
-  sessionIdleMs: 30 * 60 * 1000,
-  sessionMaxAgeMs: 24 * 60 * 60 * 1000,
-  disabled: false,
 };
 
 function event(uuid = '019b5b74-11d0-7000-8000-000000000001', value = 'ok'): CapturedEvent {

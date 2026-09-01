@@ -1,5 +1,5 @@
 import { installAutocapture, type AutocaptureHit } from './autocapture.js';
-import { ContextStore, newEventId, type TraceHeaders } from './context.js';
+import { ContextStore } from './context.js';
 import { BrowserDiagnostics } from './diagnostics.js';
 import {
   validateCustomEventName,
@@ -8,7 +8,7 @@ import {
   type EventRegistry,
 } from './event-registry.js';
 import type { BrowserIdentity } from './identity.js';
-import { deriveTextMeta } from './privacy.js';
+import { derivePromptMeta } from './privacy.js';
 import { Transport } from './transport.js';
 import type {
   AbtoBrowserConfig,
@@ -27,25 +27,21 @@ import type {
   ResolvedConfig,
   ResponseInteractionMetadata,
   ResponseRenderedMetadata,
-  StartLlmTraceOptions,
+  TraceHeaders,
 } from './types.js';
 import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
+import { newUuidV7 } from './uuid.js';
 
-export const SDK_VERSION = '0.2.0';
+const SDK_VERSION = '0.3.0';
 
-function normalizeEnvironment(value: string | undefined): Environment {
-  return value === 'development' ? 'development' : 'production';
-}
-
-function requireNonEmpty(value: string | undefined, field: string): string {
+function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`[abto] ${field} is required. Check your init config.`);
+    throw new Error('[abto] projectKey is required. Check your init config.');
   }
-  return value;
 }
 
-function requireValidUrl(value: string, field: string): URL {
+function requireValidApiHost(value: string): void {
   let parsed: URL | undefined;
   try {
     parsed = new URL(value);
@@ -53,37 +49,27 @@ function requireValidUrl(value: string, field: string): URL {
     // Handled by the common validation below.
   }
   if (parsed === undefined || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
-    throw new Error(`[abto] ${field} is not a valid http(s) URL: "${value}"`);
+    throw new Error(`[abto] apiHost is not a valid http(s) URL: "${value}"`);
   }
-  return parsed;
 }
 
 function resolveConfig<R extends EventRegistry>(config: AbtoBrowserConfig<R>): ResolvedConfig<R> {
-  requireNonEmpty(config.projectKey, 'projectKey');
+  requireProjectKey(config.projectKey);
   const apiHost = config.apiHost ?? 'https://api.abto.app';
-  requireValidUrl(apiHost, 'apiHost');
-  const endpoint = config.endpoint ?? `${apiHost.replace(/\/$/, '')}/v1/collect/events`;
-  requireValidUrl(endpoint, 'endpoint');
-  const environment = normalizeEnvironment(config.environment);
+  requireValidApiHost(apiHost);
+  const endpoint = `${apiHost.replace(/\/$/, '')}/v1/collect/events`;
+  const environment: Environment =
+    config.environment === 'development' ? 'development' : 'production';
   return {
     endpoint,
-    apiKey: config.projectKey,
     projectKey: config.projectKey,
-    apiHost,
     environment,
-    appVersion: config.appVersion ?? 'unknown',
+    appVersion: config.appVersion,
     events: (config.events ?? {}) as R,
-    debug: config.debug ?? environment === 'development',
     capturePrompt: config.capture?.prompt ?? 'metadata_only',
     captureResponse: config.capture?.response ?? 'metadata_only',
     mask: config.capture?.mask ?? 'all',
     autocapture: config.autocapture?.enabled ?? false,
-    batchSize: config.export?.maxBatchSize ?? 20,
-    flushIntervalMs: config.export?.flushIntervalMs ?? 5000,
-    sessionIdleMs: config.identity?.sessionIdleMs ?? 30 * 60 * 1000,
-    sessionMaxAgeMs: config.identity?.sessionMaxAgeMs ?? 24 * 60 * 60 * 1000,
-    disabled: config.export?.disabled ?? false,
-    hashSalt: config.hashSalt ?? config.projectKey,
   };
 }
 
@@ -126,7 +112,7 @@ function contextProperties(
   return compact({
     $lib: 'web',
     $lib_version: SDK_VERSION,
-    $app_version: config.appVersion === 'unknown' ? undefined : config.appVersion,
+    $app_version: config.appVersion,
     $environment: config.environment,
     $schema_version: SCHEMA_VERSION,
     $tenant_id: common.tenant_id,
@@ -136,13 +122,11 @@ function contextProperties(
     $session_id: common.session_id,
     $window_id: common.window_id,
     $pageview_id: common.pageview_id,
-    $node_key: common.node_key,
+    $node_key: common.feature_id,
     $trace_id: common.trace_id,
     $request_id: common.request_id,
     $response_id: common.response_id,
     $surface: common.surface,
-    $task_type: common.task_type,
-    $entry_point: common.entry_point,
     $conversation_id: common.conversation_id,
     $message_id: common.message_id,
     $prompt_template_id: common.prompt_template_id,
@@ -150,49 +134,36 @@ function contextProperties(
 }
 
 class BrowserLlmTrace implements LlmTrace {
-  readonly traceId: string;
-  readonly nodeId: string;
-  readonly taskType?: string;
   requestId?: string;
 
   constructor(
     private readonly client: AbtoBrowserClient<any>,
-    private readonly options: StartLlmTraceOptions & { traceId: string },
+    readonly traceId: string,
     private readonly emitSystem: <N extends BrowserSystemEventName>(
       event: N,
       properties: BrowserSystemEventPropsMap[N],
       envelope?: Partial<CommonProperties>,
     ) => void,
-  ) {
-    this.traceId = options.traceId;
-    this.nodeId = options.nodeId;
-    if (options.taskType !== undefined) this.taskType = options.taskType;
-  }
-
-  setRequestId(requestId: string): this {
-    const normalized = normalizeRequestId(requestId);
-    if (normalized === undefined) {
-      throw new Error('[abto] setRequestId requires a non-empty request_id.');
-    }
-    this.requestId = normalized;
-    return this;
-  }
+  ) {}
 
   attachRequestId(source: RequestIdSource): string | undefined {
     const requestId = readRequestId(source);
-    if (requestId !== undefined) this.setRequestId(requestId);
+    if (requestId !== undefined) this.requestId = requestId;
     return requestId;
   }
 
   getHeaders(): TraceHeaders {
-    return this.client.getTraceHeaders(this.envelope());
+    return {
+      'x-abto-device-id': this.client.getIdentity().deviceId,
+      'x-abto-trace-id': this.traceId,
+    };
   }
 
   async submitPrompt(metadata: PromptMetadata = {}): Promise<void> {
     const mode = metadata.promptCaptureMode ?? this.client.config.capturePrompt;
     const derived =
       mode !== 'full' && metadata.prompt !== undefined
-        ? await deriveTextMeta(metadata.prompt, mode, { salt: this.client.config.hashSalt })
+        ? await derivePromptMeta(metadata.prompt, mode, this.client.config.projectKey)
         : undefined;
     this.emitSystem(
       '$ai_prompt_submitted',
@@ -200,13 +171,13 @@ class BrowserLlmTrace implements LlmTrace {
         $capture_mode: mode,
         $prompt_text: mode === 'full' ? metadata.prompt : undefined,
         $prompt_hash: metadata.promptHash ?? derived?.hash,
-        $prompt_length_chars: metadata.promptLengthChars ?? derived?.length_chars,
+        $prompt_length_chars: metadata.promptLengthChars ?? derived?.lengthChars,
         $prompt_tokens_estimated: metadata.promptTokensEstimated,
         $language: metadata.language,
         $contains_attachment: metadata.containsAttachment,
-        $contains_code: metadata.containsCode ?? derived?.contains_code,
-        $pii_detected: metadata.piiDetected ?? derived?.pii_detected,
-        $sensitive_category: metadata.sensitiveCategory ?? derived?.sensitive_category ?? undefined,
+        $contains_code: metadata.containsCode ?? derived?.containsCode,
+        $pii_detected: metadata.piiDetected ?? derived?.piiDetected,
+        $sensitive_category: metadata.sensitiveCategory ?? derived?.sensitiveCategory ?? undefined,
       }) as unknown as BrowserSystemEventPropsMap['$ai_prompt_submitted'],
       this.envelope(),
     );
@@ -223,7 +194,8 @@ class BrowserLlmTrace implements LlmTrace {
         $response_id: metadata.responseId,
         $response_text: mode === 'full' ? metadata.responseText : undefined,
         $time_to_render_ms: metadata.timeToRenderMs,
-        $output_length_chars: metadata.outputLengthChars ?? metadata.responseText?.length,
+        $output_length_chars:
+          metadata.outputLengthChars ?? (mode === 'off' ? undefined : metadata.responseText?.length),
         $visible_output_ratio: metadata.visibleOutputRatio,
       }) as unknown as BrowserSystemEventPropsMap['$ai_response_rendered'],
       this.envelope(
@@ -261,21 +233,14 @@ class BrowserLlmTrace implements LlmTrace {
   }
 
   private envelope(overrides: Partial<CommonProperties> = {}): Partial<CommonProperties> {
-    return compact({
-      node_key: this.nodeId,
+    return {
       trace_id: this.traceId,
-      task_type: this.options.taskType,
-      surface: this.options.surface,
-      entry_point: this.options.entryPoint,
-      conversation_id: this.options.conversationId,
-      message_id: this.options.messageId,
-      prompt_template_id: this.options.promptTemplateId,
       ...overrides,
-    }) as Partial<CommonProperties>;
+    };
   }
 }
 
-export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
+class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
   readonly config: ResolvedConfig<R>;
   private readonly context: ContextStore;
   private readonly transport: Transport;
@@ -285,17 +250,13 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
   constructor(config: AbtoBrowserConfig<R>) {
     this.config = resolveConfig(config);
     const diagnostics = new BrowserDiagnostics();
-    this.context = new ContextStore({
-      projectKey: this.config.projectKey,
-      sessionIdleMs: this.config.sessionIdleMs,
-      sessionMaxAgeMs: this.config.sessionMaxAgeMs,
-      diagnostics,
-    });
+    this.context = new ContextStore(this.config.projectKey, diagnostics);
     this.transport = new Transport(this.config, diagnostics);
     if (this.config.autocapture) {
-      this.detachAutocapture = installAutocapture((hit) => this.onAutocapture(hit), {
-        mask: this.config.mask,
-      });
+      this.detachAutocapture = installAutocapture(
+        (hit) => this.onAutocapture(hit),
+        this.config.mask,
+      );
     }
   }
 
@@ -318,24 +279,12 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
     return this.context.getIdentity();
   }
 
-  setNode(nodeId: string): void {
-    this.context.setNode(nodeId);
-  }
-
-  newTrace(): string {
-    return this.context.newTrace();
-  }
-
-  startLlmTrace(options: StartLlmTraceOptions): LlmTrace {
+  startLlmTrace(): LlmTrace {
     return new BrowserLlmTrace(
       this,
-      this.context.startLlmTrace(options),
+      newUuidV7().replace(/-/g, ''),
       (event, properties, envelope) => this.#captureSystem(event, properties, envelope),
     );
-  }
-
-  getTraceHeaders(overrides?: Partial<CommonProperties>): TraceHeaders {
-    return this.context.getTraceHeaders(overrides);
   }
 
   bindResponseRequestId(responseId: string, requestId: string | undefined): void {
@@ -409,16 +358,16 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
   ): void {
     const common = { ...this.context.toCommonProperties(), ...envelope };
     const captured: CapturedEvent = {
-      uuid: newEventId(),
+      uuid: newUuidV7(),
       event,
       timestamp: new Date().toISOString(),
-      distinct_id: common.user_id ?? common.anonymous_id ?? common.device_id ?? newEventId(),
+      distinct_id: common.user_id ?? common.anonymous_id ?? common.device_id ?? newUuidV7(),
       properties: {
         ...properties,
         ...contextProperties(common, this.config),
       },
     };
-    if (this.config.debug) console.log('[abto]', captured.event, captured);
+    if (this.config.environment === 'development') console.log('[abto]', captured.event, captured);
     this.transport.enqueue(captured);
   }
 
@@ -481,7 +430,7 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
       (target.response_id ? this.responseRequestIds.get(target.response_id) : undefined);
     const envelope = compact({
       surface: target.surface,
-      node_key: target.node_key,
+      feature_id: target.feature_id,
       request_id: requestId,
       response_id: target.response_id,
       conversation_id: target.conversation_id,
@@ -511,51 +460,20 @@ export class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
   }
 }
 
-let singleton: AbtoBrowserClient | null = null;
+type AbtoBrowser<R extends EventRegistry> = Pick<
+  AbtoBrowserClient<R>,
+  | 'identify'
+  | 'reset'
+  | 'forgetDevice'
+  | 'getIdentity'
+  | 'startLlmTrace'
+  | 'capture'
+  | 'flush'
+  | 'shutdown'
+>;
 
 export function initAbto<const R extends EventRegistry>(
   config: AbtoBrowserConfig<R>,
-): AbtoBrowserClient<R> {
-  const client = new AbtoBrowserClient(config);
-  singleton = client;
-  return client;
-}
-
-function requireClient(): AbtoBrowserClient {
-  if (singleton === null) {
-    throw new Error('[abto] call initAbto(config) before using the SDK.');
-  }
-  return singleton;
-}
-
-export function startLlmTrace(options: StartLlmTraceOptions): LlmTrace {
-  return requireClient().startLlmTrace(options);
-}
-
-export function identify(userId: string, tenantId?: string): void {
-  requireClient().identify(userId, tenantId);
-}
-
-export function reset(): void {
-  requireClient().reset();
-}
-
-export function forgetDevice(): void {
-  requireClient().forgetDevice();
-}
-
-export function getIdentity(): BrowserIdentity {
-  return requireClient().getIdentity();
-}
-
-export function setNode(nodeId: string): void {
-  requireClient().setNode(nodeId);
-}
-
-export function getTraceHeaders(overrides?: Partial<CommonProperties>): TraceHeaders {
-  return requireClient().getTraceHeaders(overrides);
-}
-
-export function flush(): Promise<void> {
-  return requireClient().flush();
+): AbtoBrowser<R> {
+  return new AbtoBrowserClient(config);
 }

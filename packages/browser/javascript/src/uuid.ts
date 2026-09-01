@@ -1,5 +1,5 @@
 /**
- * RFC 9562 UUIDv7 helpers for browser-generated identifiers.
+ * RFC 9562 UUIDv7 helper for browser-generated identifiers.
  *
  * UUIDv7 carries the current Unix timestamp in its first 48 bits, so event and
  * identity records retain useful insertion locality without a UUID dependency.
@@ -19,10 +19,6 @@ function randomBytes(length: number): Uint8Array {
   return bytes;
 }
 
-export function randomHex(length: number): string {
-  return Array.from(randomBytes(length), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 /** Create a canonical, lowercase UUIDv7 string. */
 export function newUuidV7(now = Date.now()): string {
   const timestamp = Math.min(Math.max(Math.floor(now), 0), 0xffff_ffff_ffff);
@@ -37,9 +33,4 @@ export function newUuidV7(now = Date.now()): string {
 
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-/** W3C trace IDs are 32 hex characters, not UUID strings. */
-export function newUuidV7TraceId(): string {
-  return newUuidV7().replace(/-/g, '');
 }

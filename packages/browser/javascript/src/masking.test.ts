@@ -44,7 +44,7 @@ describe('autocapture masking', () => {
   it("mask 'all' masks element text in meta and elements_chain", () => {
     document.body.innerHTML = '<button>Buy Now</button>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'all' });
+    teardown = installAutocapture((h) => hits.push(h), 'all');
     document.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const hit = hits.find((h) => h.kind === 'interaction' && h.eventType === 'click');
     if (hit && hit.kind === 'interaction') {
@@ -56,7 +56,7 @@ describe('autocapture masking', () => {
   it("mask 'all' masks input change values", () => {
     document.body.innerHTML = '<input type="text" name="n" />';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'all' });
+    teardown = installAutocapture((h) => hits.push(h), 'all');
     const input = document.querySelector('input')! as HTMLInputElement;
     input.value = 'secret-value';
     input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -67,7 +67,7 @@ describe('autocapture masking', () => {
   it('data-abto-sensitive masks content even when mask is off', () => {
     document.body.innerHTML = '<div data-abto-sensitive><input type="text" name="s" /></div>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'off' });
+    teardown = installAutocapture((h) => hits.push(h), 'off');
     const input = document.querySelector('input')! as HTMLInputElement;
     input.value = 'private';
     input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -78,7 +78,7 @@ describe('autocapture masking', () => {
   it('data-abto-include explicitly unmasks content under the default all mask', () => {
     document.body.innerHTML = '<button data-abto-include>Show me</button>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'all' });
+    teardown = installAutocapture((h) => hits.push(h), 'all');
     document.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const hit = hits.find((h) => h.kind === 'interaction');
     if (hit && hit.kind === 'interaction') expect(hit.element.text).toBe('Show me');
@@ -88,7 +88,7 @@ describe('autocapture masking', () => {
     document.body.innerHTML =
       '<button id="private-id" class="private-class" data-abto-include>Show me</button>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'all' });
+    teardown = installAutocapture((h) => hits.push(h), 'all');
     document.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const hit = hits.find((h) => h.kind === 'interaction');
     if (hit && hit.kind === 'interaction') {
@@ -101,7 +101,7 @@ describe('autocapture masking', () => {
     document.body.innerHTML =
       '<div data-abto-sensitive><button data-abto-include>Private</button></div>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'off' });
+    teardown = installAutocapture((h) => hits.push(h), 'off');
     document.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const hit = hits.find((h) => h.kind === 'interaction');
     if (hit && hit.kind === 'interaction') expect(hit.element.text).toBe('«masked:7»');
@@ -111,7 +111,7 @@ describe('autocapture masking', () => {
     document.body.innerHTML =
       '<div data-abto-no-capture><button data-abto-include>Private</button></div>';
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'off' });
+    teardown = installAutocapture((h) => hits.push(h), 'off');
     document.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(hits.some((h) => h.kind === 'interaction')).toBe(false);
   });
@@ -124,7 +124,7 @@ describe('autocapture masking', () => {
   ])('never captures protected %s/%s field values', (type, name) => {
     document.body.innerHTML = `<input data-abto-include type="${type}" name="${name}" />`;
     const hits: AutocaptureHit[] = [];
-    teardown = installAutocapture((h) => hits.push(h), { mask: 'off' });
+    teardown = installAutocapture((h) => hits.push(h), 'off');
     const input = document.querySelector('input')! as HTMLInputElement;
     input.value = '4111111111111111';
     input.dispatchEvent(new Event('change', { bubbles: true }));

@@ -15,10 +15,10 @@ describe('serializeElementsChain', () => {
 
   it('preserves data-abto-* attributes', () => {
     document.body.innerHTML =
-      '<button data-abto-action="accept" data-abto-node-key="resume.make">x</button>';
+      '<button data-abto-action="accept" data-abto-feature-id="resume.make">x</button>';
     const chain = serializeElementsChain(document.querySelector('button'));
     expect(chain).toContain('data-abto-action="accept"');
-    expect(chain).toContain('data-abto-node-key="resume.make"');
+    expect(chain).toContain('data-abto-feature-id="resume.make"');
   });
 
   it('caps long text', () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AbtoBrowserClient } from './client.js';
+import { initAbto } from './client.js';
 
 afterEach(() => {
   localStorage.clear();
@@ -33,10 +33,10 @@ function postedBatch(fetchMock: ReturnType<typeof vi.fn>): any[] {
   }));
 }
 
-function client(environment: 'development' | 'production' = 'production'): AbtoBrowserClient<any> {
-  return new AbtoBrowserClient({
+function client(environment: 'development' | 'production' = 'production') {
+  return initAbto({
     projectKey: 'public_project_key',
-    endpoint: 'https://collector.test/v1/collect/events',
+    apiHost: 'https://collector.test',
     environment,
     events,
     autocapture: { enabled: false },
