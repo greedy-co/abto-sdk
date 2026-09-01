@@ -302,7 +302,7 @@ void main() {
         expect(extraJson[r'$environment'], 'development');
         expect(extraJson[r'$user_id'], 'real-user');
         expect(extraJson.containsKey(r'$trace_id'), isFalse);
-        expect(extraJson[r'$node_key'], 'feature.real');
+        expect(extraJson[r'$feature_id'], 'feature.real');
         expect(extraJson.values, isNot(contains('spoofed')));
       } finally {
         await server.close(force: true);

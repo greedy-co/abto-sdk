@@ -8,7 +8,7 @@ const _metricMaxFractionDigits = 12;
 const _maxScaleLength = 16;
 const _envelopeContextKeys = <String, String>{
   'trace_id': r'$trace_id',
-  'feature_id': r'$node_key',
+  'feature_id': r'$feature_id',
   'task_type': r'$task_type',
   'surface': r'$surface',
   'request_id': r'$request_id',
