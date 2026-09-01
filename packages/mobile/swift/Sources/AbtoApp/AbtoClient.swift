@@ -5,7 +5,7 @@ private let abtoMetricMaxFractionDigits = 12
 private let abtoMaxScaleLength = 16
 private let abtoEnvelopeContextKeys = [
     "trace_id": "$trace_id",
-    "feature_id": "$node_key",
+    "feature_id": "$feature_id",
     "task_type": "$task_type",
     "surface": "$surface",
     "request_id": "$request_id",

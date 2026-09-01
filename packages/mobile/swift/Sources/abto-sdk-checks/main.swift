@@ -144,7 +144,7 @@ check(protectedExtraJSON["environment"] as? String == "customer-environment", "c
 check(protectedExtraJSON["user_id"] as? String == "customer-user", "customer user_id retained")
 check(protectedExtraJSON["$environment"] as? String == "production", "SDK environment is namespaced")
 check(protectedExtraJSON["$user_id"] as? String == "real-user", "SDK user context cannot be overwritten")
-check(protectedExtraJSON["$node_key"] as? String == "feature.real", "SDK envelope is namespaced")
+check(protectedExtraJSON["$feature_id"] as? String == "feature.real", "SDK envelope is namespaced")
 check(protectedExtraJSON["$capture_mode"] as? String == "full", "LLM helper system properties retain their canonical keys")
 check(protectedExtraJSON["$response_id"] as? String == "resp_1", "LLM helper system properties retain response ids")
 check(!protectedExtraJSON.values.contains { ($0 as? String) == "spoofed" }, "customer reserved properties rejected")
