@@ -136,7 +136,7 @@ let protectedExtraJSON = abtoExtraJSON(
         "$capture_mode": "full",
         "$response_id": "resp_1",
     ],
-    envelope: ["node_id": "node.real"],
+    envelope: ["feature_id": "feature.real"],
     context: protectedContext,
     environment: .production
 )
@@ -144,7 +144,7 @@ check(protectedExtraJSON["environment"] as? String == "customer-environment", "c
 check(protectedExtraJSON["user_id"] as? String == "customer-user", "customer user_id retained")
 check(protectedExtraJSON["$environment"] as? String == "production", "SDK environment is namespaced")
 check(protectedExtraJSON["$user_id"] as? String == "real-user", "SDK user context cannot be overwritten")
-check(protectedExtraJSON["$node_key"] as? String == "node.real", "SDK envelope is namespaced")
+check(protectedExtraJSON["$node_key"] as? String == "feature.real", "SDK envelope is namespaced")
 check(protectedExtraJSON["$capture_mode"] as? String == "full", "LLM helper system properties retain their canonical keys")
 check(protectedExtraJSON["$response_id"] as? String == "resp_1", "LLM helper system properties retain response ids")
 check(!protectedExtraJSON.values.contains { ($0 as? String) == "spoofed" }, "customer reserved properties rejected")
@@ -169,7 +169,8 @@ check(responseProperties["$response_text"] == nil, "response text is not transmi
 // trace request id join
 do {
     let client = try AbtoClient(projectKey: "ek_test", store: AbtoInMemoryStore())
-    let trace = client.startLlmTrace(nodeId: "smoke.demo")
+    let trace = client.startLlmTrace(featureId: "smoke.demo")
+    check(trace.featureId == "smoke.demo", "featureId retained on trace")
     check(trace.traceId.range(of: "^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$", options: .regularExpression) != nil, "trace_id uses UUIDv7 bits")
     check(trace.attachRequestId(fromHeaders: ["X-Abto-Request-Id": "req_1"]) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")
@@ -214,7 +215,7 @@ if ProcessInfo.processInfo.environment["ABTO_E2E"] == "1" {
         store: AbtoInMemoryStore()
     )
     client.identify(userId: "u_smoke_ios")
-    let trace = client.startLlmTrace(nodeId: "smoke.ios", taskType: "smoke_test", surface: "sdk_checks")
+    let trace = client.startLlmTrace(featureId: "smoke.ios", taskType: "smoke_test", surface: "sdk_checks")
     trace.submitPrompt(prompt: "iOS 스모크 프롬프트", language: "ko")
     trace.attach(requestId: "req_smoke_ios")
     trace.markResponseVisible(responseId: "resp_smoke_ios", responseText: "iOS 응답", timeToVisibleMs: 42)

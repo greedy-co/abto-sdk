@@ -5,8 +5,7 @@ private let abtoMetricMaxFractionDigits = 12
 private let abtoMaxScaleLength = 16
 private let abtoEnvelopeContextKeys = [
     "trace_id": "$trace_id",
-    "node_id": "$node_key",
-    "node_key": "$node_key",
+    "feature_id": "$node_key",
     "task_type": "$task_type",
     "surface": "$surface",
     "request_id": "$request_id",
@@ -206,8 +205,8 @@ public final class AbtoClient {
         return true
     }
 
-    public func startLlmTrace(nodeId: String, taskType: String? = nil, surface: String? = nil) -> AbtoLlmTrace {
-        AbtoLlmTrace(client: self, nodeId: nodeId, taskType: taskType, surface: surface)
+    public func startLlmTrace(featureId: String, taskType: String? = nil, surface: String? = nil) -> AbtoLlmTrace {
+        AbtoLlmTrace(client: self, featureId: featureId, taskType: taskType, surface: surface)
     }
 
     public func flush(completion: (@Sendable () -> Void)? = nil) {
@@ -218,16 +217,16 @@ public final class AbtoClient {
 /// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
 public final class AbtoLlmTrace {
     public let traceId: String
-    public let nodeId: String
+    public let featureId: String
     public private(set) var requestId: String?
 
     private let client: AbtoClient
     private let taskType: String?
     private let surface: String?
 
-    init(client: AbtoClient, nodeId: String, taskType: String?, surface: String?) {
+    init(client: AbtoClient, featureId: String, taskType: String?, surface: String?) {
         self.client = client
-        self.nodeId = nodeId
+        self.featureId = featureId
         self.taskType = taskType
         self.surface = surface
         self.traceId = abtoUUIDv7TraceId()
@@ -304,7 +303,7 @@ public final class AbtoLlmTrace {
 
     private func envelope(_ overrides: [String: Any] = [:]) -> [String: Any] {
         var envelope: [String: Any] = [
-            "node_key": nodeId,
+            "feature_id": featureId,
             "trace_id": traceId,
         ]
         if let taskType { envelope["task_type"] = taskType }
