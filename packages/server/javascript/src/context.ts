@@ -11,8 +11,8 @@
  * Gateway identifier contract:
  *   - device_id -> header `x-abto-device-id` (optional; without it the call still
  *                 succeeds but drops out of user-level analytics and sticky assignment)
- *   - node_key -> header `x-abto-node-key`  (required by the gateway). "feature.node"
- *                 dot notation, e.g. "resume.make"; feature is the read-time prefix.
+ *   - feature_id -> header `x-abto-node-key` (required by the gateway). Dot-separated
+ *                  feature ID, e.g. "resume.make".
  *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
  *
  * request_id (PK, returned as `x-abto-request-id`), tenant_id (from API key), and
@@ -25,15 +25,15 @@ import { newUuidV7TraceId, randomHex } from './uuid.js';
 /** Gateway-facing header names. Only what the gateway reads. */
 export const ABTO_HEADER = {
   deviceId: "x-abto-device-id",
-  nodeKey: "x-abto-node-key",
+  featureId: "x-abto-node-key",
   traceparent: "traceparent",
 } as const;
 
 export interface AbtoContext {
   /** Device id. Sent as `x-abto-device-id` (optional for the gateway). */
   deviceId?: string;
-  /** "feature.node" dot-notation node key (e.g. "resume.make"). Sent as `x-abto-node-key`. */
-  nodeKey?: string;
+  /** Dot-separated feature ID (e.g. "resume.make"). Sent as `x-abto-node-key`. */
+  featureId?: string;
   /** End-user action bundle id. Sent as W3C `traceparent`. Gateway-deferred. */
   traceId?: string;
 }
@@ -72,7 +72,7 @@ export function getAbtoHeaders(
   const c = ctx ?? storage.getStore() ?? {};
   const headers: Record<string, string> = {};
   if (c.deviceId) headers[ABTO_HEADER.deviceId] = c.deviceId;
-  if (c.nodeKey) headers[ABTO_HEADER.nodeKey] = c.nodeKey;
+  if (c.featureId) headers[ABTO_HEADER.featureId] = c.featureId;
   if (c.traceId && (options.includeTraceparent ?? true)) {
     headers[ABTO_HEADER.traceparent] = createTraceparent(c.traceId);
   }

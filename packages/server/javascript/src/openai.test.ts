@@ -31,7 +31,7 @@ describe('ABTO OpenAI Gateway client', () => {
       },
       getContext: () => ({
         deviceId: 'device-1',
-        nodeKey: 'chat.default',
+        featureId: 'chat.default',
       }),
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);

@@ -40,7 +40,7 @@ import {
 await runWithAbtoContext(
   {
     deviceId: 'device_123',
-    nodeKey: 'resume.make',
+    featureId: 'resume.make',
     traceId: createTraceId(),
   },
   async () => {

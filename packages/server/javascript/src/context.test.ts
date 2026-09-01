@@ -48,7 +48,7 @@ describe('server context headers', () => {
     expect(abto.getContext()).toEqual({ deviceId: 'service-device' });
     expect(abto.getHeaders()).toMatchObject({ 'x-abto-device-id': 'service-device' });
     expect(
-      abto.withContext({ nodeKey: 'chat.default' }, () => abto.getHeaders()),
+      abto.withContext({ featureId: 'chat.default' }, () => abto.getHeaders()),
     ).toMatchObject({
       'x-abto-device-id': 'service-device',
       'x-abto-node-key': 'chat.default',
@@ -85,7 +85,7 @@ describe('server context headers', () => {
   it('emits only gateway-owned identity headers from explicit context', () => {
     const headers = getAbtoHeaders({
       deviceId: 'device-1',
-      nodeKey: 'chat.default',
+      featureId: 'chat.default',
       traceId: '0123456789abcdef0123456789abcdef',
     });
 
@@ -98,7 +98,7 @@ describe('server context headers', () => {
 
   it('can suppress traceparent for hosts that forward it separately', () => {
     const headers = getAbtoHeaders(
-      { deviceId: 'device-1', nodeKey: 'chat.default', traceId: '0123456789abcdef0123456789abcdef' },
+      { deviceId: 'device-1', featureId: 'chat.default', traceId: '0123456789abcdef0123456789abcdef' },
       { includeTraceparent: false },
     );
 
@@ -112,10 +112,10 @@ describe('server context headers', () => {
     const abto = initAbto();
 
     const observed = await abto.withContext(
-      { deviceId: 'device-1', nodeKey: 'chat.default', traceId: '0123456789abcdef0123456789abcdef' },
+      { deviceId: 'device-1', featureId: 'chat.default', traceId: '0123456789abcdef0123456789abcdef' },
       async () => {
         await Promise.resolve();
-        return abto.withContext({ nodeKey: 'chat.rewrite' }, async () => {
+        return abto.withContext({ featureId: 'chat.rewrite' }, async () => {
           await Promise.resolve();
           return {
             context: abto.getContext(),
@@ -127,7 +127,7 @@ describe('server context headers', () => {
 
     expect(observed.context).toMatchObject({
       deviceId: 'device-1',
-      nodeKey: 'chat.rewrite',
+      featureId: 'chat.rewrite',
       traceId: '0123456789abcdef0123456789abcdef',
     });
     expect(observed.headers['x-abto-device-id']).toBe('device-1');
@@ -139,25 +139,25 @@ describe('server context headers', () => {
     const abto = initAbto();
 
     const [first, second] = await Promise.all([
-      abto.withContext({ deviceId: 'device-1', nodeKey: 'chat.first' }, async () => {
+      abto.withContext({ deviceId: 'device-1', featureId: 'chat.first' }, async () => {
         await Promise.resolve();
         return abto.getContext();
       }),
-      abto.withContext({ deviceId: 'device-2', nodeKey: 'chat.second' }, async () => {
+      abto.withContext({ deviceId: 'device-2', featureId: 'chat.second' }, async () => {
         await Promise.resolve();
         return abto.getContext();
       }),
     ]);
 
-    expect(first).toMatchObject({ deviceId: 'device-1', nodeKey: 'chat.first' });
-    expect(second).toMatchObject({ deviceId: 'device-2', nodeKey: 'chat.second' });
+    expect(first).toMatchObject({ deviceId: 'device-1', featureId: 'chat.first' });
+    expect(second).toMatchObject({ deviceId: 'device-2', featureId: 'chat.second' });
   });
 
-  it('preserves an outer request device when an inner context only changes the node', () => {
+  it('preserves an outer request device when an inner context only changes the feature', () => {
     const abto = initAbto({ deviceId: 'service-device' });
 
     const headers = abto.withContext({ deviceId: 'request-device' }, () =>
-      abto.withContext({ nodeKey: 'chat.rewrite' }, () => abto.getHeaders()),
+      abto.withContext({ featureId: 'chat.rewrite' }, () => abto.getHeaders()),
     );
 
     expect(headers).toMatchObject({
@@ -176,7 +176,7 @@ describe('server context headers', () => {
 
   it('allows low-level context helpers for framework adapters', () => {
     const headers = runWithAbtoContext(
-      { deviceId: 'device-1', nodeKey: 'chat.default' },
+      { deviceId: 'device-1', featureId: 'chat.default' },
       () => getAbtoHeaders(),
     );
 
