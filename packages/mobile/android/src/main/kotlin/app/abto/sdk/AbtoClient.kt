@@ -30,7 +30,7 @@ internal fun abtoEventNameIssue(event: String, allowSystemEvent: Boolean = false
 
 private val envelopeContextKeys = mapOf(
     "trace_id" to "\$trace_id",
-    "feature_id" to "\$node_key",
+    "feature_id" to "\$feature_id",
     "task_type" to "\$task_type",
     "surface" to "\$surface",
     "request_id" to "\$request_id",

@@ -352,7 +352,7 @@ fun main() {
         check(privacyBody.contains("\"\$prompt_length_chars\":13"), "prompt length metadata is transmitted")
         check(privacyBody.contains("\"\$output_length_chars\":15"), "response length metadata is transmitted")
         check(privacyBody.contains("\"\$interaction_type\":\"copied\""), "LLM helper emits canonical interaction type")
-        check(privacyBody.contains("\"\$node_key\":\"assistant.reply\""), "featureId maps to the collector contract")
+        check(privacyBody.contains("\"\$feature_id\":\"assistant.reply\""), "featureId maps to the collector contract")
         check(!privacyBody.contains("retried"), "LLM helper drops non-canonical interaction types")
         check(privacyBody.contains("\"\$request_id\":\"req_helper\""), "LLM helper keeps request id in canonical context")
     } finally {

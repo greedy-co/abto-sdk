@@ -63,7 +63,7 @@ class SharedPreferencesStore(private val prefs: SharedPreferences) : AbtoKeyValu
 
 ```kotlin
 dependencies {
-    implementation("app.abto:abto-app:0.3.0")
+    implementation("app.abto:abto-app:0.3.1")
 }
 ```
 
