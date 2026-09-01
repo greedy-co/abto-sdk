@@ -91,7 +91,7 @@ Capture product events and user outcomes in native apps. Mobile SDKs use only an
 | Runtime | Package | Install | Distribution |
 | --- | --- | --- | --- |
 | Flutter / Dart | [`abto`](./packages/mobile/dart) | `dart pub add abto` | [![pub.dev version](https://img.shields.io/pub/v/abto?style=flat-square&label=pub.dev)](https://pub.dev/packages/abto) |
-| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.2.0")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.2.0) |
+| Android / Kotlin | [`app.abto:abto-app`](./packages/mobile/android) | `implementation("app.abto:abto-app:0.3.0")` | [![Maven Central version](https://img.shields.io/maven-central/v/app.abto/abto-app?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-app/0.3.0) |
 | iOS / macOS | [`AbtoApp`](./packages/mobile/swift) | Swift Package Manager | [![SwiftPM tag](https://img.shields.io/github/v/tag/greedy-co/abto-sdk?filter=swift-v*&style=flat-square&label=SwiftPM)](https://github.com/greedy-co/abto-sdk/releases?q=swift) |
 
 The Android artifact is a pure Kotlin/JVM JAR with no `android.*` dependency. In Android apps, adapt the existing `SharedPreferences` store to `AbtoKeyValueStore`.
@@ -101,7 +101,7 @@ Add the repository as a Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.2.0"
+    from: "0.3.0"
 )
 ```
 
@@ -123,7 +123,7 @@ See the [Node.js Calling SDK](./packages/server/javascript) and [Python Calling 
 ABTO joins client events and server-side model calls through shared identifiers.
 
 1. Forward the client's stable `device_id` with the related server request.
-2. Name the product surface with a dot-separated `nodeKey`, such as `support.reply`.
+2. Name the product surface with a dot-separated `featureId`, such as `support.reply`.
 3. Use one `trace_id` for the model calls triggered by one user action.
 4. Attach the Gateway's `x-abto-request-id` response header to the rendered result and the user's outcome.
 

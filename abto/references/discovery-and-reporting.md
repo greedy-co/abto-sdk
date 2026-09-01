@@ -45,7 +45,7 @@ Provider keys for Anthropic and Gemini are Gateway egress candidates; they do no
 
 Use one row per executable call path:
 
-| ID | Capability | Repository/runtime | Exact call site | API surface | Client/device path | Provider/fallback path | Proposed `nodeKey` | Status and action |
+| ID | Capability | Repository/runtime | Exact call site | API surface | Client/device path | Provider/fallback path | Proposed `featureId` | Status and action |
 |---|---|---|---|---|---|---|---|---|
 
 Resolve the installed Calling SDK's fallback configuration and native OpenAI retry setting instead of inferring either from the normal Gateway path.
@@ -59,7 +59,7 @@ Use only these pre-approval statuses:
 - `ambiguous`: a dynamic wrapper, missing caller, unclear capability, or unstable identity prevents a safe change.
 
 Ask one question after the complete table:
-“Which eligible IDs should I wire with the proposed locations and nodeKeys? You can answer `all`, list IDs, add corrections, or exclude IDs.”
+“Which eligible IDs should I wire with the proposed locations and featureIds? You can answer `all`, list IDs, add corrections, or exclude IDs.”
 
 After implementation, retain every row and replace `eligible` with `wired` or `user-excluded` as applicable.
 Use `blocked-sdk-defect` only when a reproduced defect prevents an otherwise approved path and no compatible fixed public SDK update resolves it.

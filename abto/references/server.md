@@ -55,7 +55,7 @@ import type OpenAI from "openai";
 const completion = await abto.withContext(
   {
     deviceId,
-    nodeKey: "support.reply",
+    featureId: "support.reply",
     traceId,
   },
   async () => {
@@ -99,7 +99,7 @@ Wrap each approved call in its approved request context while preserving the exi
 ```python
 with abto.with_context(
     device_id=device_id,
-    node_key="support.reply",
+    feature_id="support.reply",
     trace_id=trace_id,
 ):
     completion = openai.chat.completions.create(

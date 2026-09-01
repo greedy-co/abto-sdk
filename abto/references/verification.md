@@ -7,7 +7,7 @@ Before checking builds, verify the interaction record:
 - The user confirmed the exact repository/runtime map before the first file edit.
 - Every model-call search hit is represented in the LLM inventory or documented as a non-runtime false positive.
 - Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
-- Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `nodeKey`.
+- Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `featureId`.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
 - Every approved OpenAI call preserves its native retry setting or official SDK default; no ABTO-specific fallback attempt counter was introduced.
 - Every other native OpenAI client option is preserved unless it is a documented ABTO-owned routing, credential, or transport field; every composition, override, or rejection is disclosed.

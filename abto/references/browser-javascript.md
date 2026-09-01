@@ -54,16 +54,12 @@ Prevent duplicate initialization during hot reload or repeated component mounts.
 If ABTO is already initialized, preserve and report its existing automatic event collection behavior.
 Do not silently change live collection while adding Core identity and trace wiring.
 
-## Carry identity to an approved model call
+## Carry browser identity and trace to an approved model call
 
-Use the approved `nodeKey` and the existing client request:
+Use the existing client request:
 
 ```ts
-const trace = abto.startLlmTrace({
-  nodeId: "support.reply",
-  taskType: "answer_generation",
-  surface: "support_chat",
-});
+const trace = abto.startLlmTrace();
 
 const response = await fetch("/api/support/reply", {
   method: "POST",
@@ -75,7 +71,9 @@ const response = await fetch("/api/support/reply", {
 });
 ```
 
-`trace.getHeaders()` carries the SDK device identifier, node key, and trace context to the backend.
+`trace.getHeaders()` carries only the SDK device identifier and trace identifier to the backend.
+Do not send a browser-selected feature ID, task type, surface, user identifier, or `traceparent`.
+At the approved model call, the backend applies the selected `featureId` through the Calling SDK context.
 Starting the trace and forwarding its headers do not emit an event.
 Do not call a provider directly from the browser with a provider credential.
 
