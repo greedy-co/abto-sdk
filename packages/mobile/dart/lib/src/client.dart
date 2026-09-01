@@ -8,8 +8,7 @@ const _metricMaxFractionDigits = 12;
 const _maxScaleLength = 16;
 const _envelopeContextKeys = <String, String>{
   'trace_id': r'$trace_id',
-  'node_id': r'$node_key',
-  'node_key': r'$node_key',
+  'feature_id': r'$node_key',
   'task_type': r'$task_type',
   'surface': r'$surface',
   'request_id': r'$request_id',
@@ -159,19 +158,19 @@ class AbtoClient {
   }
 
   AbtoLlmTrace startLlmTrace(
-          {required String nodeId, String? taskType, String? surface}) =>
-      AbtoLlmTrace._(this, nodeId, taskType, surface);
+          {required String featureId, String? taskType, String? surface}) =>
+      AbtoLlmTrace._(this, featureId, taskType, surface);
 
   Future<void> flush() => _transport.flush();
 }
 
 /// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
 class AbtoLlmTrace {
-  AbtoLlmTrace._(this._client, this.nodeId, this._taskType, this._surface)
+  AbtoLlmTrace._(this._client, this.featureId, this._taskType, this._surface)
       : traceId = uuidV7TraceId();
 
   final AbtoClient _client;
-  final String nodeId;
+  final String featureId;
   final String? _taskType;
   final String? _surface;
   final String traceId;
@@ -247,7 +246,7 @@ class AbtoLlmTrace {
 
   Map<String, Object?> _envelope([Map<String, Object?> overrides = const {}]) =>
       {
-        'node_key': nodeId,
+        'feature_id': featureId,
         'trace_id': traceId,
         if (_taskType != null) 'task_type': _taskType,
         if (_surface != null) 'surface': _surface,

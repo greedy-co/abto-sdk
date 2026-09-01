@@ -10,7 +10,8 @@ final uuidV7Pattern = RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
 
 void main() {
-  test('response interaction runtime validation uses the generated contract', () {
+  test('response interaction runtime validation uses the generated contract',
+      () {
     expect(AbtoResponseInteraction.fromWireValue('copied'),
         AbtoResponseInteraction.copied);
     expect(AbtoResponseInteraction.fromWireValue('retried'), isNull);
@@ -129,7 +130,8 @@ void main() {
   group('trace request id join', () {
     test('attachRequestIdFromHeaders reads header case-insensitively', () {
       final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
-      final trace = client.startLlmTrace(nodeId: 'smoke.demo');
+      final trace = client.startLlmTrace(featureId: 'smoke.demo');
+      expect(trace.featureId, 'smoke.demo');
       expect(trace.traceId,
           matches(RegExp(r'^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$')));
       expect(trace.attachRequestIdFromHeaders({'X-Abto-Request-Id': 'req_1'}),
@@ -277,7 +279,7 @@ void main() {
           scale: List.filled(17, 'x').join(),
           envelope: {
             'trace_id': ['invalid', 'trace'],
-            'node_id': 'node.real',
+            'feature_id': 'feature.real',
           },
           properties: {
             'environment': 'customer-environment',
@@ -300,7 +302,7 @@ void main() {
         expect(extraJson[r'$environment'], 'development');
         expect(extraJson[r'$user_id'], 'real-user');
         expect(extraJson.containsKey(r'$trace_id'), isFalse);
-        expect(extraJson[r'$node_key'], 'node.real');
+        expect(extraJson[r'$node_key'], 'feature.real');
         expect(extraJson.values, isNot(contains('spoofed')));
       } finally {
         await server.close(force: true);
@@ -334,8 +336,8 @@ void main() {
               'http://${server.address.host}:${server.port}/v1/collect/events',
           environment: AbtoEnvironment.development,
         ));
-        final trace =
-            client.startLlmTrace(nodeId: 'assistant.reply', taskType: 'answer');
+        final trace = client.startLlmTrace(
+            featureId: 'assistant.reply', taskType: 'answer');
         trace.submitPrompt(prompt: 'prompt-canary', language: 'en');
         trace.attach('req_helper');
         trace.markResponseVisible(
@@ -471,7 +473,7 @@ void main() {
       );
       client.identify('u_smoke_flutter');
       final trace = client.startLlmTrace(
-          nodeId: 'smoke.flutter',
+          featureId: 'smoke.flutter',
           taskType: 'smoke_test',
           surface: 'dart_test');
       trace.submitPrompt(prompt: 'Flutter 스모크 프롬프트', language: 'ko');
