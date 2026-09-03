@@ -51,6 +51,7 @@ await runWithAbtoContext(
 ```
 
 The Gateway is the source of truth for provider requests and responses, tokens, cost, latency, `request_id`, and variant assignment. The Server SDK preserves the provider request body while routing it to the Gateway with trusted ABTO headers.
+`featureId` is the customer- and SDK-facing Feature identifier. The SDK sends it to the Gateway as `x-abto-feature-id`.
 
 ## OpenAI direct fallback during Gateway outages
 

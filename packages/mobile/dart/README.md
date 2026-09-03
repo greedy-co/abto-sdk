@@ -62,7 +62,7 @@ class SharedPreferencesStore implements AbtoKeyValueStore {
 - metric `value`는 유한한 수이면서 정수부 38자리·소수부 12자리 이하여야 한다. 범위를 벗어나면 이벤트는 보내되 top-level metric만 제외한다.
 - metric `scale`은 최대 16자이며, 범위를 벗어나면 이벤트는 보내되 top-level metadata만 제외한다.
 - `$`로 시작하는 property는 ABTO context 전용이라 사용자 입력에서 제외하며, `$lib`·`$environment`·식별자 context는 SDK가 덮어쓴다.
-- 캡처는 기본 full — 브라우저 SDK 와 동일한 2026-07-02 정책.
+- LLM lifecycle helper(`submitPrompt`, `markResponseVisible`)는 기본 `metadata_only`이며 prompt·response 원문을 전송하지 않는다. Custom event property는 호출자가 넣은 값을 전송하므로 민감한 원문을 포함하지 않는다.
 - 전송 실패는 앱으로 throw 되지 않고 내부 버퍼(최대 1000건)로 재적재된다.
 
 ## 검증
