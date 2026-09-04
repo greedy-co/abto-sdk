@@ -73,7 +73,6 @@ Record the exact documentation page and installed package coordinate and version
 - Treat `device_id` as the join key between client behavior and Gateway calls.
 - Carry one stable client device identifier through the existing request into the corresponding server context.
 - Use a dot-separated `featureId`, such as `support.reply`, only after the user approves its exact capability and call site.
-- Use one `trace_id` for one user action that can produce one or more model calls.
 - Read the Gateway response header `x-abto-request-id` only when a selected event path needs it.
 - Attach that request identifier only with an SDK path that establishes the correlation.
 

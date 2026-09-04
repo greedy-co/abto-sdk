@@ -49,6 +49,7 @@ Use one row per executable call path:
 |---|---|---|---|---|---|---|---|---|
 
 Resolve the installed Calling SDK's fallback configuration and native OpenAI retry setting instead of inferring either from the normal Gateway path.
+Capture the base URL each call path used before ABTO: direct fallback needs it as explicit input and has no default.
 When direct fallback is enabled, report the trigger conditions, direct provider, and absence of Gateway policy, ABTO telemetry, and `request_id`.
 
 Use only these pre-approval statuses:

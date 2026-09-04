@@ -71,8 +71,8 @@ const response = await fetch("/api/support/reply", {
 });
 ```
 
-`trace.getHeaders()` carries only the SDK device identifier and trace identifier to the backend.
-Do not send a browser-selected feature ID, task type, surface, user identifier, or `traceparent`.
+`trace.getHeaders()` carries only the SDK device identifier to the backend.
+Do not send a browser-selected feature ID, task type, surface, or user identifier.
 At the approved model call, the backend applies the selected `featureId` through the Calling SDK context.
 Starting the trace and forwarding its headers do not emit an event.
 Do not call a provider directly from the browser with a provider credential.

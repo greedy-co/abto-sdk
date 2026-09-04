@@ -56,7 +56,6 @@ const completion = await abto.withContext(
   {
     deviceId,
     featureId: "support.reply",
-    traceId,
   },
   async () => {
     const openai = await abto.openai() as OpenAI;
@@ -100,7 +99,6 @@ Wrap each approved call in its approved request context while preserving the exi
 with abto.with_context(
     device_id=device_id,
     feature_id="support.reply",
-    trace_id=trace_id,
 ):
     completion = openai.chat.completions.create(
         model="gpt-4o-mini",
@@ -116,6 +114,11 @@ Do not introduce a second concurrency model only for ABTO.
 When an OpenAI key source is present, the current Node.js and Python Calling SDKs enable direct OpenAI fallback by default for safely classified Gateway failures.
 Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
 Do not set `fallback: false` or enable timeout replay merely to make ABTO reporting simpler.
+Direct fallback returns the request to the endpoint the application called before ABTO, so its destination is customer input, never a default.
+Record the base URL each approved call path already uses and pass it as `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python); for an application that took its key straight from OpenAI, that is `https://api.openai.com/v1`.
+Tell the user plainly that without it there is no fallback: a Gateway outage makes those requests fail outright.
+Enabling fallback without it fails at init; configuring nothing leaves fallback off.
+
 The Calling SDK owns only Gateway-outage failover. Do not add Calling SDK retries or error classification for OpenAI or model-provider failures.
 Preserve the customer's native OpenAI `maxRetries` or `max_retries` setting and SDK default.
 Do not add a fallback attempt counter, translate retry semantics, or silently set native retries to zero.
@@ -160,7 +163,7 @@ Do not create a parallel endpoint, response shape, or request-ID bridge solely f
 ## Validate and propagate context
 
 - Read client ABTO headers at the existing request boundary; do not create a parallel endpoint or body format just for ABTO.
-- Validate `deviceId`, `traceId`, and other client-supplied context using the application's existing request validation.
+- Validate `deviceId` and other client-supplied context using the application's existing request validation.
 - Pass the same validated device identifier to every approved model call caused by that client action.
 - Do not accept a Calling Key or provider key from a client request.
 - For a server-only call, reuse a clearly established stable product identifier or ask the user when none exists.
