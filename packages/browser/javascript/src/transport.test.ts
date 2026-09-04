@@ -154,6 +154,8 @@ describe('Transport durable outbox', () => {
 
   it('backs off exponentially when Analytics repeatedly marks one event for retry', async () => {
     vi.useFakeTimers();
+    // Pin jitter to zero so the exponential floor can be asserted exactly.
+    vi.spyOn(Math, 'random').mockReturnValue(0);
     const retried = event();
     const fetchMock = vi.fn(async () =>
       Response.json(
@@ -179,6 +181,37 @@ describe('Transport durable outbox', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    transport.shutdown();
+  });
+
+  it('adds jitter above the exponential floor so simultaneous failures do not align', async () => {
+    vi.useFakeTimers();
+    // Highest jitter draw: the delay becomes exponential * (1 + ABTO_RETRY_JITTER_RATIO).
+    vi.spyOn(Math, 'random').mockReturnValue(0.999999);
+    const retried = event();
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        {
+          results: {
+            [retried.uuid]: { result: 'retry', code: 'storage_unavailable' },
+          },
+        },
+        { status: 202 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const transport = new Transport(config);
+    transport.enqueue(retried);
+
+    await transport.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // The exponential floor alone must not fire it any more.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     transport.shutdown();
   });
 

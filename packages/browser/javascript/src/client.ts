@@ -33,7 +33,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '0.3.1';
+const SDK_VERSION = '0.4.0';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -152,10 +152,12 @@ class BrowserLlmTrace implements LlmTrace {
     return requestId;
   }
 
+  // The trace id is not carried: the Gateway does not read it yet, so relaying it
+  // to the backend cannot reach the call record. Browser events already join on the
+  // trace_id in their own envelope, so dropping this hop leaves analytics unchanged.
   getHeaders(): TraceHeaders {
     return {
       'x-abto-device-id': this.client.getIdentity().deviceId,
-      'x-abto-trace-id': this.traceId,
     };
   }
 

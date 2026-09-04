@@ -149,7 +149,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.3.1"
+        "$lib_version": "0.4.0"
       }
     }
   ]
@@ -266,7 +266,7 @@ plain JavaScript에서 다른 값이 들어와도 경고 후 제외하며, 제�
 
 provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request 성공·실패는 Server SDK/Gateway가 소유한다. AI task 완료·이탈은 제품마다 의미가 다르므로 커스텀 이벤트 또는 분석 파생 지표로 둔다.
 
-`trace.getHeaders()`는 브라우저가 소유하는 `x-abto-device-id`와 `x-abto-trace-id`만 반환한다.
+`trace.getHeaders()`는 브라우저가 소유하는 `x-abto-device-id`만 반환한다.
 실제 모델 호출의 `featureId`는 브라우저 입력을 신뢰하지 않고 백엔드가 Calling SDK context에 설정한다.
 
 ## 식별자와 세션
@@ -279,7 +279,7 @@ provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request �
 | `$session_id` | 탭 사이에서 공유하는 논리 세션, 30분 idle 또는 24시간 max age에 회전 |
 | `$window_id` | 탭/window별 ID, sessionStorage 유지 |
 | `$pageview_id` | 페이지/SPA route 구간, pageview마다 회전 |
-| `$trace_id` | 한 사용자 행동에서 서버 호출까지 연결 |
+| `$trace_id` | 한 사용자 행동에서 발생한 브라우저 이벤트를 묶는 값 |
 | `$request_id` | Gateway의 실제 provider 호출 PK |
 
 ```ts

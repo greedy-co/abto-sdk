@@ -5,19 +5,22 @@ import type {
   BrowserIngestEvent,
 } from './events.generated.js';
 import { toBrowserSystemEventWireName } from './system-events.generated.js';
+import {
+  ABTO_MAX_BUFFERED_EVENTS,
+  ABTO_MAX_RETRY_DELAY_MS,
+  ABTO_METRIC_MAX_FRACTION_DIGITS,
+  ABTO_RETRY_JITTER_RATIO,
+  ABTO_SCALE_MAX_LENGTH,
+} from './delivery-policy.generated.js';
 import type { BrowserDiagnostics } from './diagnostics.js';
 
 type TransportConfig = Pick<ResolvedConfig, 'endpoint' | 'projectKey'>;
 
-const MAX_BUFFER = 1000;
 const BATCH_SIZE = 20;
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_KEEPALIVE_BYTES = 60 * 1024;
 const RETRY_BASE_MS = 1000;
-const RETRY_MAX_MS = 60_000;
 const METRIC_ABSOLUTE_LIMIT = 1e38;
-const METRIC_MAX_FRACTION_DIGITS = 12;
-const MAX_SCALE_LENGTH = 16;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -32,7 +35,7 @@ function optionalString(value: unknown): string | undefined {
 
 function optionalScale(value: unknown): string | undefined {
   const scale = optionalString(value);
-  return scale !== undefined && scale.length <= MAX_SCALE_LENGTH ? scale : undefined;
+  return scale !== undefined && scale.length <= ABTO_SCALE_MAX_LENGTH ? scale : undefined;
 }
 
 function isCollectorMetricValue(value: unknown): value is number {
@@ -42,7 +45,7 @@ function isCollectorMetricValue(value: unknown): value is number {
   const [coefficient, exponentText] = Math.abs(value).toString().toLowerCase().split('e');
   const fractionDigits = (coefficient?.split('.')[1] ?? '').replace(/0+$/, '').length;
   const exponent = exponentText === undefined ? 0 : Number(exponentText);
-  return Math.max(0, fractionDigits - exponent) <= METRIC_MAX_FRACTION_DIGITS;
+  return Math.max(0, fractionDigits - exponent) <= ABTO_METRIC_MAX_FRACTION_DIGITS;
 }
 
 function toBackendEvent(event: CapturedEvent): BrowserIngestEvent {
@@ -250,13 +253,18 @@ export class Transport {
   }
 
   private scheduleRetry(): void {
-    const delay = Math.min(RETRY_BASE_MS * 2 ** this.retryAttempt, RETRY_MAX_MS);
+    const exponential = Math.min(RETRY_BASE_MS * 2 ** this.retryAttempt, ABTO_MAX_RETRY_DELAY_MS);
+    // Jitter spreads the retries of many tabs that failed at the same moment,
+    // so a recovering collector is not hit by the whole herd at once.
+    const delay = exponential + Math.random() * exponential * ABTO_RETRY_JITTER_RATIO;
     this.retryAttempt += 1;
     this.armTimer(delay);
   }
 
   private trimQueue(): void {
-    if (this.queue.length > MAX_BUFFER) this.queue = this.queue.slice(-MAX_BUFFER);
+    if (this.queue.length > ABTO_MAX_BUFFERED_EVENTS) {
+      this.queue = this.queue.slice(-ABTO_MAX_BUFFERED_EVENTS);
+    }
   }
 
   private readOutbox(): CapturedEvent[] {
@@ -271,7 +279,7 @@ export class Transport {
     if (raw === null) return [];
     try {
       const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.filter(isCapturedEvent).slice(-MAX_BUFFER) : [];
+      return Array.isArray(parsed) ? parsed.filter(isCapturedEvent).slice(-ABTO_MAX_BUFFERED_EVENTS) : [];
     } catch {
       return [];
     }

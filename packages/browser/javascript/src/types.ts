@@ -125,8 +125,11 @@ export interface CommonProperties {
 
 export interface TraceHeaders {
   'x-abto-device-id': string;
-  /** Raw trace id for the browser-to-backend hop. */
-  'x-abto-trace-id': string;
+  /**
+   * Raw trace id for the browser-to-backend hop.
+   * Optional: the Gateway does not read it yet, so `getHeaders()` omits it.
+   */
+  'x-abto-trace-id'?: string;
 }
 
 export interface PromptMetadata {

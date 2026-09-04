@@ -125,7 +125,7 @@ describe('Browser event envelope and identity', () => {
 });
 
 describe('observable AI events', () => {
-  it('forwards only device and trace identifiers without leaking trace state', async () => {
+  it('forwards only the device identifier without leaking trace state', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     sdk.identify('user-1');
@@ -134,7 +134,6 @@ describe('observable AI events', () => {
     expect(trace.traceId).toMatch(/^[0-9a-f]{32}$/);
     expect(trace.getHeaders()).toEqual({
       'x-abto-device-id': sdk.getIdentity().deviceId,
-      'x-abto-trace-id': trace.traceId,
     });
 
     sdk.capture('user_action', { name: 'after-trace-start' });
