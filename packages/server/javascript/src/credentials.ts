@@ -1,4 +1,5 @@
-export type ProviderKeyName = 'openai' | 'anthropic' | 'gemini';
+export type { ProviderKeyName } from './policy.generated.js';
+import { PROVIDER_IDS, type ProviderKeyName } from './policy.generated.js';
 
 export type ProviderKeyValue =
   | string
@@ -6,14 +7,12 @@ export type ProviderKeyValue =
 
 export type ProviderKeys = Partial<Record<ProviderKeyName, ProviderKeyValue>>;
 
-const PROVIDERS: ProviderKeyName[] = ['openai', 'anthropic', 'gemini'];
-
 export async function resolveProviderHeaders(
   keys: ProviderKeys = {},
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
 
-  for (const provider of PROVIDERS) {
+  for (const provider of PROVIDER_IDS) {
     const source = keys[provider];
     const value = typeof source === 'function' ? await source() : source;
     const trimmed = value?.trim();

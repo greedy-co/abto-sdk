@@ -7,6 +7,10 @@ import {
   createGatewayFetch,
 } from './openai.js';
 
+// The endpoint the application used before adopting ABTO. Direct fallback now
+// requires it explicitly, so every fallback fixture names it.
+const ORIGIN_BASE_URL = 'https://api.openai.com/v1';
+
 function receivedRequest(
   input: string | URL | Request,
   init?: RequestInit,
@@ -195,7 +199,7 @@ describe('ABTO OpenAI Gateway client', () => {
         openai: 'sk-openai',
         anthropic: 'sk-anthropic',
       },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         requests.push(request);
@@ -256,7 +260,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         observedDispatchers.push(init?.dispatcher);
         const request = receivedRequest(input, init);
@@ -283,7 +287,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
@@ -320,7 +324,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -369,7 +373,7 @@ describe('ABTO OpenAI Gateway client', () => {
         gatewayBaseURL: 'https://gateway.abto.app/v1',
         abtoApiKey: 'abto-test',
         providerKeys: { openai: 'sk-openai' },
-        fallback: {},
+        fallback: { baseURL: ORIGIN_BASE_URL },
         fetchImpl: async (input, init) => {
           const request = receivedRequest(input, init);
           urls.push(request.url);
@@ -399,7 +403,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
@@ -447,7 +451,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -484,7 +488,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (_input, init) => {
         gatewaySignal = init?.signal;
         return new Response(new ReadableStream({
@@ -514,7 +518,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -567,7 +571,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: () => currentKey },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -617,7 +621,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -658,7 +662,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -698,7 +702,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { onTimeout: true },
+      fallback: { baseURL: ORIGIN_BASE_URL, onTimeout: true },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         urls.push(request.url);
@@ -728,7 +732,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         if (new URL(request.url).hostname === 'gateway.abto.app') {
@@ -749,6 +753,72 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(response.status).toBe(500);
     expect(gatewayCalls).toBe(1);
     expect(directCalls).toBe(1);
+  });
+
+  it('sends the direct request to the caller-supplied endpoint, not to OpenAI', async () => {
+    const urls: string[] = [];
+    const gatewayFetch = createGatewayFetch({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: { baseURL: 'https://llm.internal.example.com/openai/v1' },
+      fetchImpl: async (input, init) => {
+        const request = receivedRequest(input, init);
+        urls.push(request.url);
+        if (request.url.startsWith('https://gateway.abto.app')) {
+          return new Response('{}', { status: 503 });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    });
+
+    const response = await gatewayFetch(
+      'https://gateway.abto.app/v1/chat/completions',
+      { method: 'POST', body: '{}' },
+    );
+
+    expect(response.status).toBe(200);
+    expect(urls).toEqual([
+      'https://gateway.abto.app/v1/chat/completions',
+      'https://llm.internal.example.com/openai/v1/chat/completions',
+    ]);
+  });
+
+  it('refuses to enable direct fallback without a destination', () => {
+    expect(() => createGatewayFetch({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: {},
+    })).toThrow(/fallback\.baseURL is required/);
+
+    expect(() => createGatewayFetch({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: true,
+    })).toThrow(/fallback\.baseURL is required/);
+  });
+
+  it('stays off instead of guessing a destination when fallback is unconfigured', async () => {
+    const urls: string[] = [];
+    const gatewayFetch = createGatewayFetch({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      fetchImpl: async (input, init) => {
+        urls.push(receivedRequest(input, init).url);
+        return new Response('{}', { status: 503 });
+      },
+    });
+
+    const response = await gatewayFetch(
+      'https://gateway.abto.app/v1/chat/completions',
+      { method: 'POST', body: '{}' },
+    );
+
+    expect(response.status).toBe(503);
+    expect(urls).toEqual(['https://gateway.abto.app/v1/chat/completions']);
   });
 
   it('does not enable direct fallback without an OpenAI key source', async () => {
@@ -918,7 +988,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-openai' },
-      fallback: {},
+      fallback: { baseURL: ORIGIN_BASE_URL },
       clientOptions: { maxRetries: 1 },
     }) as {
       maxRetries: number;

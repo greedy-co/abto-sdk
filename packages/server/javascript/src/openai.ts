@@ -5,9 +5,26 @@ import {
   resolveProviderHeaders,
   type ProviderKeys,
 } from './credentials.js';
+import {
+  CIRCUIT_OPEN_MS,
+  DEFAULT_FALLBACK_TIMEOUT_MS,
+  DIRECT_HEADER_NAMES,
+  DIRECT_HEADER_PREFIXES,
+  DIRECT_PATH_SUFFIX,
+  SAFE_GATEWAY_STATUSES,
+} from './policy.generated.js';
 
 export interface OpenAIDirectFallbackOptions {
-  /** Defaults to true when an OpenAI provider key source is configured. */
+  /**
+   * The OpenAI-compatible endpoint this application used before adopting ABTO,
+   * e.g. "https://api.openai.com/v1" or your own proxy. Direct fallback sends the
+   * request here, so it must be the destination you already trust with this key.
+   * Required to enable fallback: there is no default, because guessing the
+   * destination would send provider credentials to a host you did not choose.
+   * The endpoint must accept the OpenAI request path and `Authorization: Bearer`.
+   */
+  baseURL?: string;
+  /** Defaults to true when both an OpenAI provider key source and `baseURL` are configured. */
   enabled?: boolean;
   /** How long to wait for a Gateway response. Defaults to 30 seconds. */
   timeoutMs?: number;
@@ -68,16 +85,9 @@ interface ResolvedFallback {
   enabled: boolean;
   timeoutMs: number;
   onTimeout: boolean;
+  baseURL?: URL;
 }
 
-const OPENAI_BASE_URL = new URL('https://api.openai.com/v1/');
-const CIRCUIT_OPEN_MS = 30_000;
-const DIRECT_HEADER_NAMES = new Set([
-  'accept',
-  'content-type',
-  'idempotency-key',
-  'user-agent',
-]);
 const SAFE_CONNECT_ERROR_CODES = new Set([
   'CERT_HAS_EXPIRED',
   'DEPTH_ZERO_SELF_SIGNED_CERT',
@@ -104,21 +114,30 @@ function getEnv(name: string): string | undefined {
   return typeof process === 'undefined' ? undefined : process.env[name];
 }
 
-function requireGatewayURL(value: string): URL {
+function requireHttpURL(value: string, field: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error('[abto] gatewayBaseURL must be a valid http(s) URL.');
+    throw new Error(`[abto] ${field} must be a valid http(s) URL.`);
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('[abto] gatewayBaseURL must be a valid http(s) URL.');
+    throw new Error(`[abto] ${field} must be a valid http(s) URL.`);
   }
   return parsed;
 }
 
+// A base URL without a trailing slash would drop its last path segment when the
+// request path resolves against it, silently retargeting "/v1/chat/completions"
+// at "/chat/completions".
+function directBaseURL(value: string): URL {
+  const parsed = requireHttpURL(value, 'fallback.baseURL');
+  if (!parsed.pathname.endsWith('/')) parsed.pathname = `${parsed.pathname}/`;
+  return parsed;
+}
+
 function positiveTimeout(value: number | undefined): number {
-  const resolved = value ?? 30_000;
+  const resolved = value ?? DEFAULT_FALLBACK_TIMEOUT_MS;
   if (!Number.isFinite(resolved) || resolved <= 0) {
     throw new Error('[abto] fallback.timeoutMs must be greater than 0.');
   }
@@ -130,13 +149,29 @@ function resolveFallback(
   hasOpenAIKeySource: boolean,
 ): ResolvedFallback {
   const options = typeof config === 'object' ? config : {};
-  return {
-    enabled: typeof config === 'boolean'
-      ? config
-      : options.enabled ?? hasOpenAIKeySource,
+  const requested = typeof config === 'boolean'
+    ? config
+    : options.enabled ?? hasOpenAIKeySource;
+  const resolved: ResolvedFallback = {
+    enabled: false,
     timeoutMs: positiveTimeout(options.timeoutMs),
     onTimeout: options.onTimeout ?? false,
   };
+  if (!requested) return resolved;
+  if (options.baseURL === undefined) {
+    // Asking for fallback without naming the destination is a configuration
+    // error, not a default to guess: the provider key would leave for a host
+    // the application never chose.
+    if (config !== undefined) {
+      throw new Error(
+        '[abto] fallback.baseURL is required to enable OpenAI direct fallback. '
+        + 'Set it to the OpenAI-compatible endpoint this application used before ABTO.',
+      );
+    }
+    // Nothing was configured, so stay off rather than inventing a destination.
+    return resolved;
+  }
+  return { ...resolved, enabled: true, baseURL: directBaseURL(options.baseURL) };
 }
 
 function requestURL(input: string | URL | Request, baseURL: URL): URL {
@@ -222,12 +257,17 @@ function requestInitWithStream(
   };
 }
 
-function directOpenAIURL(destination: URL, gatewayBaseURL: URL): URL | undefined {
+function directOpenAIURL(
+  destination: URL,
+  gatewayBaseURL: URL,
+  fallbackBaseURL: URL | undefined,
+): URL | undefined {
+  if (fallbackBaseURL === undefined) return undefined;
   const basePath = gatewayBaseURL.pathname.replace(/\/?$/, '/');
   if (!destination.pathname.startsWith(basePath)) return undefined;
   const suffix = destination.pathname.slice(basePath.length);
-  if (suffix !== 'chat/completions') return undefined;
-  const direct = new URL(suffix, OPENAI_BASE_URL);
+  if (suffix !== DIRECT_PATH_SUFFIX) return undefined;
+  const direct = new URL(suffix, fallbackBaseURL);
   direct.search = destination.search;
   return direct;
 }
@@ -261,7 +301,7 @@ function isSafeGatewayResponse(response: Response): boolean {
   const errorSource = response.headers.get('x-abto-error-source');
   if (
     requestId === null
-    && (response.status === 502 || response.status === 503 || response.status === 504)
+    && SAFE_GATEWAY_STATUSES.has(response.status)
   ) {
     return true;
   }
@@ -274,8 +314,7 @@ function directHeaders(source: Headers, openAIKey: string): Headers {
     const normalized = key.toLowerCase();
     if (
       DIRECT_HEADER_NAMES.has(normalized)
-      || normalized.startsWith('openai-')
-      || normalized.startsWith('x-stainless-')
+      || DIRECT_HEADER_PREFIXES.some((prefix) => normalized.startsWith(prefix))
     ) {
       headers.set(key, value);
     }
@@ -349,7 +388,7 @@ export function createGatewayFetch({
   getContext = getAbtoContext,
   fetchImpl = fetch as FetchLike,
 }: CreateGatewayFetchOptions, circuit = createOpenAIFallbackCircuit()): FetchLike {
-  const gatewayURL = requireGatewayURL(gatewayBaseURL);
+  const gatewayURL = requireHttpURL(gatewayBaseURL, 'gatewayBaseURL');
   const resolvedFallback = resolveFallback(
     fallback,
     providerKeys.openai !== undefined,
@@ -392,7 +431,7 @@ export function createGatewayFetch({
     const original = input instanceof Request
       ? new Request(input, init)
       : new Request(destination, init);
-    const directURL = directOpenAIURL(destination, gatewayURL);
+    const directURL = directOpenAIURL(destination, gatewayURL, resolvedFallback.baseURL);
     const openAIKey = providerHeaders['X-Abto-Key-openai'];
     const eligible = resolvedFallback.enabled
       && directURL !== undefined
@@ -556,7 +595,7 @@ export async function createAbtoOpenAIWithCircuit<T = unknown>(
   if (!abtoApiKey) {
     throw new Error('[abto] createAbtoOpenAI requires abtoApiKey.');
   }
-  requireGatewayURL(resolvedBaseURL);
+  requireHttpURL(resolvedBaseURL, 'gatewayBaseURL');
 
   const specifier: string = 'openai';
   const { default: OpenAI } = (await import(specifier)) as {

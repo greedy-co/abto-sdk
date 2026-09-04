@@ -32,7 +32,6 @@ const openai = await abto.openai<OpenAI>();
 
 ```ts
 import {
-  createTraceId,
   getAbtoHeaders,
   runWithAbtoContext,
 } from '@abto-app/calling';
@@ -41,7 +40,6 @@ await runWithAbtoContext(
   {
     deviceId: 'device_123',
     featureId: 'resume.make',
-    traceId: createTraceId(),
   },
   async () => {
     const headers = getAbtoHeaders();
@@ -55,7 +53,7 @@ The Gateway is the source of truth for provider requests and responses, tokens, 
 
 ## OpenAI direct fallback during Gateway outages
 
-When `providerKeys.openai` or `OPENAI_API_KEY` is available, OpenAI direct fallback is enabled by default for Gateway failures that can be classified safely. This emergency path does not reproduce the Gateway's provider or model assignment. It sends the original Chat Completions body and `model` to `https://api.openai.com/v1/chat/completions`, so the model must be supported by OpenAI.
+This emergency path returns the request to the endpoint the application called before ABTO, so you name that destination in `fallback.baseURL` and there is no default. It does not reproduce the Gateway's provider or model assignment: the original Chat Completions body and `model` go to `<baseURL>/chat/completions`, so that endpoint must support the model and accept `Authorization: Bearer`. Enabling fallback without `baseURL` throws; configuring nothing leaves fallback off.
 
 ```ts
 const abto = initAbto({
@@ -66,6 +64,7 @@ const abto = initAbto({
     gemini: process.env.GEMINI_API_KEY,
   },
   fallback: {
+    baseURL: 'https://api.openai.com/v1', // the address this code used before ABTO
     timeoutMs: 30_000, // Gateway response-header deadline
     onTimeout: false,  // Do not replay a timed-out request by default
   },
@@ -104,6 +103,8 @@ initAbto({
 - `apiKey` is always the ABTO Calling Key.
 - `fetch` is wrapped so ABTO can route safely. A caller-provided `fetch` remains the underlying transport instead of being discarded.
 
+`fallback.baseURL` is required to enable direct fallback and has no default: it is the endpoint this application used before ABTO. **Leave it unset and there is no fallback — a Gateway outage makes the request fail outright.** Set it if the existing path should keep serving traffic after adoption. ABTO does not guess the destination, because the provider key leaves on that path; enabling fallback without it throws.
+
 `fallback.timeoutMs` is the end-to-end limit from local dispatcher wait through Gateway response headers. Direct requests retain the OpenAI client's timeout.
 
 There is no fallback retry count. `clientOptions.maxRetries` alone controls official OpenAI SDK retries and remains unset when the customer does not configure it.
@@ -114,7 +115,9 @@ const openai = await abto.openai({
 });
 ```
 
-`maxRetries` keeps the official OpenAI meaning: retries after the initial request. `0` means one total attempt and `1` means two. OpenAI and model-provider error policy belongs to the customer application and the official OpenAI SDK.
+`maxRetries` keeps the official OpenAI meaning: retries after the initial request. `0` means one Gateway round trip and `1` means two. OpenAI and model-provider error policy belongs to the customer application and the official OpenAI SDK.
+
+Note that `maxRetries` counts round trips, not provider invocations. Inside a single round trip the Gateway may retry along the same path — always for pre-send network failures (up to 2), and for transient provider failures (`429`, `500`, `502`, `503`, `504`, `529`) when the node retry policy opts in (up to 2). The `x-abto-attempt` response header reports which attempt produced the response. See [Retries happen at two layers](https://docs.abto.app/en/sdk/javascript/server/#retries-happen-at-two-layers).
 
 Anthropic and Gemini keys remain Gateway routing candidates. This SDK does not provide native direct fallback for those providers.
 
