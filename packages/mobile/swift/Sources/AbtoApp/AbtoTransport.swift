@@ -24,7 +24,7 @@ package func abtoRetryEligible(
     firstQueuedAt: Date,
     now: Date = Date()
 ) -> Bool {
-    attempts < 3 && now.timeIntervalSince(firstQueuedAt) < 5 * 60
+    attempts < abtoMaxAttempts && now.timeIntervalSince(firstQueuedAt) < abtoMaxEventAge
 }
 
 /// Batch transport that queues events and flushes on `batchSize` or a timer.
@@ -43,7 +43,6 @@ final class AbtoTransport: @unchecked Sendable {
     private var buffer: [QueuedEvent] = []
     private var timer: DispatchSourceTimer?
     private let session: URLSession
-    private static let maxBuffer = 1000
 
     init(config: AbtoConfig, session: URLSession = .shared) {
         self.config = config
@@ -56,6 +55,11 @@ final class AbtoTransport: @unchecked Sendable {
         }
         queue.async {
             self.buffer.append(QueuedEvent(data: encodedEvent, firstQueuedAt: Date(), attempts: 0))
+            // Cap at production time so a dead endpoint cannot grow memory without bound.
+            // On overflow the oldest events go first: recent ones are more useful.
+            if self.buffer.count > abtoMaxBufferedEvents {
+                self.buffer.removeFirst(self.buffer.count - abtoMaxBufferedEvents)
+            }
             if self.buffer.count >= self.config.batchSize {
                 self.flushLocked()
             } else {
@@ -89,7 +93,7 @@ final class AbtoTransport: @unchecked Sendable {
             completion?()
             return
         }
-        let count = min(buffer.count, config.batchSize, Self.maxBatchSize)
+        let count = min(buffer.count, config.batchSize, abtoMaxBatchSize)
         var attemptedBatch = Array(buffer.prefix(count))
         for index in attemptedBatch.indices {
             attemptedBatch[index].attempts += 1
@@ -152,10 +156,10 @@ final class AbtoTransport: @unchecked Sendable {
             }
             if !eligible.isEmpty {
                 // Cap the buffer so a dead endpoint cannot grow memory without bound.
-                self.buffer = Array((eligible + self.buffer).prefix(Self.maxBuffer))
+                self.buffer = Array((eligible + self.buffer).prefix(abtoMaxBufferedEvents))
                 let attempt = eligible.map(\.attempts).max() ?? 1
-                let exponential = min(60.0, self.config.flushInterval * pow(2.0, Double(attempt - 1)))
-                let jitter = Double.random(in: 0..<(max(0.001, exponential / 2)))
+                let exponential = min(abtoMaxRetryDelay, self.config.flushInterval * pow(2.0, Double(attempt - 1)))
+                let jitter = Double.random(in: 0..<max(0.001, exponential * abtoRetryJitterRatio))
                 self.armTimerLocked(delay: exponential + jitter)
             } else if !self.buffer.isEmpty {
                 self.flushLocked()
@@ -164,5 +168,4 @@ final class AbtoTransport: @unchecked Sendable {
         }
     }
 
-    private static let maxBatchSize = 100
 }

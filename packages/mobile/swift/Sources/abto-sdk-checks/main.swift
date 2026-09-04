@@ -194,15 +194,27 @@ check(
 )
 let retryStartedAt = Date(timeIntervalSince1970: 1_000)
 check(
-    abtoRetryEligible(attempts: 2, firstQueuedAt: retryStartedAt, now: retryStartedAt.addingTimeInterval(10)),
+    abtoRetryEligible(
+        attempts: abtoMaxAttempts - 1,
+        firstQueuedAt: retryStartedAt,
+        now: retryStartedAt.addingTimeInterval(10)
+    ),
     "retry remains eligible within attempt and age budgets"
 )
 check(
-    !abtoRetryEligible(attempts: 3, firstQueuedAt: retryStartedAt, now: retryStartedAt.addingTimeInterval(10)),
+    !abtoRetryEligible(
+        attempts: abtoMaxAttempts,
+        firstQueuedAt: retryStartedAt,
+        now: retryStartedAt.addingTimeInterval(10)
+    ),
     "retry stops at the attempt budget"
 )
 check(
-    !abtoRetryEligible(attempts: 1, firstQueuedAt: retryStartedAt, now: retryStartedAt.addingTimeInterval(301)),
+    !abtoRetryEligible(
+        attempts: 1,
+        firstQueuedAt: retryStartedAt,
+        now: retryStartedAt.addingTimeInterval(abtoMaxEventAge + 1)
+    ),
     "retry stops at the age budget"
 )
 
