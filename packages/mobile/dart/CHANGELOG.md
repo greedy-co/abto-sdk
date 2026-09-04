@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- See the [dart-v0.4.0 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v0.4.0).
+
 ## 0.3.1
 
 - **Breaking:** renamed the event context wire property from `$node_key` to `$feature_id`.

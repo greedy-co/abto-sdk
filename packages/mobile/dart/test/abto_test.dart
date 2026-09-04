@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:abto/abto.dart';
+import 'package:abto/src/contract.generated.dart';
 import 'package:abto/src/transport.dart';
 import 'package:test/test.dart';
 
@@ -453,9 +454,9 @@ void main() {
         transport.enqueue({'event_id': 'retry-event'});
         await transport.flush();
         await Future<void>.delayed(const Duration(milliseconds: 250));
-        expect(requestCount, 3);
+        expect(requestCount, abtoMaxAttempts);
         await Future<void>.delayed(const Duration(milliseconds: 100));
-        expect(requestCount, 3);
+        expect(requestCount, abtoMaxAttempts);
       } finally {
         await server.close(force: true);
       }

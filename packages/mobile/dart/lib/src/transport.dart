@@ -5,16 +5,13 @@ import 'dart:math';
 import 'dart:typed_data' show BytesBuilder;
 
 import 'config.dart';
+import 'contract.generated.dart';
 
 /// Batch transport that queues events and flushes on `batchSize` or a timer.
 /// Never throws, so telemetry failures cannot block the host app, matching the Browser SDK contract.
 class AbtoTransport {
   AbtoTransport(this._config);
 
-  static const _maxBuffer = 1000;
-  static const _maxAttempts = 3;
-  static const _maxEventAge = Duration(minutes: 5);
-  static const _maxResponseBytes = 64 * 1024;
 
   final AbtoConfig _config;
   final _buffer = <_QueuedEvent>[];
@@ -24,6 +21,11 @@ class AbtoTransport {
 
   void enqueue(Map<String, Object?> event) {
     _buffer.add(_QueuedEvent(event));
+    // Cap at production time so a dead endpoint cannot grow memory without bound.
+    // On overflow the oldest events go first: recent ones are more useful.
+    if (_buffer.length > abtoMaxBufferedEvents) {
+      _buffer.removeRange(0, _buffer.length - abtoMaxBufferedEvents);
+    }
     if (_buffer.length >= _config.batchSize) {
       unawaited(flush());
     } else {
@@ -41,8 +43,10 @@ class AbtoTransport {
     _timer?.cancel();
     _timer = null;
     if (_buffer.isEmpty) return;
-    final count =
-        _buffer.length < _config.batchSize ? _buffer.length : _config.batchSize;
+    // collector 가 한 요청에 받는 상한(abtoMaxBatchSize)을 설정값보다 우선한다.
+    final limit =
+        _config.batchSize < abtoMaxBatchSize ? _config.batchSize : abtoMaxBatchSize;
+    final count = _buffer.length < limit ? _buffer.length : limit;
     final batch = List<_QueuedEvent>.from(_buffer.getRange(0, count));
     _buffer.removeRange(0, count);
     for (final queued in batch) {
@@ -80,14 +84,14 @@ class AbtoTransport {
     final now = DateTime.now();
     retryBatch = retryBatch
         .where((queued) =>
-            queued.attempts < _maxAttempts &&
-            now.difference(queued.firstQueuedAt) < _maxEventAge)
+            queued.attempts < abtoMaxAttempts &&
+            now.difference(queued.firstQueuedAt) < abtoMaxEventAge)
         .toList();
     if (retryBatch.isNotEmpty) {
       // Cap the buffer so a dead endpoint cannot grow memory without bound.
       _buffer.insertAll(0, retryBatch);
-      if (_buffer.length > _maxBuffer) {
-        _buffer.removeRange(_maxBuffer, _buffer.length);
+      if (_buffer.length > abtoMaxBufferedEvents) {
+        _buffer.removeRange(abtoMaxBufferedEvents, _buffer.length);
       }
       _scheduleFlush(_retryDelay(retryBatch));
     } else if (_buffer.isNotEmpty) {
@@ -100,9 +104,9 @@ class AbtoTransport {
     var size = 0;
     await for (final chunk in response) {
       size += chunk.length;
-      if (size > _maxResponseBytes) {
+      if (size > abtoMaxResponseBytes) {
         throw StateError(
-            '[abto] collector response exceeded $_maxResponseBytes bytes.');
+            '[abto] collector response exceeded $abtoMaxResponseBytes bytes.');
       }
       bytes.add(chunk);
     }
@@ -113,10 +117,11 @@ class AbtoTransport {
     final attempt =
         batch.fold<int>(1, (largest, queued) => max(largest, queued.attempts));
     final baseMs = max(1, _config.flushInterval.inMilliseconds);
-    final exponentialMs = min(60 * 1000, baseMs * (1 << (attempt - 1)));
+    final exponentialMs = min(abtoMaxRetryDelayMs, baseMs * (1 << (attempt - 1)));
     return Duration(
         milliseconds:
-            exponentialMs + _random.nextInt(max(1, exponentialMs ~/ 2)));
+            exponentialMs +
+                _random.nextInt(max(1, (exponentialMs * abtoRetryJitterRatio).round())));
   }
 
   void _scheduleFlush(Duration delay) {

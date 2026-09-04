@@ -2,6 +2,13 @@
 
 const abtoSchemaVersion = "2026-09-02";
 const abtoEventNameMaxLength = 200;
+const abtoMaxBufferedEvents = 1000;
+const abtoMaxRetryDelayMs = 120000;
+const abtoRetryJitterRatio = 0.5;
+const abtoMaxAttempts = 5;
+const abtoMaxEventAge = Duration(milliseconds: 1800000);
+const abtoMaxBatchSize = 100;
+const abtoMaxResponseBytes = 65536;
 const abtoReservedEventNames = <String>{"pageview", "pageleave", "interaction_autocaptured", "interaction_rageclick", "interaction_deadclick", "llm_prompt_submitted", "llm_response_rendered", "llm_response_interacted"};
 
 extension type const AbtoResponseInteraction._(String wireValue) implements String {
