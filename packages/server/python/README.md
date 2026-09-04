@@ -31,11 +31,10 @@ abto = init_abto(
 openai = abto.openai()
 
 
-def generate(device_id: str, trace_id: str):
+def generate(device_id: str):
     with abto.with_context(
         device_id=device_id,
         feature_id="resume.make",
-        trace_id=trace_id,
     ):
         return openai.chat.completions.create(
             model="gpt-4.1",
@@ -60,7 +59,6 @@ with with_context(device_id="d1", feature_id="resume.make"):
 ```text
 x-abto-device-id    optional; without it, user analytics and sticky assignment are unavailable
 x-abto-feature-id   required; dot-separated feature ID, for example resume.make
-traceparent         derived from trace_id; Gateway-deferred in Round 1
 x-abto-key-openai   candidate provider key; add only the providers the project may route to
 Authorization       required; Bearer ABTO Calling Key
 ```
@@ -99,6 +97,10 @@ The direct path sends only the OpenAI key and OpenAI-safe headers such as `accep
 
 The ABTO transport performs at most one Gateway decision and one direct send per official OpenAI SDK attempt. It returns direct responses and errors to the official SDK, which remains the only retry authority.
 
+`fallback.base_url` is required to enable direct fallback and has no default: it is the endpoint this application used before ABTO. **Leave it unset and there is no fallback — a Gateway outage makes the request fail outright.** Set it if the existing path should keep serving traffic after adoption. ABTO does not guess the destination, because the provider key leaves on that path; enabling fallback without it raises `ValueError`.
+
+`gateway_base_url` is required as well — pass it or set `ABTO_GATEWAY_BASE_URL`.
+
 Use `init_abto(..., fallback=False)` to disable direct fallback.
 
 ## OpenAI client options
@@ -119,7 +121,9 @@ There is no fallback retry count. `abto.openai(max_retries=...)` alone controls 
 openai = abto.openai(max_retries=2)
 ```
 
-`max_retries` keeps the official OpenAI meaning: retries after the initial request. `0` means one total attempt and `1` means two. OpenAI and model-provider error policy belongs to the customer application and the official OpenAI SDK.
+`max_retries` keeps the official OpenAI meaning: retries after the initial request. `0` means one Gateway round trip and `1` means two. OpenAI and model-provider error policy belongs to the customer application and the official OpenAI SDK.
+
+Note that `max_retries` counts round trips, not provider invocations. Inside a single round trip the Gateway may retry along the same path — always for pre-send network failures (up to 2), and for transient provider failures (`429`, `500`, `502`, `503`, `504`, `529`) when the node retry policy opts in (up to 2). The `x-abto-attempt` response header reports which attempt produced the response. See [Retries happen at two layers](https://docs.abto.app/en/sdk/python/#retries-happen-at-two-layers).
 
 Anthropic and Gemini keys remain Gateway routing candidates. This SDK does not provide native direct fallback for those providers.
 

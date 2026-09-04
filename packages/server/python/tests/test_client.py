@@ -3,11 +3,16 @@ import pytest
 import abto.client as client_module
 from abto import OpenAIDirectFallbackOptions, init_abto
 from abto.client import (
-    DEFAULT_GATEWAY_BASE_URL,
+    PUBLIC_GATEWAY_BASE_URL,
     _build_fallback_http_client,
     _resolve_fallback,
     abto_request_hook,
 )
+
+
+# The endpoint the application used before adopting ABTO. Direct fallback now
+# requires it explicitly, so every fallback fixture names it.
+ORIGIN_BASE_URL = "https://api.openai.com/v1"
 
 
 class Request:
@@ -24,12 +29,19 @@ def test_requires_abto_key_without_falling_back_to_provider_key(monkeypatch):
         init_abto()
 
 
-def test_uses_canonical_gateway_default(monkeypatch):
+def test_requires_an_explicit_gateway_base_url(monkeypatch):
     monkeypatch.delenv("ABTO_GATEWAY_BASE_URL", raising=False)
+
+    with pytest.raises(ValueError, match="gateway_base_url is required"):
+        init_abto(api_key="abto-test")
+
+
+def test_reads_the_gateway_base_url_from_the_environment(monkeypatch):
+    monkeypatch.setenv("ABTO_GATEWAY_BASE_URL", PUBLIC_GATEWAY_BASE_URL)
 
     abto = init_abto(api_key="abto-test")
 
-    assert abto.gateway_base_url == DEFAULT_GATEWAY_BASE_URL
+    assert abto.gateway_base_url == PUBLIC_GATEWAY_BASE_URL
 
 
 def test_hook_rejects_cross_origin_before_adding_context():
@@ -44,6 +56,7 @@ def test_hook_rejects_cross_origin_before_adding_context():
 def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
     abto = init_abto(
         api_key="abto-test",
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         provider_keys={
             "openai": "openai-trusted",
             "anthropic": lambda: "anthropic-trusted",
@@ -77,11 +90,11 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
 
 def test_hook_adds_gateway_authorization_without_request_context():
     hook = abto_request_hook(
-        DEFAULT_GATEWAY_BASE_URL,
+        PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
     )
-    request = Request(f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions")
+    request = Request(f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions")
 
     hook(request)
 
@@ -92,6 +105,7 @@ def test_hook_adds_gateway_authorization_without_request_context():
 def test_hook_rejects_provider_key_header_injection():
     abto = init_abto(
         api_key="abto-test",
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         provider_keys={"openai": "safe\r\nX-Leaked: value"},
     )
     request = Request("https://gateway.abto.app/v1/chat/completions")
@@ -115,14 +129,14 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={
             "openai": "sk-openai",
             "anthropic": "sk-anthropic",
         },
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -132,7 +146,7 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
 
     try:
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             headers={
                 "content-type": "application/json",
                 "x-client-header": "preserved",
@@ -184,11 +198,11 @@ def test_direct_fallback_preserves_the_request_timeout():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -196,7 +210,7 @@ def test_direct_fallback_preserves_the_request_timeout():
     )
     request = client.build_request(
         "POST",
-        f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+        f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
         content=b"{}",
     )
     request.extensions["timeout"] = caller_timeout
@@ -210,6 +224,45 @@ def test_direct_fallback_preserves_the_request_timeout():
     assert observed_timeout == caller_timeout
 
 
+def test_direct_fallback_targets_the_configured_endpoint_not_openai():
+    httpx = pytest.importorskip("httpx")
+    origin = "https://llm.internal.example.com/openai/v1"
+    seen = []
+
+    def gateway_handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    def direct_handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, json={})
+
+    client = _build_fallback_http_client(
+        httpx,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
+        api_key="abto-test",
+        provider_keys={"openai": "sk-openai"},
+        fallback=_resolve_fallback(
+            OpenAIDirectFallbackOptions(base_url=origin),
+            has_openai_key_source=True,
+        ),
+        gateway_transport=httpx.MockTransport(gateway_handler),
+        direct_transport=httpx.MockTransport(direct_handler),
+    )
+    request = client.build_request(
+        "POST",
+        f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
+        content=b"{}",
+    )
+
+    try:
+        response = client.send(request)
+    finally:
+        client.close()
+
+    assert response.status_code == 200
+    assert seen == [f"{origin}/chat/completions"]
+
+
 def test_open_circuit_never_bypasses_the_gateway_origin_boundary():
     httpx = pytest.importorskip("httpx")
     direct_calls = 0
@@ -221,11 +274,11 @@ def test_open_circuit_never_bypasses_the_gateway_origin_boundary():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(
@@ -264,11 +317,11 @@ def test_non_fallback_request_reaches_transport_without_sdk_buffering():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=InspectingTransport(),
@@ -281,7 +334,7 @@ def test_non_fallback_request_reaches_transport_without_sdk_buffering():
         response = client.send(
             httpx.Request(
                 "POST",
-                f"{DEFAULT_GATEWAY_BASE_URL}/embeddings",
+                f"{PUBLIC_GATEWAY_BASE_URL}/embeddings",
                 stream=TrackingStream(),
             )
         )
@@ -309,11 +362,11 @@ def test_missing_runtime_openai_key_does_not_buffer_the_request():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": lambda: None},
         fallback=_resolve_fallback(
-            True,
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=InspectingTransport(),
@@ -326,7 +379,7 @@ def test_missing_runtime_openai_key_does_not_buffer_the_request():
         response = client.send(
             httpx.Request(
                 "POST",
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 stream=TrackingStream(),
             )
         )
@@ -352,11 +405,11 @@ def test_callable_provider_key_is_resolved_once_per_request():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -367,7 +420,7 @@ def test_callable_provider_key_is_resolved_once_per_request():
 
     try:
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -388,11 +441,12 @@ def test_fallback_timeout_only_applies_to_eligible_gateway_requests():
     def build_client(*, enabled, provider_keys):
         return _build_fallback_http_client(
             httpx,
-            gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+            gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
             api_key="abto-test",
             provider_keys=provider_keys,
             fallback=_resolve_fallback(
                 OpenAIDirectFallbackOptions(
+            base_url=ORIGIN_BASE_URL,
                     enabled=enabled,
                     timeout_seconds=2.5,
                 ),
@@ -420,15 +474,15 @@ def test_fallback_timeout_only_applies_to_eligible_gateway_requests():
 
     try:
         disabled_client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
         keyless_client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
         eligible_client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -469,11 +523,12 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
             OpenAIDirectFallbackOptions(
+            base_url=ORIGIN_BASE_URL,
                 timeout_seconds=2.5,
             ),
             has_openai_key_source=True,
@@ -488,7 +543,7 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
     try:
         with client.stream(
             "POST",
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         ) as response:
             assert list(response.iter_bytes()) == [b"data: done\n\n"]
@@ -533,11 +588,11 @@ def test_only_admission_503_falls_back(headers, expected_direct_calls):
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -546,7 +601,7 @@ def test_only_admission_503_falls_back(headers, expected_direct_calls):
 
     try:
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -575,11 +630,11 @@ def test_timeout_does_not_open_direct_circuit_without_explicit_opt_in():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -589,11 +644,11 @@ def test_timeout_does_not_open_direct_circuit_without_explicit_opt_in():
     try:
         with pytest.raises(httpx.ReadTimeout):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -623,11 +678,11 @@ def test_ambiguous_disconnect_does_not_open_direct_circuit():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -637,11 +692,11 @@ def test_ambiguous_disconnect_does_not_open_direct_circuit():
     try:
         with pytest.raises(httpx.ReadError):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -666,11 +721,12 @@ def test_timeout_can_replay_current_request_when_explicitly_enabled():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
             OpenAIDirectFallbackOptions(
+            base_url=ORIGIN_BASE_URL,
                 on_timeout=True,
             ),
             has_openai_key_source=True,
@@ -681,7 +737,7 @@ def test_timeout_can_replay_current_request_when_explicitly_enabled():
 
     try:
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -710,11 +766,11 @@ def test_pool_timeout_does_not_open_the_gateway_circuit():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -724,11 +780,11 @@ def test_pool_timeout_does_not_open_the_gateway_circuit():
     try:
         with pytest.raises(httpx.PoolTimeout):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -764,11 +820,11 @@ def test_keyless_pool_timeout_does_not_open_the_gateway_circuit():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -778,11 +834,11 @@ def test_keyless_pool_timeout_does_not_open_the_gateway_circuit():
     try:
         with pytest.raises(httpx.PoolTimeout):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -812,11 +868,11 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -832,11 +888,11 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
         )
         with pytest.raises(httpx.PoolTimeout):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -870,11 +926,11 @@ def test_keyless_gateway_recovery_closes_the_completion_circuit():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": provider_key},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -884,7 +940,7 @@ def test_keyless_gateway_recovery_closes_the_completion_circuit():
     try:
         with pytest.raises(httpx.ReadTimeout):
             client.post(
-                f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+                f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
                 content=b"{}",
             )
         client._circuit._opened_at = (
@@ -894,12 +950,12 @@ def test_keyless_gateway_recovery_closes_the_completion_circuit():
         )
         current_key = None
         keyless_recovery = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
         current_key = "sk-openai"
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -930,11 +986,11 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -943,12 +999,12 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
 
     try:
         first_completion = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
-        models = client.get(f"{DEFAULT_GATEWAY_BASE_URL}/models")
+        models = client.get(f"{PUBLIC_GATEWAY_BASE_URL}/models")
         completion = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -977,12 +1033,12 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
         return httpx.Response(200, json={})
 
     fallback = _resolve_fallback(
-        OpenAIDirectFallbackOptions(),
+        OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
         has_openai_key_source=True,
     )
     first = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=fallback,
@@ -991,7 +1047,7 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
     )
     second = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=fallback,
@@ -1002,11 +1058,11 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
 
     try:
         first_response = first.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
         second_response = second.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -1036,11 +1092,11 @@ def test_direct_openai_error_is_returned_without_retry_or_reclassification():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(),
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -1049,7 +1105,7 @@ def test_direct_openai_error_is_returned_without_retry_or_reclassification():
 
     try:
         response = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -1067,19 +1123,43 @@ def test_fallback_defaults_off_without_an_openai_key_source():
 
 
 def test_fallback_configuration_is_validated():
-    with pytest.raises(ValueError, match="fallback.timeout_seconds"):
-        init_abto(
-            api_key="abto-test",
-            fallback=OpenAIDirectFallbackOptions(timeout_seconds=0),
-        )
-    for invalid_timeout in (float("nan"), float("inf"), float("-inf")):
+    for invalid_timeout in (0, float("nan"), float("inf"), float("-inf")):
         with pytest.raises(ValueError, match="fallback.timeout_seconds"):
             init_abto(
                 api_key="abto-test",
+                gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
                 fallback=OpenAIDirectFallbackOptions(
-                    timeout_seconds=invalid_timeout
+                    base_url=ORIGIN_BASE_URL,
+                    timeout_seconds=invalid_timeout,
                 ),
             )
+
+
+def test_fallback_requires_a_destination():
+    with pytest.raises(ValueError, match="fallback.base_url is required"):
+        init_abto(
+            api_key="abto-test",
+            gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
+            provider_keys={"openai": "sk-openai"},
+            fallback=True,
+        )
+    with pytest.raises(ValueError, match="fallback.base_url must be a valid"):
+        init_abto(
+            api_key="abto-test",
+            gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
+            provider_keys={"openai": "sk-openai"},
+            fallback=OpenAIDirectFallbackOptions(base_url="not-a-url"),
+        )
+
+
+def test_fallback_stays_off_when_no_destination_is_configured():
+    abto = init_abto(
+        api_key="abto-test",
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
+        provider_keys={"openai": "sk-openai"},
+    )
+
+    assert abto._fallback.enabled is False
 
 
 def test_stream_failure_after_response_headers_is_not_replayed():
@@ -1110,11 +1190,12 @@ def test_stream_failure_after_response_headers_is_not_replayed():
 
     client = _build_fallback_http_client(
         httpx,
-        gateway_base_url=DEFAULT_GATEWAY_BASE_URL,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         api_key="abto-test",
         provider_keys={"openai": "sk-openai"},
         fallback=_resolve_fallback(
-            OpenAIDirectFallbackOptions(on_timeout=True),
+            OpenAIDirectFallbackOptions(
+            base_url=ORIGIN_BASE_URL,on_timeout=True),
             has_openai_key_source=True,
         ),
         gateway_transport=httpx.MockTransport(gateway_handler),
@@ -1124,13 +1205,13 @@ def test_stream_failure_after_response_headers_is_not_replayed():
     try:
         with client.stream(
             "POST",
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         ) as response:
             with pytest.raises(httpx.ReadTimeout):
                 list(response.iter_bytes())
         recovered = client.post(
-            f"{DEFAULT_GATEWAY_BASE_URL}/chat/completions",
+            f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions",
             content=b"{}",
         )
     finally:
@@ -1155,6 +1236,7 @@ def test_openai_client_keeps_official_retry_default(monkeypatch):
     )
     abto = init_abto(
         api_key="abto-test",
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         provider_keys={"openai": "sk-openai"},
     )
     openai = abto.openai()
@@ -1206,6 +1288,7 @@ def test_openai_client_preserves_outer_retry_setting(monkeypatch):
     )
     abto = init_abto(
         api_key="abto-test",
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
         provider_keys={"openai": "sk-openai"},
     )
     openai = abto.openai(max_retries=9, timeout=123.0)

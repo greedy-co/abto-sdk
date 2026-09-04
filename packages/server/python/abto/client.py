@@ -15,30 +15,40 @@ from typing import Any, Callable, Dict, List, Mapping, MutableMapping, Optional,
 from urllib.parse import SplitResult, urlsplit
 
 from .context import AbtoContext, create_trace_id, get_headers, with_context
+from .policy_generated import (
+    CIRCUIT_OPEN_SECONDS as _CIRCUIT_OPEN_SECONDS,
+    DEFAULT_FALLBACK_TIMEOUT_SECONDS,
+    DIRECT_HEADER_NAMES as _DIRECT_HEADER_NAMES,
+    DIRECT_HEADER_PREFIXES as _DIRECT_HEADER_PREFIXES,
+    DIRECT_PATH_SUFFIX as _DIRECT_PATH_SUFFIX,
+    PROVIDER_IDS as _PROVIDERS,
+    SAFE_GATEWAY_STATUSES as _SAFE_GATEWAY_STATUSES,
+)
 
-DEFAULT_GATEWAY_BASE_URL = "https://gateway.abto.app/v1"
-_OPENAI_BASE_URL = "https://api.openai.com/v1"
-_CIRCUIT_OPEN_SECONDS = 30.0
-_DIRECT_HEADER_NAMES = {
-    "accept",
-    "content-type",
-    "idempotency-key",
-    "user-agent",
-}
+PUBLIC_GATEWAY_BASE_URL = "https://gateway.abto.app/v1"
 _UNSET = object()
 _RESOLVED_PROVIDER_HEADERS_KEY = "abto.resolved_provider_headers"
 _RESOLVED_PROVIDER_HEADERS_TOKEN = object()
 ProviderKeyValue = Union[str, Callable[[], Optional[str]]]
 ProviderKeys = Mapping[str, ProviderKeyValue]
-_PROVIDERS = ("openai", "anthropic", "gemini")
 
 
 @dataclass(frozen=True)
 class OpenAIDirectFallbackOptions:
-    """Configure OpenAI direct fallback for safely identifiable Gateway failures."""
+    """Configure OpenAI direct fallback for safely identifiable Gateway failures.
 
+    `base_url` is the OpenAI-compatible endpoint this application used before
+    adopting ABTO, for example "https://api.openai.com/v1" or your own proxy.
+    Direct fallback sends the request there, so it must be the destination you
+    already trust with this key. It is required to enable fallback: there is no
+    default, because guessing the destination would send provider credentials to
+    a host the application never chose. The endpoint must accept the OpenAI
+    request path and `Authorization: Bearer`.
+    """
+
+    base_url: Optional[str] = None
     enabled: Optional[bool] = None
-    timeout_seconds: float = 30.0
+    timeout_seconds: float = DEFAULT_FALLBACK_TIMEOUT_SECONDS
     on_timeout: bool = False
 
 
@@ -50,6 +60,7 @@ class _ResolvedFallback:
     enabled: bool
     timeout_seconds: float
     on_timeout: bool
+    base_url: Optional[str] = None
 
 
 def _resolve_fallback(
@@ -72,13 +83,45 @@ def _resolve_fallback(
         or options.timeout_seconds <= 0
     ):
         raise ValueError("[abto] fallback.timeout_seconds must be greater than 0.")
-    return _ResolvedFallback(
-        enabled=options.enabled
-        if options.enabled is not None
-        else has_openai_key_source,
+    requested = (
+        options.enabled if options.enabled is not None else has_openai_key_source
+    )
+    off = _ResolvedFallback(
+        enabled=False,
         timeout_seconds=float(options.timeout_seconds),
         on_timeout=options.on_timeout,
     )
+    if not requested:
+        return off
+    if options.base_url is None:
+        # Asking for fallback without naming the destination is a configuration
+        # error, not a default to guess: the provider key would leave for a host
+        # the application never chose.
+        if config is not None:
+            raise ValueError(
+                "[abto] fallback.base_url is required to enable OpenAI direct fallback. "
+                "Set it to the OpenAI-compatible endpoint this application used before ABTO."
+            )
+        # Nothing was configured, so stay off rather than inventing a destination.
+        return off
+    return _ResolvedFallback(
+        enabled=True,
+        timeout_seconds=float(options.timeout_seconds),
+        on_timeout=options.on_timeout,
+        base_url=_validated_direct_base_url(options.base_url),
+    )
+
+
+def _validated_direct_base_url(value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("[abto] fallback.base_url must be a valid http(s) URL.")
+    return value.rstrip("/")
 
 
 def _validated_gateway_url(value: str) -> str:
@@ -178,7 +221,11 @@ def abto_request_hook(
     return hook
 
 
-def _direct_openai_url(value: Any, gateway_base_url: str) -> Optional[str]:
+def _direct_openai_url(
+    value: Any, gateway_base_url: str, fallback_base_url: Optional[str]
+) -> Optional[str]:
+    if fallback_base_url is None:
+        return None
     if _origin(value) != _origin(gateway_base_url):
         return None
     request_url = urlsplit(str(value))
@@ -187,9 +234,9 @@ def _direct_openai_url(value: Any, gateway_base_url: str) -> Optional[str]:
     if not request_url.path.startswith(base_path):
         return None
     suffix = request_url.path[len(base_path) :]
-    if suffix != "chat/completions":
+    if suffix != _DIRECT_PATH_SUFFIX:
         return None
-    direct = f"{_OPENAI_BASE_URL}/{suffix}"
+    direct = f"{fallback_base_url}/{suffix}"
     if request_url.query:
         direct += f"?{request_url.query}"
     return direct
@@ -209,8 +256,7 @@ def _direct_headers(headers: Mapping[str, str], openai_key: str) -> Dict[str, st
         normalized = name.lower()
         if (
             normalized in _DIRECT_HEADER_NAMES
-            or normalized.startswith("openai-")
-            or normalized.startswith("x-stainless-")
+            or normalized.startswith(_DIRECT_HEADER_PREFIXES)
         ):
             direct[name] = value
     direct["Authorization"] = f"Bearer {openai_key}"
@@ -220,7 +266,7 @@ def _direct_headers(headers: Mapping[str, str], openai_key: str) -> Dict[str, st
 def _safe_gateway_response(response: Any) -> bool:
     request_id = response.headers.get("x-abto-request-id")
     error_source = response.headers.get("x-abto-error-source")
-    if request_id is None and response.status_code in {502, 503, 504}:
+    if request_id is None and response.status_code in _SAFE_GATEWAY_STATUSES:
         return True
     return (
         response.status_code == 503
@@ -393,7 +439,9 @@ def _build_fallback_http_client(
             auth: Any = httpx.USE_CLIENT_DEFAULT,
             follow_redirects: Any = httpx.USE_CLIENT_DEFAULT,
         ) -> Any:
-            direct_url = _direct_openai_url(request.url, gateway_base_url)
+            direct_url = _direct_openai_url(
+                request.url, gateway_base_url, fallback.base_url
+            )
             eligible = (
                 fallback.enabled
                 and direct_url is not None
@@ -518,11 +566,15 @@ class Abto:
             "anthropic": os.getenv("ANTHROPIC_API_KEY"),
             "gemini": os.getenv("GEMINI_API_KEY"),
         }
-        self.gateway_base_url = _validated_gateway_url(
-            gateway_base_url
-            or os.getenv("ABTO_GATEWAY_BASE_URL")
-            or DEFAULT_GATEWAY_BASE_URL
-        )
+        # No implicit default: the destination that receives the Calling Key and
+        # provider keys is named by the application, never guessed here.
+        resolved_gateway_base_url = gateway_base_url or os.getenv("ABTO_GATEWAY_BASE_URL")
+        if not resolved_gateway_base_url:
+            raise ValueError(
+                "[abto] gateway_base_url is required. Pass it explicitly or set "
+                "ABTO_GATEWAY_BASE_URL."
+            )
+        self.gateway_base_url = _validated_gateway_url(resolved_gateway_base_url)
         self._fallback = _resolve_fallback(
             fallback,
             has_openai_key_source=self._provider_keys.get("openai") is not None,
