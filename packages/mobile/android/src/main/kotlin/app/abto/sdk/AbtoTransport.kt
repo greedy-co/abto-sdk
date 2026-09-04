@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 
 internal fun readBoundedResponse(
     input: InputStream,
-    maxBytes: Int = 64 * 1024,
+    maxBytes: Int = ABTO_MAX_RESPONSE_BYTES,
 ): String {
     val output = ByteArrayOutputStream(minOf(maxBytes, 8 * 1024))
     val chunk = ByteArray(8 * 1024)
@@ -52,7 +52,7 @@ class AbtoTransport(private val config: AbtoConfig) {
     fun enqueue(event: Map<String, Any?>) {
         synchronized(lock) {
             buffer.addLast(QueuedEvent(event))
-            while (buffer.size > MAX_BUFFER) buffer.removeFirst()
+            while (buffer.size > ABTO_MAX_BUFFERED_EVENTS) buffer.removeFirst()
             if (buffer.size >= config.batchSize) {
                 requestFlushLocked(0)
             } else {
@@ -107,7 +107,7 @@ class AbtoTransport(private val config: AbtoConfig) {
         val batch: List<QueuedEvent>
         synchronized(lock) {
             if (buffer.isEmpty()) return null
-            val count = minOf(buffer.size, config.batchSize, MAX_BATCH_SIZE)
+            val count = minOf(buffer.size, config.batchSize, ABTO_MAX_BATCH_SIZE)
             batch = List(count) { buffer.removeFirst() }
             batch.forEach { it.attempts += 1 }
         }
@@ -156,7 +156,7 @@ class AbtoTransport(private val config: AbtoConfig) {
             synchronized(lock) {
                 // Cap the buffer so a dead endpoint cannot grow memory without bound.
                 eligibleRetryBatch.asReversed().forEach { buffer.addFirst(it) }
-                while (buffer.size > MAX_BUFFER) buffer.removeLast()
+                while (buffer.size > ABTO_MAX_BUFFERED_EVENTS) buffer.removeLast()
             }
             return retryDelayMs(eligibleRetryBatch)
         }
@@ -183,24 +183,19 @@ class AbtoTransport(private val config: AbtoConfig) {
     private fun retryDelayMs(batch: List<QueuedEvent>): Long {
         val attempt = batch.maxOfOrNull(QueuedEvent::attempts) ?: 1
         val baseMs = maxOf(1, config.flushIntervalMs)
-        val exponentialMs = minOf(MAX_RETRY_DELAY_MS, baseMs * (1L shl (attempt - 1)))
-        val jitterBound = maxOf(1, exponentialMs / 2)
+        val exponentialMs = minOf(ABTO_MAX_RETRY_DELAY_MS, baseMs * (1L shl (attempt - 1)))
+        val jitterBound = maxOf(1, (exponentialMs * ABTO_RETRY_JITTER_RATIO).toLong())
         return exponentialMs + ThreadLocalRandom.current().nextLong(jitterBound)
     }
 
     private companion object {
-        const val MAX_BUFFER = 1000
-        const val MAX_BATCH_SIZE = 100
-        const val MAX_ATTEMPTS = 3
-        const val MAX_EVENT_AGE_MS = 5 * 60 * 1000L
-        const val MAX_RETRY_DELAY_MS = 60 * 1000L
         val ACK_RESULTS = setOf("ok", "warning", "drop")
         val RESULT_PATTERN = Regex(""""result"\s*:\s*"([^"]+)"""")
 
         fun isTransientStatus(status: Int): Boolean = status == 408 || status == 429 || status >= 500
 
         fun retryEligible(attempts: Int, firstQueuedAtMs: Long, nowMs: Long): Boolean =
-            attempts < MAX_ATTEMPTS && nowMs - firstQueuedAtMs < MAX_EVENT_AGE_MS
+            attempts < ABTO_MAX_ATTEMPTS && nowMs - firstQueuedAtMs < ABTO_MAX_EVENT_AGE_MS
 
         fun retryEventIds(responseBody: String, eventIds: List<String>): Set<String>? {
             if (!Regex(""""results"\s*:\s*\{""").containsMatchIn(responseBody)) return null

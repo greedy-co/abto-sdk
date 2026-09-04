@@ -1,3 +1,4 @@
+import app.abto.sdk.ABTO_MAX_ATTEMPTS
 import app.abto.sdk.AbtoClient
 import app.abto.sdk.AbtoConfig
 import app.abto.sdk.AbtoContext
@@ -140,7 +141,7 @@ fun main() {
     val blockedEventCount = AtomicInteger()
     val secondRetryRequest = CountDownLatch(1)
     val oversizedRetryRequest = CountDownLatch(1)
-    val unavailableRetryBudgetReached = CountDownLatch(3)
+    val unavailableRetryBudgetReached = CountDownLatch(ABTO_MAX_ATTEMPTS)
     val blockedRequestStarted = CountDownLatch(1)
     val releaseBlockedRequest = CountDownLatch(1)
     val boundedBurstRequests = CountDownLatch(11)
@@ -222,7 +223,10 @@ fun main() {
             "unavailable collector reaches the retry attempt budget",
         )
         Thread.sleep(300)
-        check(unavailableRequestCount.get() == 3, "unavailable collector stops after three attempts")
+        check(
+            unavailableRequestCount.get() == ABTO_MAX_ATTEMPTS,
+            "unavailable collector stops at the retry attempt budget",
+        )
 
         val burstClient = AbtoClient(
             AbtoConfig(
