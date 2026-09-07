@@ -10,6 +10,8 @@ token, cost, latency, request_id, and variant assignment.
 
 from __future__ import annotations
 
+from .policy_generated import HEADER_DEVICE_ID, HEADER_FEATURE_ID
+
 import contextvars
 import secrets
 from contextlib import contextmanager
@@ -17,8 +19,8 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterator, Optional
 
 ABTO_HEADER = {
-    "device_id": "x-abto-device-id",
-    "feature_id": "x-abto-feature-id",
+    "device_id": HEADER_DEVICE_ID,
+    "feature_id": HEADER_FEATURE_ID,
     "traceparent": "traceparent",
 }
 

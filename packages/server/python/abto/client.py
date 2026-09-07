@@ -16,6 +16,14 @@ from urllib.parse import SplitResult, urlsplit
 
 from .context import AbtoContext, create_trace_id, get_headers, with_context
 from .policy_generated import (
+    ERR_FALLBACK_BASE_URL_INVALID,
+    ERR_FALLBACK_BASE_URL_REQUIRED,
+    ERR_FALLBACK_TIMEOUT_POSITIVE,
+    ERR_GATEWAY_BASE_URL_INVALID,
+    ERR_GATEWAY_BASE_URL_REQUIRED,
+    HEADER_DEVICE_ID,
+    HEADER_FEATURE_ID,
+    ERR_API_KEY_REQUIRED,
     CIRCUIT_OPEN_SECONDS as _CIRCUIT_OPEN_SECONDS,
     DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     DIRECT_HEADER_NAMES as _DIRECT_HEADER_NAMES,
@@ -82,7 +90,7 @@ def _resolve_fallback(
         not math.isfinite(options.timeout_seconds)
         or options.timeout_seconds <= 0
     ):
-        raise ValueError("[abto] fallback.timeout_seconds must be greater than 0.")
+        raise ValueError(ERR_FALLBACK_TIMEOUT_POSITIVE)
     requested = (
         options.enabled if options.enabled is not None else has_openai_key_source
     )
@@ -98,10 +106,7 @@ def _resolve_fallback(
         # error, not a default to guess: the provider key would leave for a host
         # the application never chose.
         if config is not None:
-            raise ValueError(
-                "[abto] fallback.base_url is required to enable OpenAI direct fallback. "
-                "Set it to the OpenAI-compatible endpoint this application used before ABTO."
-            )
+            raise ValueError(ERR_FALLBACK_BASE_URL_REQUIRED)
         # Nothing was configured, so stay off rather than inventing a destination.
         return off
     return _ResolvedFallback(
@@ -120,7 +125,7 @@ def _validated_direct_base_url(value: str) -> str:
         or parsed.username is not None
         or parsed.password is not None
     ):
-        raise ValueError("[abto] fallback.base_url must be a valid http(s) URL.")
+        raise ValueError(ERR_FALLBACK_BASE_URL_INVALID)
     return value.rstrip("/")
 
 
@@ -132,7 +137,7 @@ def _validated_gateway_url(value: str) -> str:
         or parsed.username is not None
         or parsed.password is not None
     ):
-        raise ValueError("[abto] gateway_base_url must be a valid http(s) URL.")
+        raise ValueError(ERR_GATEWAY_BASE_URL_INVALID)
     return value.rstrip("/")
 
 
@@ -147,7 +152,7 @@ def _origin(value: Any) -> Tuple[str, str, int]:
 def _validated_api_key(value: str) -> str:
     resolved = value.strip()
     if not resolved:
-        raise ValueError("[abto] api_key or ABTO_API_KEY is required.")
+        raise ValueError(ERR_API_KEY_REQUIRED)
     if "\r" in resolved or "\n" in resolved:
         raise ValueError("[abto] api_key contains invalid characters.")
     return resolved
@@ -194,7 +199,7 @@ def abto_request_hook(
                 "[abto] Refusing to send ABTO context outside the configured Gateway origin."
             )
         trusted_headers = get_headers()
-        for name in ("authorization", "x-abto-device-id", "x-abto-feature-id", "traceparent"):
+        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID, "traceparent"):
             _remove_header(request.headers, name)
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):
@@ -570,10 +575,7 @@ class Abto:
         # provider keys is named by the application, never guessed here.
         resolved_gateway_base_url = gateway_base_url or os.getenv("ABTO_GATEWAY_BASE_URL")
         if not resolved_gateway_base_url:
-            raise ValueError(
-                "[abto] gateway_base_url is required. Pass it explicitly or set "
-                "ABTO_GATEWAY_BASE_URL."
-            )
+            raise ValueError(ERR_GATEWAY_BASE_URL_REQUIRED)
         self.gateway_base_url = _validated_gateway_url(resolved_gateway_base_url)
         self._fallback = _resolve_fallback(
             fallback,

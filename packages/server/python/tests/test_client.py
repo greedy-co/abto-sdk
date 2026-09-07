@@ -1,7 +1,10 @@
+import re
+
 import pytest
 
 import abto.client as client_module
 from abto import OpenAIDirectFallbackOptions, init_abto
+from abto.policy_generated import ERR_API_KEY_REQUIRED
 from abto.client import (
     PUBLIC_GATEWAY_BASE_URL,
     _build_fallback_http_client,
@@ -25,7 +28,7 @@ def test_requires_abto_key_without_falling_back_to_provider_key(monkeypatch):
     monkeypatch.delenv("ABTO_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-provider-only")
 
-    with pytest.raises(ValueError, match="ABTO_API_KEY is required"):
+    with pytest.raises(ValueError, match=re.escape(ERR_API_KEY_REQUIRED)):
         init_abto()
 
 
