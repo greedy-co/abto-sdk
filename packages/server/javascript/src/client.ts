@@ -9,6 +9,7 @@ import type { ProviderKeys } from './credentials.js';
 import {
   createAbtoOpenAIWithCircuit,
   createOpenAIFallbackCircuit,
+  resolveFallback,
   type CreateAbtoOpenAIOptions,
   type OpenAIDirectFallbackConfig,
 } from './openai.js';
@@ -75,6 +76,8 @@ export function initAbto(config: AbtoConfig = {}): AbtoNodeClient {
     capture: _unsupportedCapture,
     ...publicInput
   } = runtimeConfig;
+  // 설정 오류는 첫 AI 호출이 아니라 부팅에서 드러나야 한다 — Python 의 init_abto 와 같은 시점이다.
+  resolveFallback(config.fallback, providerKeys.openai !== undefined);
   const fallbackDeviceId = nonEmpty(config.deviceId) ?? nonEmpty(getEnv('ABTO_DEVICE_ID'));
   const fallbackContext: AbtoContext =
     fallbackDeviceId === undefined ? {} : { deviceId: fallbackDeviceId };

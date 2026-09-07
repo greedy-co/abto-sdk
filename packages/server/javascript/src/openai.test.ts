@@ -1,6 +1,12 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  ERR_FALLBACK_BASE_URL_REQUIRED,
+  ERR_GATEWAY_BASE_URL_REQUIRED,
+} from './policy.generated.js';
+import { initAbto } from './client.js';
 import {
   buildOpenAIClientOptions,
   createAbtoOpenAI,
@@ -1023,6 +1029,24 @@ describe('ABTO OpenAI Gateway client', () => {
         baseURL: 'https://gateway.abto.app/v1',
         abtoApiKey: 'abto-test',
       } as unknown as Parameters<typeof createAbtoOpenAI>[0]),
-    ).rejects.toThrow('requires gatewayBaseURL.');
+    ).rejects.toThrow(ERR_GATEWAY_BASE_URL_REQUIRED);
   });
+
+  it('rejects a fallback without a destination at init, not at first call', () => {
+    expect(() => initAbto({
+      abtoApiKey: 'abto-test',
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: { enabled: true },
+    })).toThrow(ERR_FALLBACK_BASE_URL_REQUIRED);
+  });
+
+  it('leaves fallback off when only a provider key is configured', () => {
+    expect(() => initAbto({
+      abtoApiKey: 'abto-test',
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      providerKeys: { openai: 'sk-openai' },
+    })).not.toThrow();
+  });
+
 });

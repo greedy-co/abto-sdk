@@ -273,7 +273,7 @@ describe('server context headers', () => {
       abtoApiKey: 'abto-test',
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       providerKeys: { openai: 'sk-openai' },
-      fallback: true,
+      fallback: { baseURL: 'https://api.openai.com/v1' },
     });
     const openai = await abto.openai({
       fallback: false,

@@ -1,3 +1,5 @@
+import { HEADER_DEVICE_ID, HEADER_FEATURE_ID } from './policy.generated.js';
+
 /**
  * ABTO request context propagation for Node.js.
  *
@@ -24,8 +26,8 @@ import { newUuidV7TraceId, randomHex } from './uuid.js';
 
 /** Gateway-facing header names. Only what the gateway reads. */
 export const ABTO_HEADER = {
-  deviceId: "x-abto-device-id",
-  featureId: "x-abto-feature-id",
+  deviceId: HEADER_DEVICE_ID,
+  featureId: HEADER_FEATURE_ID,
   traceparent: "traceparent",
 } as const;
 

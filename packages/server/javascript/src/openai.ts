@@ -12,6 +12,16 @@ import {
   DIRECT_HEADER_PREFIXES,
   DIRECT_PATH_SUFFIX,
   SAFE_GATEWAY_STATUSES,
+  ERR_FALLBACK_BASE_URL_REQUIRED,
+  ERR_FALLBACK_BASE_URL_INVALID,
+  ERR_FALLBACK_TIMEOUT_POSITIVE,
+  ERR_GATEWAY_BASE_URL_INVALID,
+  ERR_GATEWAY_BASE_URL_REQUIRED,
+  ERR_API_KEY_REQUIRED,
+  HEADER_DEVICE_ID,
+  HEADER_FEATURE_ID,
+  HEADER_REQUEST_ID,
+  HEADER_ERROR_SOURCE,
 } from './policy.generated.js';
 
 export interface OpenAIDirectFallbackOptions {
@@ -114,15 +124,15 @@ function getEnv(name: string): string | undefined {
   return typeof process === 'undefined' ? undefined : process.env[name];
 }
 
-function requireHttpURL(value: string, field: string): URL {
+function requireHttpURL(value: string, invalidMessage: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error(`[abto] ${field} must be a valid http(s) URL.`);
+    throw new Error(invalidMessage);
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error(`[abto] ${field} must be a valid http(s) URL.`);
+    throw new Error(invalidMessage);
   }
   return parsed;
 }
@@ -131,7 +141,7 @@ function requireHttpURL(value: string, field: string): URL {
 // request path resolves against it, silently retargeting "/v1/chat/completions"
 // at "/chat/completions".
 function directBaseURL(value: string): URL {
-  const parsed = requireHttpURL(value, 'fallback.baseURL');
+  const parsed = requireHttpURL(value, ERR_FALLBACK_BASE_URL_INVALID);
   if (!parsed.pathname.endsWith('/')) parsed.pathname = `${parsed.pathname}/`;
   return parsed;
 }
@@ -139,12 +149,12 @@ function directBaseURL(value: string): URL {
 function positiveTimeout(value: number | undefined): number {
   const resolved = value ?? DEFAULT_FALLBACK_TIMEOUT_MS;
   if (!Number.isFinite(resolved) || resolved <= 0) {
-    throw new Error('[abto] fallback.timeoutMs must be greater than 0.');
+    throw new Error(ERR_FALLBACK_TIMEOUT_POSITIVE);
   }
   return resolved;
 }
 
-function resolveFallback(
+export function resolveFallback(
   config: OpenAIDirectFallbackConfig | undefined,
   hasOpenAIKeySource: boolean,
 ): ResolvedFallback {
@@ -163,10 +173,7 @@ function resolveFallback(
     // error, not a default to guess: the provider key would leave for a host
     // the application never chose.
     if (config !== undefined) {
-      throw new Error(
-        '[abto] fallback.baseURL is required to enable OpenAI direct fallback. '
-        + 'Set it to the OpenAI-compatible endpoint this application used before ABTO.',
-      );
+      throw new Error(ERR_FALLBACK_BASE_URL_REQUIRED);
     }
     // Nothing was configured, so stay off rather than inventing a destination.
     return resolved;
@@ -190,8 +197,8 @@ function trustedBaseHeaders(input: string | URL | Request, init?: RequestInit): 
     const normalized = key.toLowerCase();
     if (
       normalized === 'authorization'
-      || normalized === 'x-abto-device-id'
-      || normalized === 'x-abto-feature-id'
+      || normalized === HEADER_DEVICE_ID
+      || normalized === HEADER_FEATURE_ID
       || normalized === 'traceparent'
       || normalized.startsWith('x-abto-key-')
     ) {
@@ -297,8 +304,8 @@ function isTimeoutFailure(error: unknown, timedOut: boolean): boolean {
 }
 
 function isSafeGatewayResponse(response: Response): boolean {
-  const requestId = response.headers.get('x-abto-request-id');
-  const errorSource = response.headers.get('x-abto-error-source');
+  const requestId = response.headers.get(HEADER_REQUEST_ID);
+  const errorSource = response.headers.get(HEADER_ERROR_SOURCE);
   if (
     requestId === null
     && SAFE_GATEWAY_STATUSES.has(response.status)
@@ -388,7 +395,7 @@ export function createGatewayFetch({
   getContext = getAbtoContext,
   fetchImpl = fetch as FetchLike,
 }: CreateGatewayFetchOptions, circuit = createOpenAIFallbackCircuit()): FetchLike {
-  const gatewayURL = requireHttpURL(gatewayBaseURL, 'gatewayBaseURL');
+  const gatewayURL = requireHttpURL(gatewayBaseURL, ERR_GATEWAY_BASE_URL_INVALID);
   const resolvedFallback = resolveFallback(
     fallback,
     providerKeys.openai !== undefined,
@@ -590,12 +597,12 @@ export async function createAbtoOpenAIWithCircuit<T = unknown>(
   } = options;
   const resolvedBaseURL = gatewayBaseURL ?? getEnv('ABTO_GATEWAY_BASE_URL');
   if (!resolvedBaseURL) {
-    throw new Error('[abto] createAbtoOpenAI requires gatewayBaseURL.');
+    throw new Error(ERR_GATEWAY_BASE_URL_REQUIRED);
   }
   if (!abtoApiKey) {
-    throw new Error('[abto] createAbtoOpenAI requires abtoApiKey.');
+    throw new Error(ERR_API_KEY_REQUIRED);
   }
-  requireHttpURL(resolvedBaseURL, 'gatewayBaseURL');
+  requireHttpURL(resolvedBaseURL, ERR_GATEWAY_BASE_URL_INVALID);
 
   const specifier: string = 'openai';
   const { default: OpenAI } = (await import(specifier)) as {
