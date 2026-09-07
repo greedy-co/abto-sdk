@@ -43,21 +43,21 @@ do {
     _ = try AbtoConfig(projectKey: "  ")
     check(false, "empty projectKey rejected")
 } catch {
-    check("\(error)" == "[abto] projectKey is required. Check your init config.", "empty projectKey rejected")
+    check("\(error)" == abtoErrProjectKeyRequired, "empty projectKey rejected")
 }
 
 do {
     _ = try AbtoConfig(projectKey: "ek", endpoint: "htp:/broken url")
     check(false, "malformed endpoint rejected")
 } catch {
-    check("\(error)".hasPrefix("[abto] endpoint is not a valid http(s) URL:"), "malformed endpoint rejected")
+    check("\(error)".hasPrefix(abtoErrEndpointInvalidPrefix), "malformed endpoint rejected")
 }
 
 do {
     _ = try AbtoConfig(projectKey: "ek", endpoint: "http://collector.example/v1/collect/events")
     check(false, "production cleartext endpoint rejected")
 } catch {
-    check("\(error)" == "[abto] endpoint must use HTTPS outside development loopback.", "production cleartext endpoint rejected")
+    check("\(error)" == abtoErrEndpointHTTPSRequired, "production cleartext endpoint rejected")
 }
 
 do {
@@ -76,7 +76,7 @@ for invalidBatchSize in [0, 101] {
         _ = try AbtoConfig(projectKey: "ek", batchSize: invalidBatchSize)
         check(false, "batchSize \(invalidBatchSize) rejected")
     } catch {
-        check("\(error)" == "[abto] batchSize must be between 1 and 100.", "batchSize \(invalidBatchSize) rejected")
+        check("\(error)" == abtoErrBatchSizeRange, "batchSize \(invalidBatchSize) rejected")
     }
 }
 
