@@ -1,3 +1,5 @@
+import app.abto.sdk.ABTO_CONFORMANCE_EXEMPTIONS
+import app.abto.sdk.ABTO_CONFORMANCE_SCENARIOS
 import app.abto.sdk.ABTO_ERR_BATCH_SIZE_RANGE
 import app.abto.sdk.ABTO_ERR_ENDPOINT_HTTPS_REQUIRED
 import app.abto.sdk.ABTO_ERR_ENDPOINT_INVALID_PREFIX
@@ -34,6 +36,32 @@ fun check(condition: Boolean, name: String) {
     }
 }
 
+val covered = mutableSetOf<String>()
+
+/** 이 검증이 증명하는 공통 시나리오를 기록한다. 목록의 정본은 계약이다. */
+fun covers(scenario: String) {
+    if (scenario !in ABTO_CONFORMANCE_SCENARIOS) {
+        failures += 1
+        println("FAIL unknown conformance scenario: $scenario")
+        return
+    }
+    covered += scenario
+}
+
+fun checkConformanceCoverage() {
+    ABTO_CONFORMANCE_EXEMPTIONS.forEach {
+        println("exempt $it — declared in contracts/client-sdk/conformance.schema.json")
+    }
+    val missing = ABTO_CONFORMANCE_SCENARIOS
+        .filterNot { it in covered || it in ABTO_CONFORMANCE_EXEMPTIONS }
+    if (missing.isEmpty()) {
+        println("ok   client conformance scenarios all covered")
+    } else {
+        failures += 1
+        println("FAIL client conformance scenarios not covered: ${missing.joinToString(", ")}")
+    }
+}
+
 fun isUuidV7(value: String): Boolean =
     Regex("^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").matches(value)
 
@@ -54,6 +82,7 @@ fun main() {
     check(AbtoConfig("ek", environment = AbtoEnvironment.DEVELOPMENT).debug, "development turns debug on")
 
     try {
+        covers("config.project_key_required")
         AbtoConfig(projectKey = "  ")
         check(false, "empty projectKey rejected")
     } catch (e: AbtoInitException) {
@@ -61,6 +90,7 @@ fun main() {
     }
 
     try {
+        covers("config.endpoint_must_be_url")
         AbtoConfig(projectKey = "ek", endpoint = "htp:/broken url")
         check(false, "malformed endpoint rejected")
     } catch (e: AbtoInitException) {
@@ -75,6 +105,7 @@ fun main() {
     }
 
     try {
+        covers("config.endpoint_requires_https")
         AbtoConfig(projectKey = "ek", endpoint = "http://collector.example/v1/collect/events")
         check(false, "production cleartext endpoint rejected")
     } catch (e: AbtoInitException) {
@@ -91,6 +122,7 @@ fun main() {
 
     for (invalidBatchSize in listOf(0, 101)) {
         try {
+            covers("config.batch_size_range")
             AbtoConfig(projectKey = "ek", batchSize = invalidBatchSize)
             check(false, "batchSize $invalidBatchSize rejected")
         } catch (e: AbtoInitException) {
@@ -102,12 +134,16 @@ fun main() {
     val store = AbtoInMemoryStore()
     val first = AbtoContext(store)
     val second = AbtoContext(store)
+    covers("identity.anonymous_persists")
     check(first.anonymousId == second.anonymousId, "anonymous_id persists across clients")
+    covers("identity.uuidv7")
     check(isUuidV7(first.anonymousId), "anonymous_id uses UUIDv7")
     check(isUuidV7(first.sessionId), "session_id uses UUIDv7")
+    covers("identity.session_rotates")
     check(first.sessionId != second.sessionId, "session_id rotates per client")
 
     first.identify("u_1", "t_1")
+    covers("identity.identify_and_reset")
     check(first.commonProperties()["user_id"] == "u_1", "identify sets user_id")
     first.identify("u_2")
     check(!first.commonProperties().containsKey("tenant_id"), "identify clears an omitted tenant_id")
@@ -122,7 +158,9 @@ fun main() {
     check(isUuidV7(identityClient.sessionId), "client exposes sessionId")
     identityClient.reset()
     check(identityClient.deviceId != clientDeviceBeforeReset, "client deviceId follows reset")
+    covers("event.reserved_name_rejected")
     check(!identityClient.capture("pageview"), "reserved system event name rejected by public capture")
+    covers("event.name_length_limit")
     check(!identityClient.capture("x".repeat(201)), "overlong event name rejected before enqueue")
     check(!identityClient.capture("🙂".repeat(101)), "event name limit uses backend UTF-16 units")
 
@@ -131,6 +169,7 @@ fun main() {
     val trace = client.startLlmTrace(featureId = "smoke.demo")
     check(trace.featureId == "smoke.demo", "featureId retained on trace")
     check(Regex("^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$").matches(trace.traceId), "trace_id uses UUIDv7 bits")
+    covers("transport.request_id_header_case_insensitive")
     check(trace.attachRequestId(mapOf("X-Abto-Request-Id" to listOf("req_1"))) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")
 
@@ -227,6 +266,7 @@ fun main() {
             "unavailable collector reaches the retry attempt budget",
         )
         Thread.sleep(300)
+        covers("transport.attempt_budget_stops_retry")
         check(
             unavailableRequestCount.get() == ABTO_MAX_ATTEMPTS,
             "unavailable collector stops at the retry attempt budget",
@@ -250,6 +290,7 @@ fun main() {
         check(boundedBurstRequests.await(10, TimeUnit.SECONDS), "bounded burst drains the retained buffer")
         Thread.sleep(300)
         check(blockedRequestCount.get() == 11, "burst coalesces flush work and caps queued batches")
+        covers("transport.buffer_cap")
         check(blockedEventCount.get() == 1_100, "burst retains at most one thousand buffered events")
 
         val oversizedClient = AbtoClient(
@@ -265,6 +306,7 @@ fun main() {
         val oversizedFlush = CountDownLatch(1)
         oversizedClient.flush { oversizedFlush.countDown() }
         check(oversizedFlush.await(10, TimeUnit.SECONDS), "oversized response flush completed")
+        covers("transport.response_body_cap")
         check(oversizedRetryRequest.await(10, TimeUnit.SECONDS), "oversized collector response is retried")
 
         val retryClient = AbtoClient(
@@ -282,6 +324,7 @@ fun main() {
         retryClient.flush { firstFlush.countDown() }
         check(firstFlush.await(10, TimeUnit.SECONDS), "first retry flush completed")
         check(secondRetryRequest.await(10, TimeUnit.SECONDS), "retry schedules a second request")
+        covers("transport.retry_marked_events_only")
         check(requests.size == 2, "retry causes a second request")
         check(requests.getOrNull(0)?.size == 2, "first request contains the full batch")
         check(
@@ -302,6 +345,7 @@ fun main() {
         finiteClient.flush { finiteFlush.countDown() }
         check(finiteFlush.await(10, TimeUnit.SECONDS), "non-finite metric flush completed")
         val finiteBody = requestBodies.lastOrNull { it.contains(""""event_name":"invalid_metric"""") }.orEmpty()
+        covers("event.metric_non_finite_omitted")
         check(!finiteBody.contains("NaN") && !finiteBody.contains("\"value\":"), "non-finite metric value omitted")
 
         finiteClient.identify("real-user", "real-tenant")
@@ -320,7 +364,9 @@ fun main() {
         finiteClient.flush { boundedFlush.countDown() }
         check(boundedFlush.await(10, TimeUnit.SECONDS), "precision-bounded metric flush completed")
         val boundedBody = requestBodies.lastOrNull { it.contains(""""event_name":"bounded_metric"""") }.orEmpty()
+        covers("event.metric_precision_enforced")
         check(!boundedBody.contains("\"value\":"), "over-precision metric value omitted")
+        covers("event.metric_scale_limit")
         check(!boundedBody.contains("\"scale\":"), "oversized metric scale omitted")
         check(boundedBody.contains("\"environment\":\"customer-environment\""), "customer environment property retained")
         check(boundedBody.contains("\"user_id\":\"customer-user\""), "customer user_id property retained")
@@ -354,6 +400,7 @@ fun main() {
         check(privacyBody.contains("\"event_name\":\"llm_prompt_submitted\""), "LLM prompt uses canonical event name")
         check(privacyBody.contains("\"event_name\":\"llm_response_rendered\""), "LLM response uses canonical rendered event name")
         check(privacyBody.contains("\"event_name\":\"llm_response_interacted\""), "LLM outcome uses canonical interaction event name")
+        covers("privacy.prompt_and_response_text_not_sent")
         check(!privacyBody.contains("prompt-canary"), "prompt text is not transmitted")
         check(!privacyBody.contains("response-canary"), "response text is not transmitted")
         check(privacyBody.contains("\"\$capture_mode\":\"metadata_only\""), "metadata-only capture mode is transmitted")
@@ -390,6 +437,9 @@ fun main() {
     } else {
         println("skip e2e (set ABTO_E2E=1 with dev collector running)")
     }
+
+    checkConformanceCoverage()
+
 
     if (failures > 0) {
         println("$failures check(s) failed")

@@ -42,7 +42,7 @@ class AbtoConfig(
         }
         val developmentLoopback =
             environment == AbtoEnvironment.DEVELOPMENT &&
-                (host == "localhost" || host == "::1" || host.startsWith("127."))
+                (host in ABTO_LOOPBACK_HOSTS || ABTO_LOOPBACK_HOST_PREFIXES.any { host.startsWith(it) })
         if (scheme == "http" && !developmentLoopback) {
             throw AbtoInitException(ABTO_ERR_ENDPOINT_HTTPS_REQUIRED)
         }

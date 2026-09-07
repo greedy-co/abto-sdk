@@ -4,7 +4,6 @@ import kotlin.math.abs
 
 private const val METRIC_ABSOLUTE_LIMIT = 1e38
 private const val METRIC_MAX_FRACTION_DIGITS = 12
-private const val MAX_SCALE_LENGTH = 16
 
 internal fun abtoMetricValue(value: Double?): Double? {
     if (value == null || !value.isFinite() || abs(value) >= METRIC_ABSOLUTE_LIMIT) return null
@@ -15,7 +14,7 @@ internal fun abtoMetricValue(value: Double?): Double? {
 }
 
 internal fun abtoScaleValue(value: String?): String? =
-    value?.takeIf { it.length <= MAX_SCALE_LENGTH }
+    value?.takeIf { it.length <= ABTO_SCALE_MAX_LENGTH }
 
 internal fun abtoEventNameIssue(event: String, allowSystemEvent: Boolean = false): String? = when {
     event.isBlank() -> "must not be blank"
