@@ -31,16 +31,16 @@ public struct AbtoConfig {
         endpoint: String? = nil,
         environment: AbtoEnvironment = .production,
         debug: Bool? = nil,
-        batchSize: Int = 20,
-        flushInterval: TimeInterval = 5.0
+        batchSize: Int = abtoDefaultBatchSize,
+        flushInterval: TimeInterval = abtoDefaultFlushInterval
     ) throws {
         guard !projectKey.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw AbtoInitError.invalidConfig("[abto] projectKey is required. Check your init config.")
+            throw AbtoInitError.invalidConfig(abtoErrProjectKeyRequired)
         }
-        guard (1...100).contains(batchSize) else {
-            throw AbtoInitError.invalidConfig("[abto] batchSize must be between 1 and 100.")
+        guard (abtoMinBatchSize...abtoMaxBatchSize).contains(batchSize) else {
+            throw AbtoInitError.invalidConfig(abtoErrBatchSizeRange)
         }
-        let rawEndpoint = endpoint ?? "https://api.abto.app/v1/collect/events"
+        let rawEndpoint = endpoint ?? abtoDefaultCollectEndpoint
         // Allow only HTTP(S) endpoints, matching Browser SDK validation.
         guard let url = URL(string: rawEndpoint),
               let scheme = url.scheme?.lowercased(),
@@ -49,13 +49,13 @@ public struct AbtoConfig {
               url.user == nil,
               url.password == nil
         else {
-            throw AbtoInitError.invalidConfig("[abto] endpoint is not a valid http(s) URL: \"\(rawEndpoint)\"")
+            throw AbtoInitError.invalidConfig("\(abtoErrEndpointInvalidPrefix)\"\(rawEndpoint)\"")
         }
         let host = url.host?.lowercased()
         let developmentLoopback = environment == .development
             && (host == "localhost" || host == "::1" || host?.hasPrefix("127.") == true)
         guard scheme == "https" || developmentLoopback else {
-            throw AbtoInitError.invalidConfig("[abto] endpoint must use HTTPS outside development loopback.")
+            throw AbtoInitError.invalidConfig(abtoErrEndpointHTTPSRequired)
         }
         self.projectKey = projectKey
         self.endpoint = url

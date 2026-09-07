@@ -277,7 +277,7 @@ public final class AbtoLlmTrace {
     @available(*, deprecated, message: "Use the AbtoResponseInteraction overload. String values remain supported during the 0.x compatibility window.")
     public func captureOutcome(_ interactionType: String, responseId: String? = nil, properties extra: [String: Any] = [:]) {
         guard let canonical = AbtoResponseInteraction(rawValue: interactionType) else {
-            print("[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.")
+            print(abtoErrInteractionDropped)
             return
         }
         captureCanonicalOutcome(canonical.rawValue, responseId: responseId, properties: extra)
