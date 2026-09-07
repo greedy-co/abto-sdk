@@ -1,6 +1,15 @@
 // GENERATED FILE — DO NOT EDIT.
 
 const abtoSchemaVersion = "2026-09-02";
+const abtoDefaultCollectEndpoint = "https://api.abto.app/v1/collect/events";
+const abtoDefaultBatchSize = 20;
+const abtoMinBatchSize = 1;
+const abtoDefaultFlushInterval = Duration(milliseconds: 5000);
+const abtoErrProjectKeyRequired = "[abto] projectKey is required. Check your init config.";
+const abtoErrEndpointHttpsRequired = "[abto] endpoint must use HTTPS outside development loopback.";
+const abtoErrEndpointInvalidPrefix = "[abto] endpoint is not a valid http(s) URL: ";
+const abtoErrBatchSizeRange = "[abto] batchSize must be between 1 and 100.";
+const abtoErrInteractionDropped = "[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.";
 const abtoEventNameMaxLength = 200;
 const abtoMaxBufferedEvents = 1000;
 const abtoMaxRetryDelayMs = 120000;

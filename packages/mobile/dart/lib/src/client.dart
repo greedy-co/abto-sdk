@@ -228,7 +228,7 @@ class AbtoLlmTrace {
     final canonical = AbtoResponseInteraction.fromWireValue(interactionType);
     if (canonical == null) {
       print(
-          '[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.');
+          abtoErrInteractionDropped);
       return;
     }
     _client._captureSystemEvent(

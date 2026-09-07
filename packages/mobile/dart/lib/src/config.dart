@@ -1,3 +1,5 @@
+import 'contract.generated.dart';
+
 enum AbtoEnvironment {
   development,
   staging,
@@ -21,17 +23,17 @@ class AbtoConfig {
     String? endpoint,
     AbtoEnvironment environment = AbtoEnvironment.production,
     bool? debug,
-    int batchSize = 20,
-    Duration flushInterval = const Duration(seconds: 5),
+    int batchSize = abtoDefaultBatchSize,
+    Duration flushInterval = abtoDefaultFlushInterval,
   }) {
     if (projectKey.trim().isEmpty) {
       throw AbtoInitException(
-          '[abto] projectKey is required. Check your init config.');
+          abtoErrProjectKeyRequired);
     }
-    if (batchSize < 1 || batchSize > 100) {
-      throw AbtoInitException('[abto] batchSize must be between 1 and 100.');
+    if (batchSize < abtoMinBatchSize || batchSize > abtoMaxBatchSize) {
+      throw AbtoInitException(abtoErrBatchSizeRange);
     }
-    final raw = endpoint ?? 'https://api.abto.app/v1/collect/events';
+    final raw = endpoint ?? abtoDefaultCollectEndpoint;
     // Allow only HTTP(S) endpoints, matching Browser SDK validation.
     final parsed = Uri.tryParse(raw);
     if (parsed == null ||
@@ -39,7 +41,7 @@ class AbtoConfig {
         !parsed.hasAuthority ||
         parsed.userInfo.isNotEmpty) {
       throw AbtoInitException(
-          '[abto] endpoint is not a valid http(s) URL: "$raw"');
+          '$abtoErrEndpointInvalidPrefix"$raw"');
     }
     final developmentLoopback = environment == AbtoEnvironment.development &&
         (parsed.host == 'localhost' ||
@@ -47,7 +49,7 @@ class AbtoConfig {
             parsed.host.startsWith('127.'));
     if (parsed.scheme == 'http' && !developmentLoopback) {
       throw AbtoInitException(
-          '[abto] endpoint must use HTTPS outside development loopback.');
+          abtoErrEndpointHttpsRequired);
     }
     return AbtoConfig._(
       projectKey: projectKey,
