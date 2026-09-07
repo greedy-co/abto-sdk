@@ -4,7 +4,11 @@ import pytest
 
 import abto.client as client_module
 from abto import OpenAIDirectFallbackOptions, init_abto
-from abto.policy_generated import ERR_API_KEY_REQUIRED
+from abto.policy_generated import (
+    ERR_API_KEY_REQUIRED,
+    ERR_FALLBACK_OPENAI_KEY_REQUIRED,
+    ERR_PROVIDER_KEY_INVALID_CHARACTERS,
+)
 from abto.client import (
     PUBLIC_GATEWAY_BASE_URL,
     _build_fallback_http_client,
@@ -113,7 +117,7 @@ def test_hook_rejects_provider_key_header_injection():
     )
     request = Request("https://gateway.abto.app/v1/chat/completions")
 
-    with pytest.raises(ValueError, match="provider key for openai contains invalid characters"):
+    with pytest.raises(ValueError, match=re.escape(ERR_PROVIDER_KEY_INVALID_CHARACTERS.replace("{provider}", "openai"))):
         abto.httpx_event_hooks()["request"][0](request)
 
 
@@ -441,18 +445,19 @@ def test_fallback_timeout_only_applies_to_eligible_gateway_requests():
         observed_timeouts.append(request.extensions["timeout"])
         return httpx.Response(200, json={})
 
-    def build_client(*, enabled, provider_keys):
+    def build_client(*, configured, provider_keys):
+        config = (
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL, timeout_seconds=2.5)
+            if configured
+            else False
+        )
         return _build_fallback_http_client(
             httpx,
             gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
             api_key="abto-test",
             provider_keys=provider_keys,
             fallback=_resolve_fallback(
-                OpenAIDirectFallbackOptions(
-            base_url=ORIGIN_BASE_URL,
-                    enabled=enabled,
-                    timeout_seconds=2.5,
-                ),
+                config,
                 has_openai_key_source=provider_keys.get("openai") is not None,
             ),
             gateway_transport=httpx.MockTransport(gateway_handler),
@@ -463,15 +468,15 @@ def test_fallback_timeout_only_applies_to_eligible_gateway_requests():
         )
 
     disabled_client = build_client(
-        enabled=False,
+        configured=False,
         provider_keys={"openai": "sk-openai"},
     )
     keyless_client = build_client(
-        enabled=True,
+        configured=True,
         provider_keys={"openai": lambda: None},
     )
     eligible_client = build_client(
-        enabled=True,
+        configured=True,
         provider_keys={"openai": "sk-openai"},
     )
 
@@ -1308,3 +1313,20 @@ def test_openai_client_preserves_outer_retry_setting(monkeypatch):
     assert captured_builder_options["direct_timeout"] == 123.0
     assert completion.id == "chatcmpl-gateway"
     assert completion.choices[0].message.content == "ok"
+
+
+def test_fallback_destination_alone_enables_without_an_enable_flag():
+    resolved = _resolve_fallback(
+        OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
+        has_openai_key_source=True,
+    )
+    assert resolved.enabled is True
+    assert resolved.base_url == ORIGIN_BASE_URL
+
+
+def test_fallback_destination_without_an_openai_key_is_rejected():
+    with pytest.raises(ValueError, match=re.escape(ERR_FALLBACK_OPENAI_KEY_REQUIRED)):
+        _resolve_fallback(
+            OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
+            has_openai_key_source=False,
+        )

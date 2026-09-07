@@ -18,12 +18,17 @@ from .context import AbtoContext, create_trace_id, get_headers, with_context
 from .policy_generated import (
     ERR_FALLBACK_BASE_URL_INVALID,
     ERR_FALLBACK_BASE_URL_REQUIRED,
+    ERR_FALLBACK_OPENAI_KEY_REQUIRED,
     ERR_FALLBACK_TIMEOUT_POSITIVE,
     ERR_GATEWAY_BASE_URL_INVALID,
     ERR_GATEWAY_BASE_URL_REQUIRED,
     HEADER_DEVICE_ID,
     HEADER_FEATURE_ID,
     ERR_API_KEY_REQUIRED,
+    ERR_API_KEY_INVALID_CHARACTERS,
+    ERR_GATEWAY_ORIGIN_REFUSED,
+    ERR_GATEWAY_REQUEST_URL_INVALID,
+    ERR_PROVIDER_KEY_INVALID_CHARACTERS,
     CIRCUIT_OPEN_SECONDS as _CIRCUIT_OPEN_SECONDS,
     DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     DIRECT_HEADER_NAMES as _DIRECT_HEADER_NAMES,
@@ -55,7 +60,6 @@ class OpenAIDirectFallbackOptions:
     """
 
     base_url: Optional[str] = None
-    enabled: Optional[bool] = None
     timeout_seconds: float = DEFAULT_FALLBACK_TIMEOUT_SECONDS
     on_timeout: bool = False
 
@@ -76,9 +80,14 @@ def _resolve_fallback(
     *,
     has_openai_key_source: bool,
 ) -> _ResolvedFallback:
-    if isinstance(config, bool):
-        options = OpenAIDirectFallbackOptions(enabled=config)
-    elif config is None:
+    # 끄는 길은 둘뿐이다: 생략하거나 False. 그 밖의 설정은 전부 "켜 달라"는 뜻으로 읽는다.
+    if config is None or config is False:
+        return _ResolvedFallback(
+            enabled=False,
+            timeout_seconds=DEFAULT_FALLBACK_TIMEOUT_SECONDS,
+            on_timeout=False,
+        )
+    if config is True:
         options = OpenAIDirectFallbackOptions()
     elif isinstance(config, OpenAIDirectFallbackOptions):
         options = config
@@ -91,33 +100,26 @@ def _resolve_fallback(
         or options.timeout_seconds <= 0
     ):
         raise ValueError(ERR_FALLBACK_TIMEOUT_POSITIVE)
-    requested = (
-        options.enabled if options.enabled is not None else has_openai_key_source
-    )
-    off = _ResolvedFallback(
-        enabled=False,
-        timeout_seconds=float(options.timeout_seconds),
-        on_timeout=options.on_timeout,
-    )
-    if not requested:
-        return off
+    # 목적지를 추측하면 provider key 가 고객이 고르지 않은 호스트로 나간다.
     if options.base_url is None:
-        # Asking for fallback without naming the destination is a configuration
-        # error, not a default to guess: the provider key would leave for a host
-        # the application never chose.
-        if config is not None:
-            raise ValueError(ERR_FALLBACK_BASE_URL_REQUIRED)
-        # Nothing was configured, so stay off rather than inventing a destination.
-        return off
+        raise ValueError(ERR_FALLBACK_BASE_URL_REQUIRED)
+    # 목적지만 있고 보낼 키가 없으면 폴백은 성립하지 않는다. 조용히 꺼 두면 장애 때야 드러난다.
+    if not has_openai_key_source:
+        raise ValueError(ERR_FALLBACK_OPENAI_KEY_REQUIRED)
     return _ResolvedFallback(
         enabled=True,
         timeout_seconds=float(options.timeout_seconds),
         on_timeout=options.on_timeout,
-        base_url=_validated_direct_base_url(options.base_url),
+        base_url=_validated_http_url(options.base_url, ERR_FALLBACK_BASE_URL_INVALID),
     )
 
 
-def _validated_direct_base_url(value: str) -> str:
+def _validated_http_url(value: str, invalid_message: str) -> str:
+    """http(s) absolute URL 만 통과시키고 끝의 slash 를 떼어 돌려준다.
+
+    credential 이 박힌 URL 은 거절한다 — 그 자격 증명이 로그와 오류에 그대로 실린다.
+    JavaScript 의 requireHttpURL 과 같은 규칙이며 오류 문구는 계약에서 생성한다.
+    """
     parsed = urlsplit(value)
     if (
         parsed.scheme not in {"http", "https"}
@@ -125,26 +127,14 @@ def _validated_direct_base_url(value: str) -> str:
         or parsed.username is not None
         or parsed.password is not None
     ):
-        raise ValueError(ERR_FALLBACK_BASE_URL_INVALID)
-    return value.rstrip("/")
-
-
-def _validated_gateway_url(value: str) -> str:
-    parsed = urlsplit(value)
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
-        raise ValueError(ERR_GATEWAY_BASE_URL_INVALID)
+        raise ValueError(invalid_message)
     return value.rstrip("/")
 
 
 def _origin(value: Any) -> Tuple[str, str, int]:
     parsed: SplitResult = urlsplit(str(value))
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise ValueError("[abto] Gateway request URL is invalid.")
+        raise ValueError(ERR_GATEWAY_REQUEST_URL_INVALID)
     default_port = 443 if parsed.scheme == "https" else 80
     return parsed.scheme, parsed.hostname.lower(), parsed.port or default_port
 
@@ -154,7 +144,7 @@ def _validated_api_key(value: str) -> str:
     if not resolved:
         raise ValueError(ERR_API_KEY_REQUIRED)
     if "\r" in resolved or "\n" in resolved:
-        raise ValueError("[abto] api_key contains invalid characters.")
+        raise ValueError(ERR_API_KEY_INVALID_CHARACTERS)
     return resolved
 
 
@@ -171,7 +161,7 @@ def resolve_provider_headers(provider_keys: Optional[ProviderKeys] = None) -> Di
         if not trimmed:
             continue
         if "\r" in trimmed or "\n" in trimmed:
-            raise ValueError(f"[abto] provider key for {provider} contains invalid characters.")
+            raise ValueError(ERR_PROVIDER_KEY_INVALID_CHARACTERS.replace("{provider}", provider))
         headers[f"x-abto-key-{provider}"] = trimmed
     return headers
 
@@ -190,13 +180,13 @@ def abto_request_hook(
 ) -> Callable[[Any], None]:
     """Inject trusted Gateway credentials and request context for one origin."""
 
-    gateway_origin = _origin(_validated_gateway_url(gateway_base_url))
+    gateway_origin = _origin(_validated_http_url(gateway_base_url, ERR_GATEWAY_BASE_URL_INVALID))
     trusted_api_key = _validated_api_key(api_key)
 
     def hook(request: Any) -> None:
         if _origin(request.url) != gateway_origin:
             raise ValueError(
-                "[abto] Refusing to send ABTO context outside the configured Gateway origin."
+                ERR_GATEWAY_ORIGIN_REFUSED
             )
         trusted_headers = get_headers()
         for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID, "traceparent"):
@@ -576,7 +566,7 @@ class Abto:
         resolved_gateway_base_url = gateway_base_url or os.getenv("ABTO_GATEWAY_BASE_URL")
         if not resolved_gateway_base_url:
             raise ValueError(ERR_GATEWAY_BASE_URL_REQUIRED)
-        self.gateway_base_url = _validated_gateway_url(resolved_gateway_base_url)
+        self.gateway_base_url = _validated_http_url(resolved_gateway_base_url, ERR_GATEWAY_BASE_URL_INVALID)
         self._fallback = _resolve_fallback(
             fallback,
             has_openai_key_source=self._provider_keys.get("openai") is not None,
