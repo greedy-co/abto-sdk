@@ -1,3 +1,4 @@
+import type { ABTO_HEADER_DEVICE_ID } from './delivery-policy.generated.js';
 import type {
   AIInteractionType,
   AIPromptSubmittedProps,
@@ -131,6 +132,12 @@ export interface TraceHeaders {
    */
   'x-abto-trace-id'?: string;
 }
+
+// 위 key 가 생성 상수와 갈라지면 typecheck 에서 막는다 — 런타임까지 가지 않는다.
+type AssertTrue<T extends true> = T;
+export type _DeviceIdHeaderMatchesContract = AssertTrue<
+  typeof ABTO_HEADER_DEVICE_ID extends keyof TraceHeaders ? true : false
+>;
 
 export interface PromptMetadata {
   promptCaptureMode?: CaptureMode;

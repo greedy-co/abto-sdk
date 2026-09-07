@@ -1,3 +1,10 @@
+import {
+  ABTO_DEFAULT_API_HOST,
+  ABTO_COLLECT_EVENTS_PATH,
+  ABTO_HEADER_DEVICE_ID,
+  ABTO_ERR_PROJECT_KEY_REQUIRED,
+  ABTO_ERR_API_HOST_INVALID_PREFIX,
+} from './delivery-policy.generated.js';
 import { installAutocapture, type AutocaptureHit } from './autocapture.js';
 import { ContextStore } from './context.js';
 import { BrowserDiagnostics } from './diagnostics.js';
@@ -33,11 +40,11 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '0.4.0';
+const SDK_VERSION = '0.4.1';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error('[abto] projectKey is required. Check your init config.');
+    throw new Error(ABTO_ERR_PROJECT_KEY_REQUIRED);
   }
 }
 
@@ -49,15 +56,15 @@ function requireValidApiHost(value: string): void {
     // Handled by the common validation below.
   }
   if (parsed === undefined || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
-    throw new Error(`[abto] apiHost is not a valid http(s) URL: "${value}"`);
+    throw new Error(`${ABTO_ERR_API_HOST_INVALID_PREFIX}"${value}"`);
   }
 }
 
 function resolveConfig<R extends EventRegistry>(config: AbtoBrowserConfig<R>): ResolvedConfig<R> {
   requireProjectKey(config.projectKey);
-  const apiHost = config.apiHost ?? 'https://api.abto.app';
+  const apiHost = config.apiHost ?? ABTO_DEFAULT_API_HOST;
   requireValidApiHost(apiHost);
-  const endpoint = `${apiHost.replace(/\/$/, '')}/v1/collect/events`;
+  const endpoint = `${apiHost.replace(/\/$/, '')}${ABTO_COLLECT_EVENTS_PATH}`;
   const environment: Environment =
     config.environment === 'development' ? 'development' : 'production';
   return {
@@ -157,7 +164,7 @@ class BrowserLlmTrace implements LlmTrace {
   // trace_id in their own envelope, so dropping this hop leaves analytics unchanged.
   getHeaders(): TraceHeaders {
     return {
-      'x-abto-device-id': this.client.getIdentity().deviceId,
+      [ABTO_HEADER_DEVICE_ID]: this.client.getIdentity().deviceId,
     };
   }
 
