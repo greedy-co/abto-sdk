@@ -39,7 +39,7 @@ void main() {
         () => AbtoConfig(projectKey: '  '),
         throwsA(predicate((e) =>
             e.toString() ==
-            '[abto] projectKey is required. Check your init config.')),
+            abtoErrProjectKeyRequired)),
       );
     });
 
@@ -48,7 +48,7 @@ void main() {
         () => AbtoConfig(projectKey: 'ek', endpoint: 'htp:/broken url'),
         throwsA(predicate((e) => e
             .toString()
-            .startsWith('[abto] endpoint is not a valid http(s) URL:'))),
+            .startsWith(abtoErrEndpointInvalidPrefix))),
       );
     });
 
@@ -59,7 +59,7 @@ void main() {
             endpoint: 'http://collector.example/v1/collect/events'),
         throwsA(predicate((e) =>
             e.toString() ==
-            '[abto] endpoint must use HTTPS outside development loopback.')),
+            abtoErrEndpointHttpsRequired)),
       );
       expect(
         AbtoConfig(
@@ -75,12 +75,12 @@ void main() {
       expect(
         () => AbtoConfig(projectKey: 'ek', batchSize: 0),
         throwsA(predicate((e) =>
-            e.toString() == '[abto] batchSize must be between 1 and 100.')),
+            e.toString() == abtoErrBatchSizeRange)),
       );
       expect(
         () => AbtoConfig(projectKey: 'ek', batchSize: 101),
         throwsA(predicate((e) =>
-            e.toString() == '[abto] batchSize must be between 1 and 100.')),
+            e.toString() == abtoErrBatchSizeRange)),
       );
     });
   });
