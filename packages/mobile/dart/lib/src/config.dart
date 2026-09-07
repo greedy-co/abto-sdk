@@ -44,9 +44,8 @@ class AbtoConfig {
           '$abtoErrEndpointInvalidPrefix"$raw"');
     }
     final developmentLoopback = environment == AbtoEnvironment.development &&
-        (parsed.host == 'localhost' ||
-            parsed.host == '::1' ||
-            parsed.host.startsWith('127.'));
+        (abtoLoopbackHosts.contains(parsed.host) ||
+            abtoLoopbackHostPrefixes.any(parsed.host.startsWith));
     if (parsed.scheme == 'http' && !developmentLoopback) {
       throw AbtoInitException(
           abtoErrEndpointHttpsRequired);

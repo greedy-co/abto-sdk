@@ -5,7 +5,6 @@ import 'transport.dart';
 
 const _metricAbsoluteLimit = 1e38;
 const _metricMaxFractionDigits = 12;
-const _maxScaleLength = 16;
 const _envelopeContextKeys = <String, String>{
   'trace_id': r'$trace_id',
   'feature_id': r'$feature_id',
@@ -31,7 +30,7 @@ num? abtoMetricValue(num? value) {
 }
 
 String? abtoScaleValue(String? value) =>
-    value != null && value.length <= _maxScaleLength ? value : null;
+    value != null && value.length <= abtoScaleMaxLength ? value : null;
 
 String? abtoEventNameIssue(String event, {bool allowSystemEvent = false}) {
   if (event.trim().isEmpty) return 'must not be blank';

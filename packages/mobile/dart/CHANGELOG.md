@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- See the [dart-v0.5.2 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v0.5.2).
+
 ## 0.5.1
 
 - See the [dart-v0.5.1 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v0.5.1).

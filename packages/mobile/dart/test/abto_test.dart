@@ -10,7 +10,24 @@ import 'package:test/test.dart';
 final uuidV7Pattern = RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
 
+final _covered = <String>{};
+
+/// 이 test 가 증명하는 공통 시나리오를 기록한다. 목록의 정본은 계약이다.
+void covers(String scenario) {
+  assert(abtoConformanceScenarios.contains(scenario), 'unknown scenario: $scenario');
+  _covered.add(scenario);
+}
+
 void main() {
+  tearDownAll(() {
+    final missing = abtoConformanceScenarios
+        .where((s) =>
+            !_covered.contains(s) && !abtoConformanceExemptions.contains(s))
+        .toList();
+    expect(missing, isEmpty,
+        reason: 'client conformance scenarios not covered by this SDK: $missing');
+  });
+
   test('response interaction runtime validation uses the generated contract',
       () {
     expect(AbtoResponseInteraction.fromWireValue('copied'),
@@ -35,6 +52,7 @@ void main() {
     });
 
     test('rejects an empty projectKey', () {
+      covers('config.project_key_required');
       expect(
         () => AbtoConfig(projectKey: '  '),
         throwsA(predicate((e) =>
@@ -44,6 +62,7 @@ void main() {
     });
 
     test('rejects a malformed endpoint', () {
+      covers('config.endpoint_must_be_url');
       expect(
         () => AbtoConfig(projectKey: 'ek', endpoint: 'htp:/broken url'),
         throwsA(predicate((e) => e
@@ -53,6 +72,7 @@ void main() {
     });
 
     test('requires HTTPS outside development loopback', () {
+      covers('config.endpoint_requires_https');
       expect(
         () => AbtoConfig(
             projectKey: 'ek',
@@ -72,6 +92,7 @@ void main() {
     });
 
     test('rejects batch sizes outside the collector limit', () {
+      covers('config.batch_size_range');
       expect(
         () => AbtoConfig(projectKey: 'ek', batchSize: 0),
         throwsA(predicate((e) =>
@@ -87,6 +108,9 @@ void main() {
 
   group('context identity', () {
     test('anonymous_id persists across clients, session_id rotates', () {
+      covers('identity.anonymous_persists');
+      covers('identity.session_rotates');
+      covers('identity.uuidv7');
       final store = AbtoInMemoryStore();
       final first = AbtoContext(store);
       final second = AbtoContext(store);
@@ -97,6 +121,7 @@ void main() {
     });
 
     test('identify and reset', () {
+      covers('identity.identify_and_reset');
       final context = AbtoContext(AbtoInMemoryStore());
       context.identify('u_1', 't_1');
       expect(context.commonProperties()['user_id'], 'u_1');
@@ -120,7 +145,70 @@ void main() {
       expect(client.deviceId, isNot(beforeReset));
     });
 
+    test('rejects a reserved system event name from public capture', () {
+      covers('event.reserved_name_rejected');
+      for (final reserved in abtoReservedEventNames) {
+        expect(abtoEventNameIssue(reserved), isNotNull, reason: reserved);
+        expect(abtoEventNameIssue(reserved, allowSystemEvent: true), isNull,
+            reason: reserved);
+      }
+    });
+
+    test('omits a metric scale longer than the backend limit', () {
+      covers('event.metric_scale_limit');
+      final atLimit = 'K' * abtoScaleMaxLength;
+      expect(abtoScaleValue(atLimit), atLimit);
+      expect(abtoScaleValue('K' * (abtoScaleMaxLength + 1)), isNull);
+    });
+
+    test('drops the oldest events past the buffer cap', () async {
+      covers('transport.buffer_cap');
+      final seen = <String>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      unawaited(server.forEach((request) async {
+        final body = jsonDecode(await utf8.decodeStream(request))
+            as Map<String, dynamic>;
+        final batch = (body['batch'] as List<dynamic>).cast<Map<String, dynamic>>();
+        seen.addAll(batch.map((event) => event['event_id'] as String));
+        request.response.statusCode = HttpStatus.accepted;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'results': {
+            for (final event in batch) event['event_id'] as String: {'result': 'ok'},
+          },
+        }));
+        await request.response.close();
+      }));
+
+      try {
+        final transport = AbtoTransport(AbtoConfig(
+          projectKey: 'ek_test',
+          endpoint:
+              'http://${server.address.host}:${server.port}/v1/collect/events',
+          environment: AbtoEnvironment.development,
+          flushInterval: const Duration(days: 1),
+        ));
+        // 상한을 넘겨 적재한 뒤 전부 흘려보내면, 살아남은 것만 수집기에 닿는다.
+        final overflow = 10;
+        for (var i = 0; i < abtoMaxBufferedEvents + overflow; i++) {
+          transport.enqueue(<String, Object?>{'event_id': 'burst-$i'});
+        }
+        while (seen.length < abtoMaxBufferedEvents) {
+          final before = seen.length;
+          await transport.flush();
+          if (seen.length == before) break;
+        }
+        expect(seen.length, abtoMaxBufferedEvents);
+        // 가장 오래된 것부터 버린다 — 최신 이벤트가 더 유용하다.
+        expect(seen.contains('burst-0'), isFalse);
+        expect(seen.contains('burst-$overflow'), isTrue);
+      } finally {
+        await server.close(force: true);
+      }
+    });
+
     test('rejects overlong event names with Backend UTF-16 semantics', () {
+      covers('event.name_length_limit');
       final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
       expect(client.capture('pageview'), isFalse);
       expect(client.capture(List.filled(201, 'x').join()), isFalse);
@@ -130,6 +218,7 @@ void main() {
 
   group('trace request id join', () {
     test('attachRequestIdFromHeaders reads header case-insensitively', () {
+      covers('transport.request_id_header_case_insensitive');
       final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
       final trace = client.startLlmTrace(featureId: 'smoke.demo');
       expect(trace.featureId, 'smoke.demo');
@@ -144,6 +233,7 @@ void main() {
   group('transport result handling', () {
     test('retries only events marked retry or omitted from a 202 response',
         () async {
+      covers('transport.retry_marked_events_only');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final requestBatches = <List<dynamic>>[];
       var requestCount = 0;
@@ -206,6 +296,7 @@ void main() {
     });
 
     test('omits non-finite metric values before JSON encoding', () async {
+      covers('event.metric_non_finite_omitted');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final received = Completer<Map<String, dynamic>>();
       server.listen((request) async {
@@ -246,6 +337,7 @@ void main() {
     });
 
     test('enforces metric precision and protects SDK context', () async {
+      covers('event.metric_precision_enforced');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final received = Completer<Map<String, dynamic>>();
       server.listen((request) async {
@@ -312,6 +404,7 @@ void main() {
 
     test('serializes canonical LLM helpers without prompt or response text',
         () async {
+      covers('privacy.prompt_and_response_text_not_sent');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final received = Completer<Map<String, dynamic>>();
       server.listen((request) async {
@@ -383,6 +476,7 @@ void main() {
     });
 
     test('bounds collector response bodies before retrying', () async {
+      covers('transport.response_body_cap');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       var requestCount = 0;
       final retried = Completer<void>();
@@ -425,6 +519,7 @@ void main() {
     });
 
     test('stops retrying after the per-event attempt budget', () async {
+      covers('transport.attempt_budget_stops_retry');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       var requestCount = 0;
       server.listen((request) async {
