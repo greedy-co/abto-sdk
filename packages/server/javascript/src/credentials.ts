@@ -1,3 +1,4 @@
+import { ERR_PROVIDER_KEY_INVALID_CHARACTERS } from './policy.generated.js';
 export type { ProviderKeyName } from './policy.generated.js';
 import { PROVIDER_IDS, type ProviderKeyName } from './policy.generated.js';
 
@@ -18,7 +19,7 @@ export async function resolveProviderHeaders(
     const trimmed = value?.trim();
     if (!trimmed) continue;
     if (/[\r\n]/.test(trimmed)) {
-      throw new Error(`Provider key for ${provider} contains invalid characters.`);
+      throw new Error(ERR_PROVIDER_KEY_INVALID_CHARACTERS.replace('{provider}', provider));
     }
     headers[`X-Abto-Key-${provider}`] = trimmed;
   }

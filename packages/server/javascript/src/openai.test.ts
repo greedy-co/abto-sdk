@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ERR_FALLBACK_BASE_URL_REQUIRED,
+  ERR_API_KEY_INVALID_CHARACTERS,
+  ERR_FALLBACK_OPENAI_KEY_REQUIRED,
   ERR_GATEWAY_BASE_URL_REQUIRED,
 } from './policy.generated.js';
 import { initAbto } from './client.js';
@@ -95,7 +97,7 @@ describe('ABTO OpenAI Gateway client', () => {
 
     await expect(
       gatewayFetch('https://gateway.abto.app/v1/chat/completions'),
-    ).rejects.toThrow('ABTO API key contains invalid characters.');
+    ).rejects.toThrow(ERR_API_KEY_INVALID_CHARACTERS);
   });
 
   it('rejects a blank ABTO credential before issuing a request', async () => {
@@ -1037,8 +1039,27 @@ describe('ABTO OpenAI Gateway client', () => {
       abtoApiKey: 'abto-test',
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       providerKeys: { openai: 'sk-openai' },
-      fallback: { enabled: true },
+      fallback: true,
     })).toThrow(ERR_FALLBACK_BASE_URL_REQUIRED);
+  });
+
+  it('rejects a fallback destination with no OpenAI key to send it with', () => {
+    expect(() => initAbto({
+      abtoApiKey: 'abto-test',
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      providerKeys: { anthropic: 'sk-anthropic' },
+      fallback: { baseURL: 'https://api.openai.com/v1' },
+    })).toThrow(ERR_FALLBACK_OPENAI_KEY_REQUIRED);
+  });
+
+  it('enables fallback from a destination alone, with no enable flag', () => {
+    const abto = initAbto({
+      abtoApiKey: 'abto-test',
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: { baseURL: 'https://api.openai.com/v1' },
+    });
+    expect(abto.config.fallback).toEqual({ baseURL: 'https://api.openai.com/v1' });
   });
 
   it('leaves fallback off when only a provider key is configured', () => {

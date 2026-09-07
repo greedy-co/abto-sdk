@@ -13,11 +13,15 @@ import {
   DIRECT_PATH_SUFFIX,
   SAFE_GATEWAY_STATUSES,
   ERR_FALLBACK_BASE_URL_REQUIRED,
+  ERR_FALLBACK_OPENAI_KEY_REQUIRED,
   ERR_FALLBACK_BASE_URL_INVALID,
   ERR_FALLBACK_TIMEOUT_POSITIVE,
   ERR_GATEWAY_BASE_URL_INVALID,
   ERR_GATEWAY_BASE_URL_REQUIRED,
   ERR_API_KEY_REQUIRED,
+  ERR_GATEWAY_REQUEST_URL_INVALID,
+  ERR_GATEWAY_ORIGIN_REFUSED,
+  ERR_API_KEY_INVALID_CHARACTERS,
   HEADER_DEVICE_ID,
   HEADER_FEATURE_ID,
   HEADER_REQUEST_ID,
@@ -34,8 +38,6 @@ export interface OpenAIDirectFallbackOptions {
    * The endpoint must accept the OpenAI request path and `Authorization: Bearer`.
    */
   baseURL?: string;
-  /** Defaults to true when both an OpenAI provider key source and `baseURL` are configured. */
-  enabled?: boolean;
   /** How long to wait for a Gateway response. Defaults to 30 seconds. */
   timeoutMs?: number;
   /** Whether to retry the current timed-out request through the direct path. Defaults to false to avoid duplicate execution. */
@@ -158,26 +160,19 @@ export function resolveFallback(
   config: OpenAIDirectFallbackConfig | undefined,
   hasOpenAIKeySource: boolean,
 ): ResolvedFallback {
-  const options = typeof config === 'object' ? config : {};
-  const requested = typeof config === 'boolean'
-    ? config
-    : options.enabled ?? hasOpenAIKeySource;
-  const resolved: ResolvedFallback = {
-    enabled: false,
+  // 끄는 길은 둘뿐이다: 생략하거나 false. 그 밖의 설정은 전부 "켜 달라"는 뜻으로 읽는다.
+  if (config === undefined || config === false) {
+    return { enabled: false, timeoutMs: DEFAULT_FALLBACK_TIMEOUT_MS, onTimeout: false };
+  }
+  const options = config === true ? {} : config;
+  const resolved = {
     timeoutMs: positiveTimeout(options.timeoutMs),
     onTimeout: options.onTimeout ?? false,
   };
-  if (!requested) return resolved;
-  if (options.baseURL === undefined) {
-    // Asking for fallback without naming the destination is a configuration
-    // error, not a default to guess: the provider key would leave for a host
-    // the application never chose.
-    if (config !== undefined) {
-      throw new Error(ERR_FALLBACK_BASE_URL_REQUIRED);
-    }
-    // Nothing was configured, so stay off rather than inventing a destination.
-    return resolved;
-  }
+  // 목적지를 추측하면 provider key 가 고객이 고르지 않은 호스트로 나간다.
+  if (options.baseURL === undefined) throw new Error(ERR_FALLBACK_BASE_URL_REQUIRED);
+  // 목적지만 있고 보낼 키가 없으면 폴백은 성립하지 않는다. 조용히 꺼 두면 장애 때야 드러난다.
+  if (!hasOpenAIKeySource) throw new Error(ERR_FALLBACK_OPENAI_KEY_REQUIRED);
   return { ...resolved, enabled: true, baseURL: directBaseURL(options.baseURL) };
 }
 
@@ -186,7 +181,7 @@ function requestURL(input: string | URL | Request, baseURL: URL): URL {
   try {
     return new URL(value, baseURL);
   } catch {
-    throw new Error('[abto] Gateway request URL is invalid.');
+    throw new Error(ERR_GATEWAY_REQUEST_URL_INVALID);
   }
 }
 
@@ -416,14 +411,14 @@ export function createGatewayFetch({
   return async (input, init) => {
     const destination = requestURL(input, gatewayURL);
     if (destination.origin !== gatewayURL.origin) {
-      throw new Error('[abto] Refusing to send credentials outside the configured Gateway origin.');
+      throw new Error(ERR_GATEWAY_ORIGIN_REFUSED);
     }
     const trimmedAbtoApiKey = abtoApiKey.trim();
     if (!trimmedAbtoApiKey) {
       throw new Error('ABTO API key is required.');
     }
     if (/[\r\n]/.test(trimmedAbtoApiKey)) {
-      throw new Error('ABTO API key contains invalid characters.');
+      throw new Error(ERR_API_KEY_INVALID_CHARACTERS);
     }
     const headers = trustedBaseHeaders(input, init);
     const providerHeaders = await resolveProviderHeaders(providerKeys);
