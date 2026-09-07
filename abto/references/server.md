@@ -117,14 +117,16 @@ Do not introduce a second concurrency model only for ABTO.
 
 ## Preserve and disclose direct fallback
 
-The current Node.js and Python Calling SDKs enable direct OpenAI fallback for safely classified Gateway failures only when both an OpenAI key source and an explicit fallback base URL are configured.
-A key alone does not enable it: with no base URL the feature stays off, so never report fallback as active without confirming that value.
+The current Node.js and Python Calling SDKs enable direct OpenAI fallback for safely classified Gateway failures when a fallback base URL is configured.
+Naming that destination is what turns it on; there is no separate enable flag, and configuring nothing leaves it off.
+A base URL with no OpenAI key source fails at init, because there would be no key to send along the direct path.
+Never report fallback as active without confirming the configured base URL.
 Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
 Do not set `fallback: false` or enable timeout replay merely to make ABTO reporting simpler.
 Direct fallback returns the request to the endpoint the application called before ABTO, so its destination is customer input, never a default.
 Record the base URL each approved call path already uses and pass it as `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python); for an application that took its key straight from OpenAI, that is `https://api.openai.com/v1`.
 Tell the user plainly that without it there is no fallback: a Gateway outage makes those requests fail outright.
-Enabling fallback without it fails at init; configuring nothing leaves fallback off.
+Setting any other fallback option without it fails at init; configuring nothing leaves fallback off.
 
 The Calling SDK owns only Gateway-outage failover. Do not add Calling SDK retries or error classification for OpenAI or model-provider failures.
 Preserve the customer's native OpenAI `maxRetries` or `max_retries` setting and SDK default.
