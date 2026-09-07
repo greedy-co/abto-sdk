@@ -56,8 +56,8 @@ If a change cannot be tied to an approved customer outcome, do not make it.
   Never import a Server SDK into a client bundle or install multiple SDKs for the same runtime responsibility.
 - Prefer an existing configuration or provider-client module.
   Create one small ABTO initialization module only when no suitable module exists; do not create demonstrations, sample endpoints, generic wrappers, or future-facing abstractions.
-- For a new Browser integration, install or update to a compatible released package whose omitted `autocapture` setting emits no events, then use the Browser reference's minimal initialization without an `autocapture` flag.
-  Do not add `autocapture: { enabled: false }` once that fixed contract is available, and never enable broad automatic collection for a new integration.
+- For a new Browser integration, use the Browser reference's minimal initialization and confirm it emits no events on its own.
+  Never add broad automatic DOM collection for a new integration.
   Preserve and disclose any existing automatic event collection behavior instead of changing live collection behavior silently.
 - Use the Event SDK identity and trace helpers without emitting events.
   Starting a trace or reading trace headers does not authorize `submitPrompt`, `markResponseRendered`, `captureResponseInteraction`, or a custom `capture` call.

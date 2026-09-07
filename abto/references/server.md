@@ -44,6 +44,10 @@ const abto = initAbto({
     gemini: process.env.GEMINI_API_KEY,
   },
   gatewayBaseURL: "https://gateway.abto.app/v1",
+  fallback: {
+    // The endpoint this code called before ABTO. Required; there is no default.
+    baseURL: "https://api.openai.com/v1",
+  },
 });
 ```
 
@@ -79,7 +83,7 @@ Initialize with server-only secrets:
 
 ```python
 import os
-from abto import init_abto
+from abto import OpenAIDirectFallbackOptions, init_abto
 
 abto = init_abto(
     api_key=os.environ["ABTO_API_KEY"],
@@ -89,6 +93,8 @@ abto = init_abto(
         "anthropic": os.getenv("ANTHROPIC_API_KEY"),
         "gemini": os.getenv("GEMINI_API_KEY"),
     },
+    # The endpoint this code called before ABTO. Required; there is no default.
+    fallback=OpenAIDirectFallbackOptions(base_url="https://api.openai.com/v1"),
 )
 openai = abto.openai()
 ```
@@ -111,7 +117,8 @@ Do not introduce a second concurrency model only for ABTO.
 
 ## Preserve and disclose direct fallback
 
-When an OpenAI key source is present, the current Node.js and Python Calling SDKs enable direct OpenAI fallback by default for safely classified Gateway failures.
+The current Node.js and Python Calling SDKs enable direct OpenAI fallback for safely classified Gateway failures only when both an OpenAI key source and an explicit fallback base URL are configured.
+A key alone does not enable it: with no base URL the feature stays off, so never report fallback as active without confirming that value.
 Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
 Do not set `fallback: false` or enable timeout replay merely to make ABTO reporting simpler.
 Direct fallback returns the request to the endpoint the application called before ABTO, so its destination is customer input, never a default.

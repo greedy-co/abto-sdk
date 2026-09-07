@@ -9,6 +9,7 @@ Before checking builds, verify the interaction record:
 - Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
 - Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `featureId`.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
+- Direct fallback is reported as enabled only when an explicit fallback base URL is configured; with none set, the report states plainly that a Gateway outage fails those calls outright.
 - Every approved OpenAI call preserves its native retry setting or official SDK default; no ABTO-specific fallback attempt counter was introduced.
 - Every other native OpenAI client option is preserved unless it is a documented ABTO-owned routing, credential, or transport field; every composition, override, or rejection is disclosed.
 - A caller-provided Node.js `clientOptions.fetch` remains the underlying transport, and Python reserved arguments fail explicitly instead of being silently discarded.
@@ -40,8 +41,7 @@ Also verify:
 - If the repository already manages a lockfile for the selected package manager, update that lockfile.
 - Do not introduce a new lockfile convention only for the ABTO integration.
 - One initialization exists per application runtime.
-- A new Browser Core uses a compatible public SDK, omits the `autocapture` setting, and emits no automatic events before Event approval.
-- A fixed Browser SDK integration does not retain an unnecessary `autocapture: { enabled: false }` compatibility guard.
+- A new Browser Core uses a compatible public SDK and emits no automatic events before Event approval.
 - An existing Browser initialization retains and reports its previous automatic event collection behavior.
 - Client bundles contain only an Event Key.
 - Calling Keys and provider keys resolve only from server secret storage.
