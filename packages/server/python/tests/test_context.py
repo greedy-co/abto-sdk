@@ -1,3 +1,4 @@
+from conftest import covers
 from abto import (
     ABTO_HEADER,
     AbtoContext,
@@ -9,6 +10,7 @@ from abto import (
 
 
 def test_headers_only_include_set_identifiers():
+    covers("context.emits_only_configured_identifiers")
     headers = get_headers(AbtoContext(device_id="d1", feature_id="resume.make"))
     assert headers[ABTO_HEADER["device_id"]] == "d1"
     assert headers[ABTO_HEADER["feature_id"]] == "resume.make"
@@ -21,6 +23,7 @@ def test_trace_id_becomes_traceparent():
 
 
 def test_with_context_sets_and_resets():
+    covers("context.propagates_and_isolates")
     assert get_context().device_id is None
     with with_context(device_id="d2", feature_id="resume.make") as ctx:
         assert ctx.device_id == "d2"

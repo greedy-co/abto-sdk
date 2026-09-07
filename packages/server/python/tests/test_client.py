@@ -1,3 +1,4 @@
+from conftest import covers
 import re
 
 import pytest
@@ -29,6 +30,7 @@ class Request:
 
 
 def test_requires_abto_key_without_falling_back_to_provider_key(monkeypatch):
+    covers("config.api_key_required")
     monkeypatch.delenv("ABTO_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-provider-only")
 
@@ -37,6 +39,7 @@ def test_requires_abto_key_without_falling_back_to_provider_key(monkeypatch):
 
 
 def test_requires_an_explicit_gateway_base_url(monkeypatch):
+    covers("config.gateway_base_url_required")
     monkeypatch.delenv("ABTO_GATEWAY_BASE_URL", raising=False)
 
     with pytest.raises(ValueError, match="gateway_base_url is required"):
@@ -44,6 +47,7 @@ def test_requires_an_explicit_gateway_base_url(monkeypatch):
 
 
 def test_reads_the_gateway_base_url_from_the_environment(monkeypatch):
+    covers("config.gateway_base_url_from_env")
     monkeypatch.setenv("ABTO_GATEWAY_BASE_URL", PUBLIC_GATEWAY_BASE_URL)
 
     abto = init_abto(api_key="abto-test")
@@ -52,6 +56,7 @@ def test_reads_the_gateway_base_url_from_the_environment(monkeypatch):
 
 
 def test_hook_rejects_cross_origin_before_adding_context():
+    covers("security.rejects_cross_origin_request")
     hook = abto_request_hook("https://gateway.abto.app/v1", api_key="abto-test")
     request = Request("https://attacker.example/steal")
 
@@ -61,6 +66,7 @@ def test_hook_rejects_cross_origin_before_adding_context():
 
 
 def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
+    covers("security.replaces_spoofed_context_headers")
     abto = init_abto(
         api_key="abto-test",
         gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
@@ -110,6 +116,7 @@ def test_hook_adds_gateway_authorization_without_request_context():
 
 
 def test_hook_rejects_provider_key_header_injection():
+    covers("security.rejects_provider_key_injection")
     abto = init_abto(
         api_key="abto-test",
         gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
@@ -122,6 +129,7 @@ def test_hook_rejects_provider_key_header_injection():
 
 
 def test_direct_fallback_preserves_request_and_strips_abto_headers():
+    covers("fallback.switches_on_connect_failure")
     httpx = pytest.importorskip("httpx")
     gateway_requests = []
     direct_requests = []
@@ -232,6 +240,7 @@ def test_direct_fallback_preserves_the_request_timeout():
 
 
 def test_direct_fallback_targets_the_configured_endpoint_not_openai():
+    covers("fallback.sends_to_configured_destination")
     httpx = pytest.importorskip("httpx")
     origin = "https://llm.internal.example.com/openai/v1"
     seen = []
@@ -398,6 +407,7 @@ def test_missing_runtime_openai_key_does_not_buffer_the_request():
 
 
 def test_callable_provider_key_is_resolved_once_per_request():
+    covers("provider_key.resolved_per_request")
     httpx = pytest.importorskip("httpx")
     resolver_calls = 0
 
@@ -583,6 +593,7 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
     ],
 )
 def test_only_admission_503_falls_back(headers, expected_direct_calls):
+    covers("fallback.switches_on_admission_503")
     httpx = pytest.importorskip("httpx")
     direct_calls = 0
 
@@ -620,6 +631,7 @@ def test_only_admission_503_falls_back(headers, expected_direct_calls):
 
 
 def test_timeout_does_not_open_direct_circuit_without_explicit_opt_in():
+    covers("fallback.no_switch_on_ambiguous_timeout")
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -668,6 +680,7 @@ def test_timeout_does_not_open_direct_circuit_without_explicit_opt_in():
 
 
 def test_ambiguous_disconnect_does_not_open_direct_circuit():
+    covers("fallback.no_switch_on_ambiguous_disconnect")
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -716,6 +729,7 @@ def test_ambiguous_disconnect_does_not_open_direct_circuit():
 
 
 def test_timeout_can_replay_current_request_when_explicitly_enabled():
+    covers("fallback.replays_timeout_when_opted_in")
     httpx = pytest.importorskip("httpx")
     direct_calls = 0
 
@@ -912,6 +926,7 @@ def test_half_open_pool_timeout_releases_the_probe_slot():
 
 
 def test_keyless_gateway_recovery_closes_the_completion_circuit():
+    covers("circuit.closes_on_gateway_recovery")
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -1026,6 +1041,7 @@ def test_unrelated_gateway_success_does_not_close_completion_circuit():
 
 
 def test_separate_openai_clients_can_share_the_completion_circuit():
+    covers("circuit.shared_across_clients")
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -1084,6 +1100,7 @@ def test_separate_openai_clients_can_share_the_completion_circuit():
 
 
 def test_direct_openai_error_is_returned_without_retry_or_reclassification():
+    covers("fallback.direct_error_returned_as_is")
     httpx = pytest.importorskip("httpx")
     gateway_calls = 0
     direct_calls = 0
@@ -1131,6 +1148,7 @@ def test_fallback_defaults_off_without_an_openai_key_source():
 
 
 def test_fallback_configuration_is_validated():
+    covers("fallback.timeout_validated")
     for invalid_timeout in (0, float("nan"), float("inf"), float("-inf")):
         with pytest.raises(ValueError, match="fallback.timeout_seconds"):
             init_abto(
@@ -1144,6 +1162,7 @@ def test_fallback_configuration_is_validated():
 
 
 def test_fallback_requires_a_destination():
+    covers("fallback.destination_required")
     with pytest.raises(ValueError, match="fallback.base_url is required"):
         init_abto(
             api_key="abto-test",
@@ -1161,6 +1180,7 @@ def test_fallback_requires_a_destination():
 
 
 def test_fallback_stays_off_when_no_destination_is_configured():
+    covers("fallback.off_when_unconfigured")
     abto = init_abto(
         api_key="abto-test",
         gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
@@ -1231,6 +1251,7 @@ def test_stream_failure_after_response_headers_is_not_replayed():
 
 
 def test_openai_client_keeps_official_retry_default(monkeypatch):
+    covers("retry.official_default_preserved")
     httpx = pytest.importorskip("httpx")
     openai_module = pytest.importorskip("openai")
     http_client = httpx.Client(
@@ -1256,6 +1277,7 @@ def test_openai_client_keeps_official_retry_default(monkeypatch):
 
 
 def test_openai_client_preserves_outer_retry_setting(monkeypatch):
+    covers("retry.caller_setting_preserved")
     httpx = pytest.importorskip("httpx")
     pytest.importorskip("openai")
 
@@ -1316,6 +1338,7 @@ def test_openai_client_preserves_outer_retry_setting(monkeypatch):
 
 
 def test_fallback_destination_alone_enables_without_an_enable_flag():
+    covers("fallback.destination_alone_enables")
     resolved = _resolve_fallback(
         OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
         has_openai_key_source=True,
@@ -1325,6 +1348,7 @@ def test_fallback_destination_alone_enables_without_an_enable_flag():
 
 
 def test_fallback_destination_without_an_openai_key_is_rejected():
+    covers("fallback.rejected_without_openai_key")
     with pytest.raises(ValueError, match=re.escape(ERR_FALLBACK_OPENAI_KEY_REQUIRED)):
         _resolve_fallback(
             OpenAIDirectFallbackOptions(base_url=ORIGIN_BASE_URL),
