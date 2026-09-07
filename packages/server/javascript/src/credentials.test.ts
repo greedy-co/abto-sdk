@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { covers } from './conformance.js';
 import { describe, expect, it } from 'vitest';
 import { resolveProviderHeaders } from './credentials.js';
 
@@ -26,6 +27,7 @@ describe('provider credential headers', () => {
   });
 
   it('rejects provider keys containing line breaks', async () => {
+    covers('security.rejects_provider_key_injection');
     await expect(
       resolveProviderHeaders({ openai: 'sk-safe\r\nX-Leaked: value' }),
     ).rejects.toThrow('Provider key for openai contains invalid characters.');

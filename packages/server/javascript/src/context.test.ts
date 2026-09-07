@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { covers } from './conformance.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initAbto } from './client.js';
 import {
@@ -83,6 +84,7 @@ describe('server context headers', () => {
   });
 
   it('emits only gateway-owned identity headers from explicit context', () => {
+    covers('context.emits_only_configured_identifiers');
     const headers = getAbtoHeaders({
       deviceId: 'device-1',
       featureId: 'chat.default',
@@ -136,6 +138,7 @@ describe('server context headers', () => {
   });
 
   it('keeps sibling async contexts isolated', async () => {
+    covers('context.propagates_and_isolates');
     const abto = initAbto();
 
     const [first, second] = await Promise.all([
@@ -201,6 +204,7 @@ describe('server context headers', () => {
   });
 
   it('shares the fallback circuit across customized OpenAI clients', async () => {
+    covers('circuit.shared_across_clients');
     const hosts: string[] = [];
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
       const request = input instanceof Request ? input : new Request(input, init);

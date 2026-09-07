@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { covers } from './conformance.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -66,6 +67,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('resolves Provider credentials again for every request', async () => {
+    covers('provider_key.resolved_per_request');
     let currentKey = 'sk-first';
     const capturedKeys: string[] = [];
     const gatewayFetch = createGatewayFetch({
@@ -89,6 +91,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('rejects invalid ABTO credentials before issuing a request', async () => {
+    covers('config.api_key_required');
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-safe\nX-Leaked: value',
@@ -135,6 +138,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('leaves the official OpenAI retry default unset when the caller does not configure it', () => {
+    covers('retry.official_default_preserved');
     const options = buildOpenAIClientOptions({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
@@ -145,6 +149,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('rejects absolute requests outside the configured Gateway origin before resolving keys', async () => {
+    covers('security.rejects_cross_origin_request');
     let providerKeyResolved = false;
     let requestIssued = false;
     const gatewayFetch = createGatewayFetch({
@@ -170,6 +175,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('preserves ordinary Request headers but replaces reserved credential headers', async () => {
+    covers('security.replaces_spoofed_context_headers');
     let capturedHeaders: Headers | undefined;
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -199,6 +205,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('falls back directly on a connection failure and preserves the OpenAI request', async () => {
+    covers('fallback.switches_on_connect_failure');
     const requests: Request[] = [];
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -354,6 +361,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('falls back on an admission 503 but not on provider or transport failures', async () => {
+    covers('fallback.switches_on_admission_503');
     const scenarios = [
       {
         headers: { 'x-abto-request-id': 'req-admission' },
@@ -405,6 +413,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('does not open the direct circuit on an ambiguous timeout by default', async () => {
+    covers('fallback.no_switch_on_ambiguous_timeout');
     const urls: string[] = [];
     let gatewayCalls = 0;
     const gatewayFetch = createGatewayFetch({
@@ -572,6 +581,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('closes a stale circuit after a keyless Gateway recovery', async () => {
+    covers('circuit.closes_on_gateway_recovery');
     let currentKey: string | undefined = 'sk-openai';
     let gatewayCalls = 0;
     let directCalls = 0;
@@ -623,6 +633,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('does not open the direct circuit after an ambiguous disconnect', async () => {
+    covers('fallback.no_switch_on_ambiguous_disconnect');
     let gatewayCalls = 0;
     let directCalls = 0;
     const gatewayFetch = createGatewayFetch({
@@ -705,6 +716,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('can opt into direct fallback for the timed-out current request', async () => {
+    covers('fallback.replays_timeout_when_opted_in');
     const urls: string[] = [];
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -734,6 +746,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('returns a direct OpenAI error without retrying or reclassifying it', async () => {
+    covers('fallback.direct_error_returned_as_is');
     let gatewayCalls = 0;
     let directCalls = 0;
     const gatewayFetch = createGatewayFetch({
@@ -764,6 +777,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('sends the direct request to the caller-supplied endpoint, not to OpenAI', async () => {
+    covers('fallback.sends_to_configured_destination');
     const urls: string[] = [];
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -793,6 +807,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('refuses to enable direct fallback without a destination', () => {
+    covers('fallback.destination_required');
     expect(() => createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
@@ -809,6 +824,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('stays off instead of guessing a destination when fallback is unconfigured', async () => {
+    covers('fallback.off_when_unconfigured');
     const urls: string[] = [];
     const gatewayFetch = createGatewayFetch({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -880,6 +896,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('validates direct fallback timeout settings', () => {
+    covers('fallback.timeout_validated');
     expect(() =>
       createGatewayFetch({
         gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -950,6 +967,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('preserves the OpenAI SDK retry setting across direct fallback', async () => {
+    covers('retry.caller_setting_preserved');
     const urls: string[] = [];
     let directCalls = 0;
     vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -1026,6 +1044,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('requires gatewayBaseURL instead of accepting the legacy baseURL alias', async () => {
+    covers('config.gateway_base_url_required');
     await expect(
       createAbtoOpenAI({
         baseURL: 'https://gateway.abto.app/v1',
@@ -1044,6 +1063,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('rejects a fallback destination with no OpenAI key to send it with', () => {
+    covers('fallback.rejected_without_openai_key');
     expect(() => initAbto({
       abtoApiKey: 'abto-test',
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -1053,6 +1073,7 @@ describe('ABTO OpenAI Gateway client', () => {
   });
 
   it('enables fallback from a destination alone, with no enable flag', () => {
+    covers('fallback.destination_alone_enables');
     const abto = initAbto({
       abtoApiKey: 'abto-test',
       gatewayBaseURL: 'https://gateway.abto.app/v1',
@@ -1068,6 +1089,20 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       providerKeys: { openai: 'sk-openai' },
     })).not.toThrow();
+  });
+
+
+  it('reads the Gateway base URL from the environment when config omits it', async () => {
+    covers('config.gateway_base_url_from_env');
+    const previous = process.env.ABTO_GATEWAY_BASE_URL;
+    process.env.ABTO_GATEWAY_BASE_URL = 'https://env-gateway.abto.app/v1';
+    try {
+      const abto = initAbto({ abtoApiKey: 'abto-test', providerKeys: { openai: 'sk-openai' } });
+      expect(abto.config.gatewayBaseURL).toBe('https://env-gateway.abto.app/v1');
+    } finally {
+      if (previous === undefined) delete process.env.ABTO_GATEWAY_BASE_URL;
+      else process.env.ABTO_GATEWAY_BASE_URL = previous;
+    }
   });
 
 });
