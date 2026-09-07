@@ -19,6 +19,14 @@ package func abtoRetryEventIDs(responseData: Data, eventIDs: [String]) -> Set<St
     })
 }
 
+/// 적재 상한을 적용한다. 넘치면 가장 오래된 것부터 버린다 — 최신 이벤트가 더 유용하다.
+/// 순수 함수라 검증이 transport 를 띄우지 않고 이 규칙만 확인한다.
+package func abtoCapBuffer<Element>(_ buffer: [Element]) -> [Element] {
+    buffer.count > abtoMaxBufferedEvents
+        ? Array(buffer.suffix(abtoMaxBufferedEvents))
+        : buffer
+}
+
 package func abtoRetryEligible(
     attempts: Int,
     firstQueuedAt: Date,
@@ -41,6 +49,7 @@ final class AbtoTransport: @unchecked Sendable {
     }
 
     private var buffer: [QueuedEvent] = []
+
     private var timer: DispatchSourceTimer?
     private let session: URLSession
 
@@ -57,9 +66,7 @@ final class AbtoTransport: @unchecked Sendable {
             self.buffer.append(QueuedEvent(data: encodedEvent, firstQueuedAt: Date(), attempts: 0))
             // Cap at production time so a dead endpoint cannot grow memory without bound.
             // On overflow the oldest events go first: recent ones are more useful.
-            if self.buffer.count > abtoMaxBufferedEvents {
-                self.buffer.removeFirst(self.buffer.count - abtoMaxBufferedEvents)
-            }
+            self.buffer = abtoCapBuffer(self.buffer)
             if self.buffer.count >= self.config.batchSize {
                 self.flushLocked()
             } else {

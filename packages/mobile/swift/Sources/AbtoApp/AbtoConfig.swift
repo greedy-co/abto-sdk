@@ -53,7 +53,7 @@ public struct AbtoConfig {
         }
         let host = url.host?.lowercased()
         let developmentLoopback = environment == .development
-            && (host == "localhost" || host == "::1" || host?.hasPrefix("127.") == true)
+            && (abtoLoopbackHosts.contains(host ?? "") || abtoLoopbackHostPrefixes.contains { host?.hasPrefix($0) == true })
         guard scheme == "https" || developmentLoopback else {
             throw AbtoInitError.invalidConfig(abtoErrEndpointHTTPSRequired)
         }

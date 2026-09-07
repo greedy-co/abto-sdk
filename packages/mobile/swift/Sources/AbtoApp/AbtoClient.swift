@@ -2,7 +2,6 @@ import Foundation
 
 private let abtoMetricAbsoluteLimit = 1e38
 private let abtoMetricMaxFractionDigits = 12
-private let abtoMaxScaleLength = 16
 private let abtoEnvelopeContextKeys = [
     "trace_id": "$trace_id",
     "feature_id": "$feature_id",
@@ -32,7 +31,7 @@ package func abtoMetricValue(_ value: Double?) -> Double? {
 }
 
 package func abtoScaleValue(_ value: String?) -> String? {
-    guard let value, value.utf16.count <= abtoMaxScaleLength else { return nil }
+    guard let value, value.utf16.count <= abtoScaleMaxLength else { return nil }
     return value
 }
 
