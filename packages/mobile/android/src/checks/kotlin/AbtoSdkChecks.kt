@@ -1,3 +1,7 @@
+import app.abto.sdk.ABTO_ERR_BATCH_SIZE_RANGE
+import app.abto.sdk.ABTO_ERR_ENDPOINT_HTTPS_REQUIRED
+import app.abto.sdk.ABTO_ERR_ENDPOINT_INVALID_PREFIX
+import app.abto.sdk.ABTO_ERR_PROJECT_KEY_REQUIRED
 import app.abto.sdk.ABTO_MAX_ATTEMPTS
 import app.abto.sdk.AbtoClient
 import app.abto.sdk.AbtoConfig
@@ -53,28 +57,28 @@ fun main() {
         AbtoConfig(projectKey = "  ")
         check(false, "empty projectKey rejected")
     } catch (e: AbtoInitException) {
-        check(e.message == "[abto] projectKey is required. Check your init config.", "empty projectKey rejected")
+        check(e.message == ABTO_ERR_PROJECT_KEY_REQUIRED, "empty projectKey rejected")
     }
 
     try {
         AbtoConfig(projectKey = "ek", endpoint = "htp:/broken url")
         check(false, "malformed endpoint rejected")
     } catch (e: AbtoInitException) {
-        check(e.message!!.startsWith("[abto] endpoint is not a valid http(s) URL:"), "malformed endpoint rejected")
+        check(e.message!!.startsWith(ABTO_ERR_ENDPOINT_INVALID_PREFIX), "malformed endpoint rejected")
     }
 
     try {
         AbtoConfig(projectKey = "ek", endpoint = "https:/collector")
         check(false, "endpoint without authority rejected")
     } catch (e: AbtoInitException) {
-        check(e.message!!.startsWith("[abto] endpoint is not a valid http(s) URL:"), "endpoint without authority rejected")
+        check(e.message!!.startsWith(ABTO_ERR_ENDPOINT_INVALID_PREFIX), "endpoint without authority rejected")
     }
 
     try {
         AbtoConfig(projectKey = "ek", endpoint = "http://collector.example/v1/collect/events")
         check(false, "production cleartext endpoint rejected")
     } catch (e: AbtoInitException) {
-        check(e.message == "[abto] endpoint must use HTTPS outside development loopback.", "production cleartext endpoint rejected")
+        check(e.message == ABTO_ERR_ENDPOINT_HTTPS_REQUIRED, "production cleartext endpoint rejected")
     }
     check(
         AbtoConfig(
@@ -90,7 +94,7 @@ fun main() {
             AbtoConfig(projectKey = "ek", batchSize = invalidBatchSize)
             check(false, "batchSize $invalidBatchSize rejected")
         } catch (e: AbtoInitException) {
-            check(e.message == "[abto] batchSize must be between 1 and 100.", "batchSize $invalidBatchSize rejected")
+            check(e.message == ABTO_ERR_BATCH_SIZE_RANGE, "batchSize $invalidBatchSize rejected")
         }
     }
 
