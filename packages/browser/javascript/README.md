@@ -169,7 +169,7 @@ const abto = initAbto({
 }
 ```
 
-모든 collector 요청은 public project key를 Bearer header에 싣는다. 페이지 이탈도 응답을 읽을 수 있는 `fetch(..., { keepalive: true })`를 사용하며, 서버가 이 key에서 `project_id`와 `account_id`를 결정한다. `$tenant_id`를 포함한 client property는 분석 문맥이며 인증·project 귀속 값이 아니다.
+모든 collector 요청은 public project key를 Bearer header에 싣는다. 페이지 이탈도 응답을 읽을 수 있는 `fetch(..., { keepalive: true })`를 사용하며, 서버가 이 key에서 `project_id`와 `organization_id`를 결정한다. `$tenant_id`를 포함한 client property는 분석 문맥이며 인증·project 귀속 값이 아니다.
 
 수신 계약의 상한은 요청당 100 events다. SDK 기본값은 20이며 약 60 KiB 이하 payload만 keepalive로 전송한다. malformed request와 인증 실패는 요청 단위 4xx, 개별 validation/storage 실패는 2xx 응답의 UUID별 `warning`, `drop`, `retry`로 처리한다.
 커스텀 `event_name`은 Backend와 같은 UTF-16 기준 최대 200자이며, `defineEvents()`와 runtime capture가 enqueue 전에 검증한다.
