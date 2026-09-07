@@ -15,20 +15,20 @@ class AbtoConfig(
     endpoint: String? = null,
     val environment: AbtoEnvironment = AbtoEnvironment.PRODUCTION,
     debug: Boolean? = null,
-    val batchSize: Int = 20,
-    val flushIntervalMs: Long = 5_000,
+    val batchSize: Int = ABTO_DEFAULT_BATCH_SIZE,
+    val flushIntervalMs: Long = ABTO_DEFAULT_FLUSH_INTERVAL_MS,
 ) {
     val endpoint: String
     val debug: Boolean
 
     init {
         if (projectKey.isBlank()) {
-            throw AbtoInitException("[abto] projectKey is required. Check your init config.")
+            throw AbtoInitException(ABTO_ERR_PROJECT_KEY_REQUIRED)
         }
-        if (batchSize !in 1..100) {
-            throw AbtoInitException("[abto] batchSize must be between 1 and 100.")
+        if (batchSize !in ABTO_MIN_BATCH_SIZE..ABTO_MAX_BATCH_SIZE) {
+            throw AbtoInitException(ABTO_ERR_BATCH_SIZE_RANGE)
         }
-        val raw = endpoint ?: "https://api.abto.app/v1/collect/events"
+        val raw = endpoint ?: ABTO_DEFAULT_COLLECT_ENDPOINT
         // Allow only HTTP(S) endpoints, matching Browser SDK validation.
         val parsed = try {
             URI(raw)
@@ -38,13 +38,13 @@ class AbtoConfig(
         val scheme = parsed?.scheme?.lowercase()
         val host = parsed?.host?.lowercase()
         if ((scheme != "http" && scheme != "https") || host.isNullOrBlank()) {
-            throw AbtoInitException("[abto] endpoint is not a valid http(s) URL: \"$raw\"")
+            throw AbtoInitException("$ABTO_ERR_ENDPOINT_INVALID_PREFIX\"$raw\"")
         }
         val developmentLoopback =
             environment == AbtoEnvironment.DEVELOPMENT &&
                 (host == "localhost" || host == "::1" || host.startsWith("127."))
         if (scheme == "http" && !developmentLoopback) {
-            throw AbtoInitException("[abto] endpoint must use HTTPS outside development loopback.")
+            throw AbtoInitException(ABTO_ERR_ENDPOINT_HTTPS_REQUIRED)
         }
         this.endpoint = raw
         this.debug = debug ?: (environment == AbtoEnvironment.DEVELOPMENT)

@@ -214,7 +214,7 @@ class AbtoLlmTrace internal constructor(
     ) {
         val canonical = AbtoResponseInteraction.fromWireValue(interactionType)
         if (canonical == null) {
-            System.err.println("[abto] response interaction was dropped: unsupported canonical type. Use a custom event for other product actions.")
+            System.err.println(ABTO_ERR_INTERACTION_DROPPED)
             return
         }
         captureCanonicalOutcome(canonical.wireValue, responseId, extra)
