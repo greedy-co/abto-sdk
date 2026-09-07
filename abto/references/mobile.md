@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("app.abto:abto-app:0.5.1")
+    implementation("app.abto:abto-app:0.5.2")
 }
 ```
 
@@ -51,7 +51,7 @@ Add the public Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.5.1"
+    from: "0.5.2"
 )
 ```
 
@@ -80,6 +80,8 @@ identify user
 → optionally capture the selected visible response or product outcome
 → flush selected events during a lifecycle-safe background opportunity
 ```
+
+If a cleartext `endpoint` fails at initialization, point it at an HTTPS endpoint instead of switching the customer to development mode.
 
 Use the SDK's `deviceId` as the Gateway `x-abto-device-id`.
 Do not generate a separate server device identifier for the same app installation.
