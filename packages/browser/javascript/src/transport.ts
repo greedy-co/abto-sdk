@@ -13,6 +13,7 @@ import {
   ABTO_SCALE_MAX_LENGTH,
 } from './delivery-policy.generated.js';
 import type { BrowserDiagnostics } from './diagnostics.js';
+import { BrowserOutbox } from './outbox.js';
 
 type TransportConfig = Pick<ResolvedConfig, 'endpoint' | 'projectKey'>;
 
@@ -21,11 +22,6 @@ const FLUSH_INTERVAL_MS = 5000;
 const MAX_KEEPALIVE_BYTES = 60 * 1024;
 const RETRY_BASE_MS = 1000;
 const METRIC_ABSOLUTE_LIMIT = 1e38;
-
-interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
 
 type BatchResponse = Partial<BrowserEventBatchResponse>;
 
@@ -69,30 +65,6 @@ function toBackendEvent(event: CapturedEvent): BrowserIngestEvent {
   };
 }
 
-function resolveStorage(diagnostics: BrowserDiagnostics | undefined): StorageLike | undefined {
-  try {
-    const storage = globalThis.localStorage;
-    if (storage === undefined) diagnostics?.record('storage_unavailable');
-    return storage;
-  } catch {
-    diagnostics?.record('storage_unavailable');
-    return undefined;
-  }
-}
-
-function isCapturedEvent(value: unknown): value is CapturedEvent {
-  if (value === null || typeof value !== 'object') return false;
-  const event = value as Partial<CapturedEvent>;
-  return (
-    typeof event.uuid === 'string' &&
-    typeof event.event === 'string' &&
-    typeof event.timestamp === 'string' &&
-    typeof event.distinct_id === 'string' &&
-    event.properties !== null &&
-    typeof event.properties === 'object'
-  );
-}
-
 function byteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
@@ -109,16 +81,15 @@ export class Transport {
   private disposed = false;
   private detachLifecycle: (() => void) | undefined;
   private readonly cfg: TransportConfig;
-  private readonly storage: StorageLike | undefined;
-  private readonly outboxKey: string;
+  private readonly outbox: BrowserOutbox;
+  private readonly unpersisted = new Set<string>();
   private readonly diagnostics: BrowserDiagnostics | undefined;
 
   constructor(cfg: TransportConfig, diagnostics?: BrowserDiagnostics) {
     this.cfg = cfg;
     this.diagnostics = diagnostics;
-    this.storage = resolveStorage(this.diagnostics);
-    this.outboxKey = `abto:outbox:v1:${encodeURIComponent(cfg.projectKey)}`;
-    this.queue = this.readOutbox();
+    this.outbox = new BrowserOutbox(cfg.projectKey, diagnostics);
+    this.queue = this.outbox.read();
     this.installLifecycleHooks();
     if (this.queue.length > 0) this.armTimer();
   }
@@ -126,8 +97,8 @@ export class Transport {
   enqueue(event: CapturedEvent): void {
     if (this.disposed) return;
     this.queue.push(event);
+    if (!this.outbox.put(event)) this.unpersisted.add(event.uuid);
     this.trimQueue();
-    this.persist();
     if (this.queue.length >= BATCH_SIZE) void this.flush();
     else this.armTimer();
   }
@@ -156,10 +127,11 @@ export class Transport {
 
   discard(): void {
     this.queue = [];
+    this.unpersisted.clear();
     this.retryAttempt = 0;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
-    this.persist();
+    this.outbox.clear();
   }
 
   private armTimer(delay = FLUSH_INTERVAL_MS): void {
@@ -171,6 +143,10 @@ export class Transport {
   }
 
   private async flushBatch(useKeepalive: boolean): Promise<void> {
+    // Retry only never-persisted entries; rewriting snapshots would resurrect another tab's acknowledgements.
+    for (const event of this.queue) {
+      if (this.unpersisted.has(event.uuid) && this.outbox.put(event)) this.unpersisted.delete(event.uuid);
+    }
     const batch = this.selectBatch();
     const envelope = { batch: batch.map(toBackendEvent) };
     const envelopeBody = JSON.stringify(envelope);
@@ -245,10 +221,11 @@ export class Transport {
 
   private acknowledge(uuids: readonly string[], scheduleNext = true): void {
     const acknowledged = new Set(uuids);
+    for (const uuid of uuids) this.unpersisted.delete(uuid);
     this.queue = this.queue.filter((event) => !acknowledged.has(event.uuid));
     // Preserve the backoff step when a batch receives only per-event retries.
     if (acknowledged.size > 0) this.retryAttempt = 0;
-    this.persist();
+    this.outbox.remove(uuids);
     if (scheduleNext && this.queue.length > 0) this.armTimer(0);
   }
 
@@ -263,34 +240,10 @@ export class Transport {
 
   private trimQueue(): void {
     if (this.queue.length > ABTO_MAX_BUFFERED_EVENTS) {
+      const dropped = this.queue.slice(0, -ABTO_MAX_BUFFERED_EVENTS);
       this.queue = this.queue.slice(-ABTO_MAX_BUFFERED_EVENTS);
-    }
-  }
-
-  private readOutbox(): CapturedEvent[] {
-    if (this.storage === undefined) return [];
-    let raw: string | null;
-    try {
-      raw = this.storage.getItem(this.outboxKey);
-    } catch {
-      this.diagnostics?.record('storage_unavailable');
-      return [];
-    }
-    if (raw === null) return [];
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.filter(isCapturedEvent).slice(-ABTO_MAX_BUFFERED_EVENTS) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private persist(): void {
-    if (this.storage === undefined) return;
-    try {
-      this.storage.setItem(this.outboxKey, JSON.stringify(this.queue));
-    } catch {
-      this.diagnostics?.record('outbox_write_failed');
+      for (const event of dropped) this.unpersisted.delete(event.uuid);
+      this.outbox.remove(dropped.map((event) => event.uuid));
     }
   }
 

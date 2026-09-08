@@ -1,3 +1,4 @@
+import { BrowserOutbox } from './outbox.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initAbto } from './client.js';
 import { defineEvents } from './event-registry.js';
@@ -58,12 +59,12 @@ describe('Browser event envelope and identity', () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     sdk.capture('user_action', { name: 'queued' });
-    expect(JSON.parse(localStorage.getItem('abto:outbox:v1:public_project_key') ?? '[]')).toHaveLength(1);
+    expect(new BrowserOutbox('public_project_key').read()).toHaveLength(1);
 
     sdk.forgetDevice();
     await sdk.flush();
 
-    expect(JSON.parse(localStorage.getItem('abto:outbox:v1:public_project_key') ?? '[]')).toEqual([]);
+    expect(new BrowserOutbox('public_project_key').read()).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
     sdk.shutdown();
   });

@@ -29,6 +29,63 @@ class FailingReadStorage extends MemoryStorage {
 }
 
 describe('BrowserIdentityStore lifecycle', () => {
+  for (const operation of ['resetSession', 'forgetDevice'] as const) {
+    it(`adopts another tab's ${operation} after only a heartbeat write failed`, () => {
+      const persisted = new MemoryStorage();
+      let now = 0;
+      let failWrites = false;
+      const storage = {
+        getItem: (key: string) => persisted.getItem(key),
+        setItem: (key: string, value: string) => {
+          if (failWrites) throw new DOMException('quota exceeded', 'QuotaExceededError');
+          persisted.setItem(key, value);
+        },
+      };
+      const first = new BrowserIdentityStore({ projectKey: 'project', storage, windowStorage: new MemoryStorage(), now: () => now });
+      const second = new BrowserIdentityStore({ projectKey: 'project', storage: persisted, windowStorage: new MemoryStorage(), now: () => now });
+      now = 2000;
+      failWrites = true;
+      first.current();
+      const rotated = second[operation]();
+      failWrites = false;
+      const recovered = first.current();
+      expect(recovered.sessionId).toBe(rotated.sessionId);
+      expect(recovered.deviceId).toBe(rotated.deviceId);
+      expect(second.current().sessionId).toBe(rotated.sessionId);
+    });
+  }
+
+  for (const operation of ['resetSession', 'forgetDevice'] as const) {
+    it(`preserves ${operation} in memory when writes fail and persists it after recovery`, () => {
+      const persisted = new MemoryStorage();
+      let failWrites = false;
+      const storage = {
+        getItem: (key: string) => persisted.getItem(key),
+        setItem: (key: string, value: string) => {
+          if (failWrites) throw new DOMException('quota exceeded', 'QuotaExceededError');
+          persisted.setItem(key, value);
+        },
+      };
+      const store = new BrowserIdentityStore({ projectKey: 'project', storage, windowStorage: new MemoryStorage() });
+      const before = store.current();
+      failWrites = true;
+
+      const reset = store[operation]();
+      expect(reset.sessionId).not.toBe(before.sessionId);
+      if (operation === 'forgetDevice') expect(reset.deviceId).not.toBe(before.deviceId);
+      else expect(reset.deviceId).toBe(before.deviceId);
+      expect(store.current()).toEqual(reset);
+
+      failWrites = false;
+      expect(store.current()).toEqual(reset);
+      const reloaded = new BrowserIdentityStore({ projectKey: 'project', storage, windowStorage: new MemoryStorage() });
+      expect(reloaded.current().deviceId).toBe(reset.deviceId);
+      expect(reloaded.current().sessionId).toBe(reset.sessionId);
+      const otherTabReset = reloaded.resetSession();
+      expect(store.current().sessionId).toBe(otherTabReset.sessionId);
+    });
+  }
+
   it('reports identity persistence failure and keeps an in-memory identity', () => {
     const diagnostics = new BrowserDiagnostics();
     const store = new BrowserIdentityStore({

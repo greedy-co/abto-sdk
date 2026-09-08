@@ -1,3 +1,4 @@
+import { BrowserOutbox } from './outbox.js';
 // Client SDK 4종이 공통으로 증명해야 하는 동작을 Browser 관점에서 확인한다.
 // 시나리오 목록의 정본은 contracts/client-sdk/conformance.schema.json 이며,
 // 이 파일이 그 목록을 되읽어 빠진 것이 없는지 스스로 대조한다.
@@ -254,5 +255,5 @@ function event(uuid: string): CapturedEvent {
 }
 
 function readOutbox(): CapturedEvent[] {
-  return JSON.parse(localStorage.getItem('abto:outbox:v1:public_project_key') ?? '[]');
+  return new BrowserOutbox('public_project_key').read();
 }

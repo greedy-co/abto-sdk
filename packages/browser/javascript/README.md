@@ -149,7 +149,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.5.1"
+        "$lib_version": "0.5.2"
       }
     }
   ]
@@ -288,9 +288,15 @@ abto.reset();        // user/tenant 제거, device 유지
 abto.forgetDevice(); // outbox와 device identity 제거
 ```
 
+identity 저장이 실패해도 새 session/device ID는 현재 인스턴스의 메모리에 유지된다. 저장이 복구되면 현재 값을 다시 보관한다.
+활동 시각만 저장하다 실패한 경우에는 다른 탭의 session/device ID 변경을 계속 반영한다.
+
 ## 전송과 재시도
 
-- 이벤트는 localStorage outbox에 먼저 저장한다.
+- 이벤트는 프로젝트별 localStorage outbox에 이벤트별 항목으로 먼저 저장한다. 여러 탭의 enqueue·ack가 다른 이벤트를 덮어쓰지 않는다.
+- 이벤트별 순번으로 보관 순서를 유지한다. 같은 시각의 이벤트도 UUID 정렬에 의존하지 않고 오래된 항목부터 버퍼 상한을 적용한다.
+- 기존 배열 형식 outbox는 읽을 때 이벤트별 항목으로 옮긴다. 저장 실패 시 메모리 큐를 유지하고 다음 flush에서 저장을 재시도한다.
+- 여러 인스턴스가 같은 이벤트를 재시도할 수 있으며 UUID 기반 서버 중복 처리를 따른다.
 - 기본적으로 최대 20개씩 `POST /v1/collect/events`로 보낸다.
 - 일반 flush와 페이지 이탈 모두 응답 가능한 `fetch`를 사용하며, 안전 크기의 이탈 payload에만 `keepalive`를 켠다.
 - keepalive payload는 약 60 KiB 이내로 제한한다. 응답 전에 페이지가 종료되면 localStorage outbox가 다음 SDK 인스턴스에서 재전송한다.

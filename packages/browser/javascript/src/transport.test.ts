@@ -1,7 +1,9 @@
+import { BrowserOutbox } from './outbox.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserDiagnostics } from './diagnostics.js';
 import { Transport } from './transport.js';
 import type { CapturedEvent } from './types.js';
+import { ABTO_MAX_BUFFERED_EVENTS } from './delivery-policy.generated.js';
 
 const config = {
   endpoint: 'https://collector.test/v1/collect/events',
@@ -19,7 +21,7 @@ function event(uuid = '019b5b74-11d0-7000-8000-000000000001', value = 'ok'): Cap
 }
 
 function outbox(): CapturedEvent[] {
-  return JSON.parse(localStorage.getItem('abto:outbox:v1:public_project_key') ?? '[]');
+  return new BrowserOutbox('public_project_key').read();
 }
 
 afterEach(() => {
@@ -30,6 +32,104 @@ afterEach(() => {
 });
 
 describe('Transport durable outbox', () => {
+  it('retains the newest captured events at the cap even when UUID order is reversed', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    const transport = new Transport(config);
+    const captured = Array.from({ length: ABTO_MAX_BUFFERED_EVENTS + 3 }, (_, index) =>
+      event(`019b5b74-11d0-7000-8000-${String(ABTO_MAX_BUFFERED_EVENTS + 3 - index).padStart(12, '0')}`));
+    try {
+      for (const item of captured) transport.enqueue(item);
+      await transport.flush();
+      expect(outbox().map((queued) => queued.uuid)).toEqual(captured.slice(3).map((queued) => queued.uuid));
+    } finally { transport.shutdown(); }
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const reloaded = new Transport(config);
+    try {
+      await reloaded.flush();
+      const batch = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string).batch;
+      expect(batch.map((queued: { event_id: string }) => queued.event_id)).toEqual(captured.slice(3, 23).map((queued) => queued.uuid));
+    } finally { reloaded.shutdown(); }
+  });
+
+  it('recovers events from two instances initialized before either enqueues', async () => {
+    const first = new Transport(config);
+    const second = new Transport(config);
+    first.enqueue(event('first-tab'));
+    second.enqueue(event('second-tab'));
+    first.shutdown();
+    second.shutdown();
+
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const reloaded = new Transport(config);
+    await reloaded.flush();
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(body.batch.map((entry: { event_id: string }) => entry.event_id).sort()).toEqual(['first-tab', 'second-tab']);
+    expect(outbox()).toEqual([]);
+    reloaded.shutdown();
+  });
+
+  it('acknowledges only its batch while another instance appends during the request', async () => {
+    let complete!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { complete = resolve; })));
+    const first = new Transport(config);
+    const second = new Transport(config);
+    first.enqueue(event('first-tab'));
+    const pending = first.flush();
+    second.enqueue(event('second-tab'));
+    complete(new Response(null, { status: 202 }));
+    await pending;
+    expect(outbox().map((queued) => queued.uuid)).toEqual(['second-tab']);
+    first.enqueue(event('first-new'));
+    expect(outbox().map((queued) => queued.uuid).sort()).toEqual(['first-new', 'second-tab']);
+    first.shutdown();
+    second.shutdown();
+  });
+
+  it('does not repersist a stale restored event when that instance enqueues a new event', async () => {
+    const first = new Transport(config);
+    first.enqueue(event('old'));
+    const stale = new Transport(config);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 202 })));
+    await first.flush();
+    stale.enqueue(event('new'));
+    expect(outbox().map((queued) => queued.uuid)).toEqual(['new']);
+    first.shutdown();
+    stale.shutdown();
+  });
+
+  it('migrates a legacy outbox and preserves another project when discarded', () => {
+    localStorage.setItem('abto:outbox:v1:public_project_key', JSON.stringify([event('legacy')]));
+    const first = new Transport(config);
+    const second = new Transport({ ...config, projectKey: 'other-project' });
+    second.enqueue(event('other'));
+    expect(outbox().map((queued) => queued.uuid)).toEqual(['legacy']);
+    expect(localStorage.getItem('abto:outbox:v1:public_project_key')).toBeNull();
+    first.discard();
+    expect(outbox()).toEqual([]);
+    expect(new BrowserOutbox('other-project').read().map((queued) => queued.uuid)).toEqual(['other']);
+    first.shutdown();
+    second.shutdown();
+  });
+
+  it('persists a volatile event after storage recovers even when the network still fails', async () => {
+    const originalSet = Storage.prototype.setItem;
+    let failWrites = true;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (failWrites) throw new DOMException('quota exceeded', 'QuotaExceededError');
+      originalSet.call(this, key, value);
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+    const transport = new Transport(config);
+    transport.enqueue(event('volatile'));
+    failWrites = false;
+    await transport.flush();
+    expect(outbox().map((queued) => queued.uuid)).toEqual(['volatile']);
+    transport.shutdown();
+  });
+
   it('reports a send failure with the next retry and clears it only after success', async () => {
     const diagnostics = new BrowserDiagnostics();
     const fetchMock = vi
@@ -72,6 +172,7 @@ describe('Transport durable outbox', () => {
         throw new DOMException('quota exceeded', 'QuotaExceededError');
       },
       clear: () => undefined,
+      removeItem: () => undefined,
     });
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -81,7 +182,7 @@ describe('Transport durable outbox', () => {
     await transport.flush();
 
     const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(body.diagnostics.counters).toEqual({ outbox_write_failed: 1 });
+    expect(body.diagnostics.counters).toEqual({ outbox_write_failed: 2 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     transport.shutdown();
   });

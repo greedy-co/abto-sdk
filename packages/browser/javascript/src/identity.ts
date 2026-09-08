@@ -83,6 +83,8 @@ export class BrowserIdentityStore {
   private state: PersistedIdentity;
   private windowId: string;
   private lastPersistedAt = Number.NEGATIVE_INFINITY;
+  private hasUnpersistedState = false;
+  private hasPendingIdentityRotation = false;
 
   constructor(options: IdentityStoreOptions) {
     this.diagnostics = options.diagnostics;
@@ -114,6 +116,7 @@ export class BrowserIdentityStore {
 
   forgetDevice(): BrowserIdentity {
     this.state = this.create();
+    this.hasPendingIdentityRotation = true;
     this.windowId = this.createWindowId();
     this.persist(true);
     return this.current();
@@ -121,7 +124,8 @@ export class BrowserIdentityStore {
 
   private touch(force = false): void {
     const now = this.now();
-    const persisted = this.read();
+    // A failed reset write must not restore the old disk identity over the new memory identity.
+    const persisted = this.hasPendingIdentityRotation ? undefined : this.read();
     if (persisted !== undefined) this.state = persisted;
 
     const idleExpired = now - this.state.lastSeenAt > DEFAULT_SESSION_IDLE_MS;
@@ -132,6 +136,7 @@ export class BrowserIdentityStore {
   }
 
   private rotateSession(now: number): void {
+    this.hasPendingIdentityRotation = true;
     this.state.sessionId = newUuidV7(now);
     this.state.sessionStartedAt = now;
     this.state.lastSeenAt = now;
@@ -188,12 +193,15 @@ export class BrowserIdentityStore {
 
   private persist(force = false): void {
     const now = this.now();
-    if (!force && now - this.lastPersistedAt < DEFAULT_WRITE_THROTTLE_MS) return;
+    if (!force && !this.hasUnpersistedState && now - this.lastPersistedAt < DEFAULT_WRITE_THROTTLE_MS) return;
     if (this.storage === undefined) return;
     try {
       this.storage.setItem(this.storageKey, JSON.stringify(this.state));
       this.lastPersistedAt = now;
+      this.hasUnpersistedState = false;
+      this.hasPendingIdentityRotation = false;
     } catch {
+      this.hasUnpersistedState = true;
       this.diagnostics?.record('identity_persist_failed');
     }
   }
