@@ -107,7 +107,6 @@ export const events = defineEvents({
   checkout_completed: {
     description: "Checkout completed",
     properties: {
-      order_id: { type: "string", required: true },
       value: { type: "number", required: true },
       scale: {
         type: "string",
@@ -123,7 +122,6 @@ Pass the selected registry to the existing initialization and capture only at th
 
 ```ts
 abto.capture("checkout_completed", {
-  order_id: "order_123",
   value: 49_000,
   scale: "KRW",
 });
