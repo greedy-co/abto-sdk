@@ -101,7 +101,7 @@ Swift Package Manager에서는 저장소를 패키지로 추가합니다.
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "1.0.0"
+    from: "0.5.3"
 )
 ```
 
