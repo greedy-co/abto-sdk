@@ -51,7 +51,6 @@ export const events = defineEvents({
   checkout_completed: {
     description: '결제가 완료됨',
     properties: {
-      order_id: { type: 'string', required: true },
       value: { type: 'number', required: true },
       scale: {
         type: 'string',
@@ -74,7 +73,6 @@ const abto = initAbto({
 });
 
 abto.capture('checkout_completed', {
-  order_id: 'order_123',
   value: 49_000,
   scale: 'KRW',
 });
@@ -149,7 +147,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.5.2"
+        "$lib_version": "0.5.3"
       }
     }
   ]

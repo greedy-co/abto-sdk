@@ -11,7 +11,7 @@ const events = {
   checkout_completed: {
     description: '결제가 완료됨',
     properties: {
-      order_id: { type: 'string', required: true },
+      tier: { type: 'string', required: true },
       amount: { type: 'number', required: true },
       currency: { type: 'string', enum: ['KRW', 'USD'], required: true },
     },
@@ -50,7 +50,7 @@ describe('custom event boundary', () => {
 
     sdk.identify('user-9', 'tenant-9');
     sdk.capture('checkout_completed', {
-      order_id: 'order-1',
+      tier: 'pro',
       amount: 49000,
       currency: 'KRW',
     });
@@ -62,7 +62,7 @@ describe('custom event boundary', () => {
     expect(event.device_id).toEqual(expect.any(String));
     expect(event.occurred_at).toEqual(expect.any(String));
     expect(event.extra_json).toMatchObject({
-      order_id: 'order-1',
+      tier: 'pro',
       amount: 49000,
       currency: 'KRW',
       $user_id: 'user-9',
@@ -153,7 +153,7 @@ describe('custom event boundary', () => {
     const sdk = client();
 
     sdk.capture('checkout_completed', {
-      order_id: 'order-2',
+      tier: 'pro',
       amount: 1000,
       currency: 'KRW',
       campaign: 'launch',
@@ -171,7 +171,7 @@ describe('custom event boundary', () => {
       const sdk = client(environment);
 
       sdk.capture('checkout_completed', {
-        order_id: 'order-3',
+        tier: 'pro',
         amount: 1000,
         currency: 'KRW',
         $custom: 'spoofed',

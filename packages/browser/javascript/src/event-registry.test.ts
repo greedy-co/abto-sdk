@@ -58,7 +58,7 @@ describe('defineEvents', () => {
     const registry = defineEvents({
       checkout_completed: {
         properties: {
-          order_id: { type: 'string', required: true },
+          tier: { type: 'string', required: true },
           amount: { type: 'number', required: true },
           currency: { type: 'string', enum: ['KRW', 'USD'] as const },
           recurring: { type: 'boolean' },
@@ -68,7 +68,7 @@ describe('defineEvents', () => {
 
     type Properties = InferCustomEventProperties<(typeof registry)['checkout_completed']>;
     expectTypeOf<Properties>().toMatchTypeOf<{
-      order_id: string;
+      tier: string;
       amount: number;
       currency?: 'KRW' | 'USD';
       recurring?: boolean;
