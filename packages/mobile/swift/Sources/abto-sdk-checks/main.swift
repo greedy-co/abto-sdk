@@ -1,5 +1,40 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import AbtoApp
+
+final class CaptureURLProtocol: URLProtocol, @unchecked Sendable {
+    static let lock = NSLock()
+    nonisolated(unsafe) static var events: [[String: Any]] = []
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "capture.test" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        var data = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var bytes = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&bytes, maxLength: bytes.count)
+                if count <= 0 { break }
+                data.append(contentsOf: bytes.prefix(count))
+            }
+        }
+        let body = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let batch = body["batch"] as! [[String: Any]]
+        Self.lock.lock()
+        Self.events.append(contentsOf: batch)
+        Self.lock.unlock()
+        let results = Dictionary(uniqueKeysWithValues: batch.map { ($0["event_id"] as! String, ["result": "ok"]) })
+        let response = HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: ["results": results]))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+URLProtocol.registerClass(CaptureURLProtocol.self)
 
 // Framework-free verification runner that exits with status 1 on failure.
 // Also verifies actual delivery when ABTO_E2E=1 and the development collector is running on port 4870.
@@ -144,7 +179,7 @@ do {
 }
 
 check(abtoMetricValue(.nan) == nil, "NaN metric omitted")
-covers("event.metric_non_finite_omitted")
+covers("event.metric_non_finite_rejected")
 check(abtoMetricValue(.infinity) == nil, "infinite metric omitted")
 covers("event.metric_precision_enforced")
 check(abtoMetricValue(1.0 / 3.0) == nil, "over-precision metric omitted")
@@ -183,18 +218,19 @@ check(contextExtraJSON["$anonymous_id"] == nil, "anonymous id is not copied into
 check(contextExtraJSON["$session_id"] == nil, "session id is not copied into extra_json")
 check(contextExtraJSON["$trace_id"] == nil, "trace id is not copied into extra_json")
 
-covers("event.no_free_form_properties")
-// A custom event carries nothing but its name and metric; the bag holds only SDK `$` context.
+covers("event.properties_in_extra_json")
+// Customer properties and SDK context share extra_json, while metric columns stay separate.
 let customEventExtraJSON = abtoExtraJSON(
-    systemProperties: [:],
-    envelope: [:],
-    context: protectedContext,
-    environment: .production
+    systemProperties: [:], envelope: [:], context: protectedContext, environment: .production,
+    properties: ["tier": "pro", "nullable": NSNull(), "tags": ["a"], "detail": ["enabled": true]]
 )
-check(
-    customEventExtraJSON.keys.allSatisfy { $0.hasPrefix("$") },
-    "a custom event bag holds only SDK context"
-)
+check(customEventExtraJSON["tier"] as? String == "pro", "custom properties enter extra_json")
+check(customEventExtraJSON["nullable"] is NSNull, "null custom property retained")
+check(customEventExtraJSON["properties"] == nil, "no properties wrapper in extra_json")
+check(abtoValidProperties(["tier": "pro", "nullable": NSNull(), "tags": ["a"], "detail": ["enabled": true]]), "shallow JSON property values accepted")
+for properties: [String: Any] in [["$user_id": "spoof"], ["value": 3], ["scale": "x"], ["deep": ["nested": [:]]], ["bad": Double.nan], ["bad": Date()], ["bad": "\0"]] {
+    check(!abtoValidProperties(properties), "invalid or reserved property rejected")
+}
 
 covers("event.promoted_fields_not_in_extra_json")
 for promoted in ["value", "scale", "$device_id", "$anonymous_id", "$session_id", "$trace_id"] {
@@ -229,6 +265,53 @@ do {
     check(trace.attachRequestId(fromHeaders: ["X-Abto-Request-Id": "req_1"]) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")
 }
+
+// The public capture method must produce the agreed collector payload.
+do {
+    let client = try AbtoClient(projectKey: "ek_test", endpoint: "https://capture.test/v1/collect/events", store: AbtoInMemoryStore())
+    client.capture("invalid_metric", value: .nan, scale: "count")
+    client.capture("invalid_precision", value: 1.0 / 3.0, scale: "count")
+    client.capture("invalid_scale", value: 1, scale: String(repeating: "x", count: 17))
+    client.capture("invalid_properties", value: 1, scale: "count", properties: ["$user_id": "spoof"])
+    client.capture("checkout_completed", value: 49000, scale: "KRW", properties: ["tier": "pro", "nullable": NSNull()])
+    covers("event.optional_scale_preserved")
+    client.capture("scale_omitted", value: 0)
+    client.capture("scale_empty", value: 0, scale: "")
+    covers("event.optional_metrics_preserved")
+    client.capture("name_only")
+    client.capture("properties_only", properties: ["tier": "pro"])
+    client.capture("scale_only", scale: "KRW")
+    client.capture("scale_only_empty", scale: "")
+    let done = DispatchSemaphore(value: 0)
+    client.flush { done.signal() }
+    check(done.wait(timeout: .now() + 5) == .success, "custom capture flush completes")
+    CaptureURLProtocol.lock.lock()
+    let events = CaptureURLProtocol.events
+    CaptureURLProtocol.lock.unlock()
+    check(events.count == 7, "only valid custom captures reach transport")
+    for name in ["name_only", "properties_only", "scale_only", "scale_only_empty"] {
+        let event = events.first { $0["event_name"] as? String == name }!
+        check(event["value"] == nil, "omitted value stays absent")
+        if name == "scale_only" { check(event["scale"] as? String == "KRW", "scale without value is preserved") }
+        else if name == "scale_only_empty" { check(event["scale"] as? String == "", "empty scale without value is preserved") }
+        else { check(event["scale"] == nil, "omitted scale stays absent") }
+        let extra = event["extra_json"] as! [String: Any]
+        check(extra["value"] == nil && extra["scale"] == nil, "metrics are not copied into extra_json")
+        if name == "properties_only" { check(extra["tier"] as? String == "pro", "properties without metrics are preserved") }
+    }
+    check(events.first { $0["event_name"] as? String == "scale_omitted" }?["scale"] == nil, "omitted scale stays absent")
+    check(events.first { $0["event_name"] as? String == "scale_empty" }?["scale"] as? String == "", "empty scale is preserved")
+    if let event = events.first {
+        check(event["event_name"] as? String == "checkout_completed", "capture sends event_name")
+        check(event["value"] as? Double == 49000, "capture sends supplied value")
+        check(event["scale"] as? String == "KRW", "capture sends supplied scale")
+        let extra = event["extra_json"] as! [String: Any]
+        check(extra["tier"] as? String == "pro", "capture sends user properties in extra_json")
+        check(extra["nullable"] is NSNull, "capture preserves JSON null")
+        check(extra["value"] == nil && extra["scale"] == nil && extra["properties"] == nil, "capture has no metric or properties wrapper in extra_json")
+    }
+}
+URLProtocol.unregisterClass(CaptureURLProtocol.self)
 
 // buffer cap: 상한을 넘기면 가장 오래된 것부터 버린다.
 covers("transport.buffer_cap")
@@ -285,11 +368,18 @@ check(
 // collector E2E (opt-in)
 if ProcessInfo.processInfo.environment["ABTO_E2E"] == "1" {
     let client = try! AbtoClient(
-        projectKey: "ek_smoke_ios",
-        endpoint: "http://localhost:4870/v1/collect/events",
+        projectKey: ProcessInfo.processInfo.environment["ABTO_E2E_KEY"] ?? "ek_smoke_ios",
+        endpoint: ProcessInfo.processInfo.environment["ABTO_E2E_ENDPOINT"] ?? "http://localhost:4870/v1/collect/events",
         environment: .development,
         store: AbtoInMemoryStore()
     )
+    client.capture("sdk_e2e_ios_currency", value: 49000, scale: "KRW", properties: ["tier": "pro"])
+    client.capture("sdk_e2e_ios_omitted", value: 0)
+    client.capture("sdk_e2e_ios_empty", value: 0, scale: "")
+    client.capture("sdk_e2e_ios_name_only")
+    client.capture("sdk_e2e_ios_properties_only", properties: ["tier": "pro"])
+    client.capture("sdk_e2e_ios_scale_only", scale: "KRW")
+    client.capture("sdk_e2e_ios_scale_only_empty", scale: "")
     client.identify(userId: "u_smoke_ios")
     let trace = client.startLlmTrace(featureId: "smoke.ios", taskType: "smoke_test", surface: "sdk_checks")
     trace.submitPrompt(prompt: "iOS 스모크 프롬프트", language: "ko")

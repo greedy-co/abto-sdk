@@ -1,7 +1,5 @@
 import Foundation
 
-private let abtoMetricAbsoluteLimit = 1e38
-private let abtoMetricMaxFractionDigits = 12
 // trace_id rides as a first-class wire field, so it is not copied into the bag.
 private let abtoEnvelopeContextKeys = [
     "feature_id": "$feature_id",
@@ -31,20 +29,36 @@ package func abtoMetricValue(_ value: Double?) -> Double? {
 }
 
 package func abtoScaleValue(_ value: String?) -> String? {
-    guard let value, value.utf16.count <= abtoScaleMaxLength else { return nil }
+    guard let value, !value.contains("\0"), value.utf16.count <= abtoScaleMaxLength else { return nil }
     return value
 }
 
+// Mirrors the shallow JsonValue contract; Foundation validates JSON-compatible scalars.
+package func abtoValidProperties(_ properties: [String: Any]) -> Bool {
+    func scalar(_ value: Any) -> Bool {
+        if value is NSNull { return true }
+        if let text = value as? String { return !text.contains("\0") }
+        if let number = value as? NSNumber { return number.doubleValue.isFinite }
+        return false
+    }
+    func value(_ item: Any) -> Bool {
+        if scalar(item) { return true }
+        if let array = item as? [Any] { return array.allSatisfy(scalar) }
+        if let object = item as? [String: Any] {
+            return object.allSatisfy { !$0.key.contains("\0") && scalar($0.value) }
+        }
+        return false
+    }
+    return properties.allSatisfy { !$0.key.hasPrefix("$") && !$0.key.contains("\0") &&
+        !abtoCustomMetricFields.contains($0.key) && value($0.value) }
+}
+
 package func abtoEventNameIssue(_ event: String) -> String? {
-    if event.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "must not be blank" }
-    if event.contains("\0") { return "must not contain U+0000" }
-    if event.hasPrefix("$") { return "must not start with $" }
-    if abtoReservedEventNames.contains(event) {
-        return "must not use an ABTO system event name"
-    }
-    if event.utf16.count > abtoEventNameMaxLength {
-        return "must be at most \(abtoEventNameMaxLength) UTF-16 code units"
-    }
+    if event.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return abtoErrEventNameBlank }
+    if event.contains("\0") { return abtoErrEventNameNul }
+    if event.hasPrefix("$") { return abtoErrEventNameDollarPrefix }
+    if abtoReservedEventNames.contains(event) { return abtoErrEventNameReserved }
+    if event.utf16.count > abtoEventNameMaxLength { return abtoErrEventNameTooLong }
     return nil
 }
 
@@ -58,9 +72,10 @@ package func abtoExtraJSON(
     systemProperties: [String: Any],
     envelope: [String: Any],
     context: AbtoContext,
-    environment: AbtoEnvironment
+    environment: AbtoEnvironment,
+    properties: [String: Any] = [:]
 ) -> [String: Any] {
-    var extraJSON: [String: Any] = [:]
+    var extraJSON: [String: Any] = properties
     for (key, value) in systemProperties { extraJSON[key] = value }
     extraJSON["$lib"] = "ios"
     extraJSON["$environment"] = environment.rawValue
@@ -140,23 +155,22 @@ public final class AbtoClient {
         context.reset()
     }
 
-    /// Manual event delivery, the default path for tracking behavior before an LLM call.
-    /// Sends a Custom Event.
-    ///
-    /// An event carries only the metric `value` and its unit label `scale`; both are optional and
-    /// an event sent with its name alone counts as a conversion. Free-form properties are not
-    /// accepted: they reached no dashboard and only accumulated in every event's jsonb.
-    /// The metric is positional so the call reads the same in every ABTO SDK.
+    /// Sends optional value and scale as metric columns and optional properties as extra_json.
     public func capture(
         _ event: String,
-        _ value: Double? = nil,
-        _ scale: String? = nil
+        value: Double? = nil,
+        scale: String? = nil,
+        properties: [String: Any] = [:]
     ) {
         if let issue = abtoEventNameIssue(event) {
-            print("[abto] event was dropped: \(issue).")
+            print(abtoErrEventDropped.replacingOccurrences(of: "{issue}", with: issue))
             return
         }
-        captureEvent(event, value: value, scale: scale)
+        guard (value == nil || abtoMetricValue(value) != nil), (scale == nil || abtoScaleValue(scale) != nil), abtoValidProperties(properties) else {
+            print(abtoErrCustomCaptureInvalid)
+            return
+        }
+        captureEvent(event, properties: properties, value: value, scale: scale)
     }
 
     func captureSystemEvent(
@@ -171,6 +185,7 @@ public final class AbtoClient {
     /// system event names are constants and need no check.
     private func captureEvent(
         _ event: String,
+        properties: [String: Any] = [:],
         systemProperties: [String: Any] = [:],
         envelope: [String: Any] = [:],
         value: Double? = nil,
@@ -180,7 +195,8 @@ public final class AbtoClient {
             systemProperties: systemProperties,
             envelope: envelope,
             context: context,
-            environment: config.environment
+            environment: config.environment,
+            properties: properties
         )
         var captured: [String: Any] = [
             "event_id": abtoUUIDv7(),
@@ -191,8 +207,8 @@ public final class AbtoClient {
             "extra_json": extraJSON,
         ]
         if let traceId = envelope["trace_id"] as? String { captured["trace_id"] = traceId }
-        if let value = abtoMetricValue(value) { captured["value"] = value }
-        if let scale = abtoScaleValue(scale) { captured["scale"] = scale }
+        if let value { captured["value"] = value }
+        if let scale { captured["scale"] = scale }
         if config.debug {
             print("[abto] \(event) \(captured)")
         }
