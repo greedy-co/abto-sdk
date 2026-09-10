@@ -14,7 +14,8 @@ final _covered = <String>{};
 
 /// 이 test 가 증명하는 공통 시나리오를 기록한다. 목록의 정본은 계약이다.
 void covers(String scenario) {
-  assert(abtoConformanceScenarios.contains(scenario), 'unknown scenario: $scenario');
+  assert(abtoConformanceScenarios.contains(scenario),
+      'unknown scenario: $scenario');
   _covered.add(scenario);
 }
 
@@ -25,7 +26,8 @@ void main() {
             !_covered.contains(s) && !abtoConformanceExemptions.contains(s))
         .toList();
     expect(missing, isEmpty,
-        reason: 'client conformance scenarios not covered by this SDK: $missing');
+        reason:
+            'client conformance scenarios not covered by this SDK: $missing');
   });
 
   test('response interaction runtime validation uses the generated contract',
@@ -55,9 +57,7 @@ void main() {
       covers('config.project_key_required');
       expect(
         () => AbtoConfig(projectKey: '  '),
-        throwsA(predicate((e) =>
-            e.toString() ==
-            abtoErrProjectKeyRequired)),
+        throwsA(predicate((e) => e.toString() == abtoErrProjectKeyRequired)),
       );
     });
 
@@ -65,9 +65,8 @@ void main() {
       covers('config.endpoint_must_be_url');
       expect(
         () => AbtoConfig(projectKey: 'ek', endpoint: 'htp:/broken url'),
-        throwsA(predicate((e) => e
-            .toString()
-            .startsWith(abtoErrEndpointInvalidPrefix))),
+        throwsA(predicate(
+            (e) => e.toString().startsWith(abtoErrEndpointInvalidPrefix))),
       );
     });
 
@@ -77,9 +76,7 @@ void main() {
         () => AbtoConfig(
             projectKey: 'ek',
             endpoint: 'http://collector.example/v1/collect/events'),
-        throwsA(predicate((e) =>
-            e.toString() ==
-            abtoErrEndpointHttpsRequired)),
+        throwsA(predicate((e) => e.toString() == abtoErrEndpointHttpsRequired)),
       );
       expect(
         AbtoConfig(
@@ -95,13 +92,11 @@ void main() {
       covers('config.batch_size_range');
       expect(
         () => AbtoConfig(projectKey: 'ek', batchSize: 0),
-        throwsA(predicate((e) =>
-            e.toString() == abtoErrBatchSizeRange)),
+        throwsA(predicate((e) => e.toString() == abtoErrBatchSizeRange)),
       );
       expect(
         () => AbtoConfig(projectKey: 'ek', batchSize: 101),
-        throwsA(predicate((e) =>
-            e.toString() == abtoErrBatchSizeRange)),
+        throwsA(predicate((e) => e.toString() == abtoErrBatchSizeRange)),
       );
     });
   });
@@ -149,8 +144,6 @@ void main() {
       covers('event.reserved_name_rejected');
       for (final reserved in abtoReservedEventNames) {
         expect(abtoEventNameIssue(reserved), isNotNull, reason: reserved);
-        expect(abtoEventNameIssue(reserved, allowSystemEvent: true), isNull,
-            reason: reserved);
       }
     });
 
@@ -168,13 +161,15 @@ void main() {
       unawaited(server.forEach((request) async {
         final body = jsonDecode(await utf8.decodeStream(request))
             as Map<String, dynamic>;
-        final batch = (body['batch'] as List<dynamic>).cast<Map<String, dynamic>>();
+        final batch =
+            (body['batch'] as List<dynamic>).cast<Map<String, dynamic>>();
         seen.addAll(batch.map((event) => event['event_id'] as String));
         request.response.statusCode = HttpStatus.accepted;
         request.response.headers.contentType = ContentType.json;
         request.response.write(jsonEncode({
           'results': {
-            for (final event in batch) event['event_id'] as String: {'result': 'ok'},
+            for (final event in batch)
+              event['event_id'] as String: {'result': 'ok'},
           },
         }));
         await request.response.close();
@@ -209,10 +204,8 @@ void main() {
 
     test('rejects overlong event names with Backend UTF-16 semantics', () {
       covers('event.name_length_limit');
-      final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
-      expect(client.capture('pageview'), isFalse);
-      expect(client.capture(List.filled(201, 'x').join()), isFalse);
-      expect(client.capture(List.filled(101, '🙂').join()), isFalse);
+      expect(abtoEventNameIssue(List.filled(201, 'x').join()), isNotNull);
+      expect(abtoEventNameIssue(List.filled(101, '🙂').join()), isNotNull);
     });
   });
 
@@ -296,7 +289,7 @@ void main() {
     });
 
     test('omits non-finite metric values before JSON encoding', () async {
-      covers('event.metric_non_finite_omitted');
+      covers('event.metric_non_finite_rejected');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final received = Completer<Map<String, dynamic>>();
       server.listen((request) async {
@@ -324,19 +317,22 @@ void main() {
             environment: AbtoEnvironment.development,
           ),
         );
-        client.capture('invalid_metric', value: double.nan);
+        client.capture('invalid_metric', value: double.nan, scale: 'count');
+        client.capture('probe', value: 1, scale: 'count');
         await client.flush();
 
         final body = await received.future.timeout(const Duration(seconds: 5));
         final event =
             (body['batch'] as List<dynamic>).single as Map<String, dynamic>;
-        expect(event.containsKey('value'), isFalse);
+        expect(event['event_name'], 'probe');
+        expect(event['value'], 1);
       } finally {
         await server.close(force: true);
       }
     });
 
-    test('enforces metric precision and protects SDK context', () async {
+    test('enforces metric precision and keeps promoted fields out of the bag',
+        () async {
       covers('event.metric_precision_enforced');
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final received = Completer<Map<String, dynamic>>();
@@ -366,37 +362,122 @@ void main() {
           ),
         );
         client.identify('real-user', 'real-tenant');
-        client.capture(
-          'bounded_metric',
-          value: 1 / 3,
-          scale: List.filled(17, 'x').join(),
-          envelope: {
-            'trace_id': ['invalid', 'trace'],
-            'feature_id': 'feature.real',
-          },
-          properties: {
-            'environment': 'customer-environment',
-            'user_id': 'customer-user',
-            r'$environment': 'spoofed',
-            r'$user_id': 'spoofed',
-          },
-        );
+        client.capture('bounded_metric',
+            value: 1 / 3, scale: List.filled(17, 'x').join());
+        client.capture('bad_scale',
+            value: 1, scale: List.filled(17, 'x').join());
+        client.capture('bad_properties',
+            value: 1, scale: 'count', properties: {r'$user_id': 'spoof'});
+        client.capture('probe', value: 1, scale: 'count');
         await client.flush();
 
         final body = await received.future.timeout(const Duration(seconds: 5));
         final event =
             (body['batch'] as List<dynamic>).single as Map<String, dynamic>;
         expect(event.containsKey('trace_id'), isFalse);
-        expect(event.containsKey('value'), isFalse);
-        expect(event.containsKey('scale'), isFalse);
+        expect(event['event_name'], 'probe');
+        expect(event['value'], 1);
+        expect(event['scale'], 'count');
         final extraJson = event['extra_json'] as Map<String, dynamic>;
-        expect(extraJson['environment'], 'customer-environment');
-        expect(extraJson['user_id'], 'customer-user');
         expect(extraJson[r'$environment'], 'development');
         expect(extraJson[r'$user_id'], 'real-user');
         expect(extraJson.containsKey(r'$trace_id'), isFalse);
-        expect(extraJson[r'$feature_id'], 'feature.real');
-        expect(extraJson.values, isNot(contains('spoofed')));
+        expect(extraJson.containsKey(r'$device_id'), isFalse);
+        expect(extraJson.containsKey(r'$anonymous_id'), isFalse);
+        expect(extraJson.containsKey(r'$session_id'), isFalse);
+      } finally {
+        await server.close(force: true);
+      }
+    });
+
+    test('custom properties are stored separately from optional metrics',
+        () async {
+      covers('event.optional_scale_preserved');
+      covers('event.properties_in_extra_json');
+      covers('event.promoted_fields_not_in_extra_json');
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final received = Completer<Map<String, dynamic>>();
+      server.listen((request) async {
+        final body = jsonDecode(await utf8.decoder.bind(request).join())
+            as Map<String, dynamic>;
+        if (!received.isCompleted) received.complete(body);
+        final batch = body['batch'] as List<dynamic>;
+        request.response.statusCode = HttpStatus.accepted;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'results': {
+            for (final event in batch)
+              event['event_id'] as String: {'result': 'ok'},
+          },
+        }));
+        await request.response.close();
+      });
+
+      try {
+        final client = AbtoClient(
+          AbtoConfig(
+            projectKey: 'ek_test',
+            endpoint:
+                'http://${server.address.host}:${server.port}/v1/collect/events',
+            environment: AbtoEnvironment.development,
+          ),
+        );
+        client.capture('checkout_completed',
+            value: 49000,
+            scale: 'KRW',
+            properties: {
+              'tier': 'pro',
+              'nullable': null,
+              'tags': ['a'],
+              'detail': {'enabled': true}
+            });
+        client.capture('scale_omitted', value: 0);
+        client.capture('scale_empty', value: 0, scale: '');
+        covers('event.optional_metrics_preserved');
+        client.capture('name_only');
+        client.capture('properties_only', properties: {'tier': 'pro'});
+        client.capture('scale_only', scale: 'KRW');
+        client.capture('scale_only_empty', scale: '');
+        await client.flush();
+
+        final body = await received.future.timeout(const Duration(seconds: 5));
+        final batch = body['batch'] as List<dynamic>;
+        expect(batch, hasLength(7));
+        for (final item in batch.skip(3)) {
+          final event = item as Map;
+          expect(event.containsKey('value'), isFalse);
+          final name = event['event_name'];
+          if (name == 'scale_only') { expect(event['scale'], 'KRW'); }
+          else if (name == 'scale_only_empty') { expect(event['scale'], ''); }
+          else { expect(event.containsKey('scale'), isFalse); }
+          final extra = event['extra_json'] as Map;
+          expect(extra.containsKey('value'), isFalse);
+          expect(extra.containsKey('scale'), isFalse);
+          if (name == 'properties_only') expect(extra['tier'], 'pro');
+        }
+        expect((batch[1] as Map).containsKey('scale'), isFalse);
+        expect((batch[2] as Map)['scale'], '');
+        final event = batch.first as Map<String, dynamic>;
+        expect(event['value'], 49000);
+        expect(event['scale'], 'KRW');
+        expect(event['device_id'], isA<String>());
+        expect(event['session_id'], isA<String>());
+        final extraJson = event['extra_json'] as Map<String, dynamic>;
+        expect(extraJson['tier'], 'pro');
+        expect(extraJson['nullable'], isNull);
+        expect(extraJson.containsKey('nullable'), isTrue);
+        expect(extraJson['tags'], ['a']);
+        expect(extraJson['detail'], {'enabled': true});
+        expect(extraJson.containsKey('properties'), isFalse);
+        for (final key in [
+          'value',
+          'scale',
+          r'$device_id',
+          r'$anonymous_id',
+          r'$session_id',
+        ]) {
+          expect(extraJson.containsKey(key), isFalse, reason: key);
+        }
       } finally {
         await server.close(force: true);
       }
@@ -562,11 +643,21 @@ void main() {
     test('first event reaches local collector', () async {
       final client = AbtoClient(
         AbtoConfig(
-          projectKey: 'ek_smoke_flutter',
-          endpoint: 'http://localhost:4870/v1/collect/events',
+          projectKey:
+              Platform.environment['ABTO_E2E_KEY'] ?? 'ek_smoke_flutter',
+          endpoint: Platform.environment['ABTO_E2E_ENDPOINT'] ??
+              'http://localhost:4870/v1/collect/events',
           environment: AbtoEnvironment.development,
         ),
       );
+      client.capture('sdk_e2e_flutter_currency',
+          value: 49000, scale: 'KRW', properties: {'tier': 'pro'});
+      client.capture('sdk_e2e_flutter_omitted', value: 0);
+      client.capture('sdk_e2e_flutter_empty', value: 0, scale: '');
+      client.capture('sdk_e2e_flutter_name_only');
+      client.capture('sdk_e2e_flutter_properties_only', properties: {'tier': 'pro'});
+      client.capture('sdk_e2e_flutter_scale_only', scale: 'KRW');
+      client.capture('sdk_e2e_flutter_scale_only_empty', scale: '');
       client.identify('u_smoke_flutter');
       final trace = client.startLlmTrace(
           featureId: 'smoke.flutter',

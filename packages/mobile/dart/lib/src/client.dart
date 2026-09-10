@@ -3,10 +3,8 @@ import 'contract.generated.dart';
 import 'context.dart';
 import 'transport.dart';
 
-const _metricAbsoluteLimit = 1e38;
-const _metricMaxFractionDigits = 12;
+// trace_id rides as a first-class wire field, so it is not copied into the bag.
 const _envelopeContextKeys = <String, String>{
-  'trace_id': r'$trace_id',
   'feature_id': r'$feature_id',
   'task_type': r'$task_type',
   'surface': r'$surface',
@@ -15,7 +13,9 @@ const _envelopeContextKeys = <String, String>{
 };
 
 num? abtoMetricValue(num? value) {
-  if (value == null || !value.isFinite || value.abs() >= _metricAbsoluteLimit) {
+  if (value == null ||
+      !value.isFinite ||
+      value.abs() >= abtoMetricAbsoluteLimit) {
     return null;
   }
   final parts = value.abs().toString().toLowerCase().split('e');
@@ -26,21 +26,46 @@ num? abtoMetricValue(num? value) {
           .length ??
       0;
   final exponent = parts.length == 1 ? 0 : int.tryParse(parts[1]) ?? 0;
-  return fractionDigits - exponent <= _metricMaxFractionDigits ? value : null;
+  return fractionDigits - exponent <= abtoMetricMaxFractionDigits
+      ? value
+      : null;
 }
 
-String? abtoScaleValue(String? value) =>
-    value != null && value.length <= abtoScaleMaxLength ? value : null;
+String? abtoScaleValue(String? value) => value != null &&
+        !value.contains('\u0000') &&
+        value.length <= abtoScaleMaxLength
+    ? value
+    : null;
 
-String? abtoEventNameIssue(String event, {bool allowSystemEvent = false}) {
-  if (event.trim().isEmpty) return 'must not be blank';
-  if (event.contains('\u0000')) return 'must not contain U+0000';
-  if (event.startsWith(r'$')) return r'must not start with $';
-  if (!allowSystemEvent && abtoReservedEventNames.contains(event)) {
-    return 'must not use an ABTO system event name';
-  }
+// Mirrors the shallow JsonValue contract without a serialization dependency.
+bool abtoValidProperties(Map<String, Object?> properties) {
+  bool scalar(Object? v) =>
+      v == null ||
+      v is bool ||
+      (v is String && !v.contains('\u0000')) ||
+      (v is num && v.isFinite);
+  bool value(Object? v) =>
+      scalar(v) ||
+      (v is List && v.every(scalar)) ||
+      (v is Map &&
+          v.entries.every((e) =>
+              e.key is String &&
+              !(e.key as String).contains('\u0000') &&
+              scalar(e.value)));
+  return properties.entries.every((e) =>
+      !e.key.startsWith(r'$') &&
+      !e.key.contains('\u0000') &&
+      !abtoCustomMetricFields.contains(e.key) &&
+      value(e.value));
+}
+
+String? abtoEventNameIssue(String event) {
+  if (event.trim().isEmpty) return abtoErrEventNameBlank;
+  if (event.contains('\u0000')) return abtoErrEventNameNul;
+  if (event.startsWith(r'$')) return abtoErrEventNameDollarPrefix;
+  if (abtoReservedEventNames.contains(event)) return abtoErrEventNameReserved;
   if (event.codeUnits.length > abtoEventNameMaxLength) {
-    return 'must be at most $abtoEventNameMaxLength UTF-16 code units';
+    return abtoErrEventNameTooLong;
   }
   return null;
 }
@@ -68,54 +93,46 @@ class AbtoClient {
 
   void reset() => _context.reset();
 
-  /// Manual event delivery, the default path for tracking behavior before an LLM call.
-  bool capture(
-    String event, {
-    Map<String, Object?> properties = const {},
-    Map<String, Object?> envelope = const {},
-    num? value,
-    String? scale,
-  }) =>
-      _captureEvent(
-        event,
-        properties: properties,
-        envelope: envelope,
-        value: value,
-        scale: scale,
-      );
+  /// Sends optional [value] and [scale] as metric columns and optional [properties] as extra_json.
+  void capture(String event,
+      {num? value,
+      String? scale,
+      Map<String, Object?> properties = const {}}) {
+    final issue = abtoEventNameIssue(event);
+    if (issue != null) {
+      print(abtoErrEventDropped.replaceAll('{issue}', issue));
+      return;
+    }
+    if ((value != null && abtoMetricValue(value) == null) ||
+        (scale != null && abtoScaleValue(scale) == null) ||
+        !abtoValidProperties(properties)) {
+      print(abtoErrCustomCaptureInvalid);
+      return;
+    }
+    _captureEvent(event, value: value, scale: scale, properties: properties);
+  }
 
-  bool _captureSystemEvent(
+  void _captureSystemEvent(
     String event, {
     required Map<String, Object?> systemProperties,
-    Map<String, Object?> properties = const {},
     Map<String, Object?> envelope = const {},
   }) =>
       _captureEvent(
         event,
         systemProperties: systemProperties,
-        properties: properties,
         envelope: envelope,
-        allowSystemEvent: true,
       );
 
-  bool _captureEvent(
+  /// Builds and enqueues one event. Names are checked by the public [capture]; the SDK's own
+  /// system event names are constants and need no check.
+  void _captureEvent(
     String event, {
     Map<String, Object?> properties = const {},
     Map<String, Object?> systemProperties = const {},
     Map<String, Object?> envelope = const {},
     num? value,
     String? scale,
-    bool allowSystemEvent = false,
   }) {
-    final eventNameIssue = abtoEventNameIssue(
-      event,
-      allowSystemEvent: allowSystemEvent,
-    );
-    if (eventNameIssue != null) {
-      // ignore: avoid_print — intentionally reports that an invalid event_name was not sent.
-      print('[abto] event was dropped: $eventNameIssue.');
-      return false;
-    }
     final traceId = envelope['trace_id'];
     final captured = <String, Object?>{
       'event_id': uuidV7(),
@@ -123,24 +140,21 @@ class AbtoClient {
       'session_id': _context.sessionId,
       if (traceId is String) 'trace_id': traceId,
       'event_name': event,
-      if (abtoMetricValue(value) case final metricValue?) 'value': metricValue,
-      if (abtoScaleValue(scale) case final scaleValue?) 'scale': scaleValue,
+      if (value != null) 'value': value,
+      if (scale != null) 'scale': scale,
       'occurred_at': isoTimestamp(),
+      // The bag holds only what no first-class wire field carries. device_id, session_id and
+      // trace_id ride at the top level, so a copy here would be a duplicate no aggregation reads,
+      // stored forever in every event's jsonb. Context with no column of its own stays, because
+      // the bag is its only carrier.
       'extra_json': <String, Object?>{
-        ...Map.fromEntries(
-          properties.entries.where(
-            (entry) => entry.value != null && !entry.key.startsWith(r'$'),
-          ),
-        ),
+        ...properties,
         ...Map.fromEntries(
           systemProperties.entries.where((entry) => entry.value != null),
         ),
         r'$lib': 'flutter',
         r'$environment': config.environment.wireName,
         r'$schema_version': abtoSchemaVersion,
-        r'$device_id': _context.anonymousId,
-        r'$anonymous_id': _context.anonymousId,
-        r'$session_id': _context.sessionId,
         if (_context.userId != null) r'$user_id': _context.userId,
         if (_context.tenantId != null) r'$tenant_id': _context.tenantId,
         for (final entry in envelope.entries)
@@ -153,7 +167,6 @@ class AbtoClient {
       print('[abto] $event $captured');
     }
     _transport.enqueue(captured);
-    return true;
   }
 
   AbtoLlmTrace startLlmTrace(
@@ -222,12 +235,10 @@ class AbtoLlmTrace {
     );
   }
 
-  void captureOutcome(String interactionType,
-      {String? responseId, Map<String, Object?> extra = const {}}) {
+  void captureOutcome(String interactionType, {String? responseId}) {
     final canonical = AbtoResponseInteraction.fromWireValue(interactionType);
     if (canonical == null) {
-      print(
-          abtoErrInteractionDropped);
+      print(abtoErrInteractionDropped);
       return;
     }
     _client._captureSystemEvent(
@@ -237,7 +248,6 @@ class AbtoLlmTrace {
         if (responseId != null) r'$response_id': responseId,
         if (requestId != null) r'$request_id': requestId,
       },
-      properties: extra,
       envelope: _envelope(
           responseId != null ? {'response_id': responseId} : const {}),
     );
