@@ -38,7 +38,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '0.5.4';
+const SDK_VERSION = '1.0.0';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
