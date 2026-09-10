@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initAbto } from './client.js';
+import {
+  ABTO_ERR_EVENT_NAME_DOLLAR_PREFIX,
+  ABTO_ERR_EVENT_NAME_TOO_LONG,
+} from './delivery-policy.generated.js';
 
 afterEach(() => {
   localStorage.clear();
@@ -42,7 +46,7 @@ describe('custom event boundary', () => {
     const sdk = client();
 
     sdk.identify('user-9', 'tenant-9');
-    sdk.capture('checkout_completed', 49_000, 'KRW');
+    sdk.capture('checkout_completed', { value: 49000, scale: 'KRW', tier: 'pro', nullable: null, tags: ['a'], detail: { enabled: true } });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -50,43 +54,58 @@ describe('custom event boundary', () => {
     expect(event.event_id).toEqual(expect.any(String));
     expect(event.device_id).toEqual(expect.any(String));
     expect(event.occurred_at).toEqual(expect.any(String));
-    expect(event.value).toBe(49_000);
+    expect(event.value).toBe(49000);
     expect(event.scale).toBe('KRW');
+    expect(event.extra_json).not.toHaveProperty('value');
+    expect(event.extra_json).not.toHaveProperty('scale');
+    expect(event.extra_json).not.toHaveProperty('properties');
     expect(event.extra_json).toMatchObject({
+      tier: 'pro', nullable: null, tags: ['a'], detail: { enabled: true },
       $user_id: 'user-9',
       $tenant_id: 'tenant-9',
       $schema_version: '2026-09-02',
     });
   });
 
-  it('sends an event with no metric as a conversion signal', async () => {
+  it('sends an explicit count metric as a conversion signal', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-
-    sdk.capture('checkout_completed');
+    sdk.capture('checkout_completed', { value: 1, scale: 'count' });
     await sdk.flush();
-
-    const [event] = postedBatch(fetchMock);
-    expect(event.event_name).toBe('checkout_completed');
-    expect(event).not.toHaveProperty('value');
-    expect(event).not.toHaveProperty('scale');
+    expect(postedBatch(fetchMock)[0]).toMatchObject({ value: 1, scale: 'count' });
   });
 
-  it('omits a metric outside the collector contract but still sends the event', async () => {
+  it.each([undefined, ''])('preserves optional scale %j without mutating input', async (scale) => {
     const fetchMock = installFetchStub();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client();
-
-    sdk.capture('checkout_completed', 1 / 3, 'x'.repeat(17));
+    const input = Object.freeze({ value: 0, ...(scale === undefined ? {} : { scale }), tier: 'pro' });
+    sdk.capture('checkout_completed', input);
     await sdk.flush();
-
-    const [event] = postedBatch(fetchMock);
-    expect(event.event_name).toBe('checkout_completed');
-    expect(event).not.toHaveProperty('value');
-    expect(event).not.toHaveProperty('scale');
-    expect(event.extra_json).not.toHaveProperty('value');
+    const event = postedBatch(fetchMock)[0];
+    expect(event.value).toBe(0);
+    if (scale === undefined) expect(event).not.toHaveProperty('scale');
+    else expect(event.scale).toBe('');
+    expect(event.extra_json).toMatchObject({ tier: 'pro' });
     expect(event.extra_json).not.toHaveProperty('scale');
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('outside the collector contract'));
+    expect(input.tier).toBe('pro');
+  });
+
+  it.each([
+    null, [], 1, { value: null }, { scale: null },
+    { value: 1 / 3, scale: 'KRW' }, { value: Infinity, scale: 'KRW' },
+    { value: 1, scale: 'x'.repeat(17) },
+    { value: 1, scale: '\0' },
+    ...[{ $user_id: 'spoof' }, { tier: undefined },
+      { deep: { nested: {} } }, { bad: NaN }, { bad: new Date() }, { bad: '\0' }]
+      .map((properties) => ({ value: 1, scale: 'count', ...properties })),
+  ])('drops invalid custom capture input: %j', async (options) => {
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    sdk.capture('checkout_completed', options as never);
+    await sdk.flush();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('custom event was dropped'));
   });
 
   it('never lets public capture claim a $ system event name', async () => {
@@ -94,11 +113,11 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('$pageview' as never);
+    sdk.capture('$pageview' as never, { value: 1, scale: 'count' });
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('reserved'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(ABTO_ERR_EVENT_NAME_DOLLAR_PREFIX));
   });
 
   it('drops an overlong custom event name before enqueueing', async () => {
@@ -106,11 +125,11 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('🙂'.repeat(101) as never);
+    sdk.capture('🙂'.repeat(101) as never, { value: 1, scale: 'count' });
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('200 UTF-16'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(ABTO_ERR_EVENT_NAME_TOO_LONG));
   });
 
   it('accepts an unregistered custom event in development and warns about the discovery', async () => {
@@ -118,7 +137,7 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('discovered_event' as never);
+    sdk.capture('discovered_event' as never, { value: 1, scale: 'count' });
     await sdk.flush();
 
     expect(postedBatch(fetchMock)[0].event_name).toBe('discovered_event');
@@ -130,7 +149,7 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client();
 
-    sdk.capture('unknown_event' as never);
+    sdk.capture('unknown_event' as never, { value: 1, scale: 'count' });
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();

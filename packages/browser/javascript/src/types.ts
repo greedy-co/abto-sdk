@@ -62,13 +62,15 @@ export interface BrowserSystemEventPropsMap {
 
 export type JsonScalar = string | number | boolean | null;
 export type JsonValue = JsonScalar | JsonScalar[] | Record<string, JsonScalar>;
+export type { CaptureOptions } from './events.generated.js';
+
 export type CustomEventProperties = Record<string, JsonValue>;
 
 /**
  * An event as the SDK holds it before sending.
  *
  * Everything the wire carries as a first-class field is a field here too, so the transport copies
- * it straight through. `properties` is only the `$` context and a system event's own props.
+ * it straight through. `properties` contains custom attributes, SDK context, or system event metadata.
  */
 export interface CapturedEvent {
   uuid: string;

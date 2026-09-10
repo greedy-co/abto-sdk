@@ -19,6 +19,7 @@ export { type BrowserIdentity } from './identity.js';
 export type {
   AIInteractionType,
   CaptureMode,
+  CaptureOptions,
   Environment,
   MaskMode,
   SensitiveCategory,

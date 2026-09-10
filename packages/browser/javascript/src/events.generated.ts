@@ -20,6 +20,7 @@ export interface EventsGenerated {
     BrowserPageleaveEvent?:            BrowserPageleaveEvent;
     BrowserPageviewEvent?:             BrowserPageviewEvent;
     BrowserRageclickEvent?:            BrowserRageclickEvent;
+    CaptureOptions?:                   CaptureOptions;
     CustomEvent?:                      CustomEvent;
     DeadClickProps?:                   DeadClickProps;
     MetricValue?:                      number;
@@ -621,6 +622,15 @@ export interface BrowserRageclickEventExtraJSON {
     $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
+}
+
+export interface CaptureOptions {
+    scale?: string;
+    /**
+     * Finite decimal with at most 38 integer digits and 12 fractional digits
+     */
+    value?: number;
+    [property: string]: Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
 }
 
 export interface CustomEvent {

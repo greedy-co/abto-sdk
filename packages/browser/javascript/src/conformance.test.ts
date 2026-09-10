@@ -101,9 +101,9 @@ describe('client conformance', () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     sdk.identify('user-1');
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     sdk.reset();
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     await sdk.flush();
 
     const [identified, afterReset] = postedBatch(fetchMock);
@@ -135,48 +135,89 @@ describe('client conformance', () => {
     }
   });
 
-  it('event: a non-finite metric value is omitted', async () => {
-    covers('event.metric_non_finite_omitted');
+  it('event: a non-finite metric value is rejected', async () => {
+    covers('event.metric_non_finite_rejected');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', Number.POSITIVE_INFINITY);
+    sdk.capture('checkout_completed', { value: Number.POSITIVE_INFINITY, scale: 'count' });
     await sdk.flush();
-    expect(postedBatch(fetchMock)[0].value).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
     sdk.shutdown();
   });
 
-  it('event: an over-precision metric value is omitted', async () => {
+  it('event: an over-precision metric value is rejected', async () => {
     covers('event.metric_precision_enforced');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', 1.1234567890123456);
+    sdk.capture('checkout_completed', { value: 1.1234567890123456, scale: 'count' });
     await sdk.flush();
-    expect(postedBatch(fetchMock)[0].value).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
     sdk.shutdown();
   });
 
-  it('event: a metric scale past the backend limit is omitted', async () => {
+  it('event: a metric scale past the backend limit is rejected', async () => {
     covers('event.metric_scale_limit');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', 1, 'K'.repeat(ABTO_SCALE_MAX_LENGTH + 1));
+    sdk.capture('checkout_completed', { value: 1, scale: 'K'.repeat(ABTO_SCALE_MAX_LENGTH + 1) });
     await sdk.flush();
-    expect(postedBatch(fetchMock)[0].scale).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
     sdk.shutdown();
   });
 
-  it('event: a custom event carries nothing but its name and metric', async () => {
-    covers('event.no_free_form_properties');
+  it('event: custom properties are stored separately from optional metrics', async () => {
+    covers('event.properties_in_extra_json');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', 3000, 'KRW');
+    sdk.capture('checkout_completed', { value: 3000, scale: 'KRW', tier: 'pro' });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
     expect(event.value).toBe(3000);
     expect(event.scale).toBe('KRW');
-    // Whatever remains in the bag is SDK context the SDK itself put there.
-    expect(Object.keys(event.extra_json).every((key) => key.startsWith('$'))).toBe(true);
+    expect(event.extra_json.tier).toBe('pro');
+    expect(event.extra_json).not.toHaveProperty('properties');
+    sdk.shutdown();
+  });
+
+  it('event: omitted and empty scale retain distinct wire representations', async () => {
+    covers('event.optional_scale_preserved');
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    sdk.capture('checkout_completed', { value: 0 });
+    sdk.capture('checkout_completed', { value: 0, scale: '' });
+    await sdk.flush();
+    const events = postedBatch(fetchMock);
+    expect(events).toHaveLength(2);
+    expect(events[0]).not.toHaveProperty('scale');
+    expect(events[1].scale).toBe('');
+    sdk.shutdown();
+  });
+
+  it('event: optional metrics preserve name-only, properties-only and scale-only captures', async () => {
+    covers('event.optional_metrics_preserved');
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    sdk.capture('checkout_completed');
+    sdk.capture('checkout_completed', {});
+    sdk.capture('checkout_completed', { tier: 'pro' });
+    sdk.capture('checkout_completed', { scale: 'KRW' });
+    sdk.capture('checkout_completed', { scale: '' });
+    sdk.capture('checkout_completed', { scale: 'x'.repeat(17) });
+    sdk.capture('checkout_completed', { value: null } as never);
+    sdk.capture('checkout_completed', null as never);
+    await sdk.flush();
+    const events = postedBatch(fetchMock);
+    expect(events).toHaveLength(5);
+    for (const event of events) {
+      expect(event).not.toHaveProperty('value');
+      expect(event.extra_json).not.toHaveProperty('value');
+      expect(event.extra_json).not.toHaveProperty('scale');
+    }
+    for (const event of events.slice(0, 3)) expect(event).not.toHaveProperty('scale');
+    expect(events[2].extra_json).toMatchObject({ tier: 'pro' });
+    expect(events[3].scale).toBe('KRW');
+    expect(events[4].scale).toBe('');
     sdk.shutdown();
   });
 
@@ -184,7 +225,7 @@ describe('client conformance', () => {
     covers('event.promoted_fields_not_in_extra_json');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', 3000, 'KRW');
+    sdk.capture('checkout_completed', { value: 3000, scale: 'KRW', tier: 'pro' });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);

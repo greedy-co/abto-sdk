@@ -59,7 +59,7 @@ describe('Browser event envelope and identity', () => {
   it('discards persisted events before beginning a new device lifecycle', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     expect(new BrowserOutbox('public_project_key').read()).toHaveLength(1);
 
     sdk.forgetDevice();
@@ -73,9 +73,9 @@ describe('Browser event envelope and identity', () => {
   it('puts identity context in properties and switches distinct_id after identify', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     sdk.identify('user-1', 'tenant-1');
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     await sdk.flush();
 
     const [anonymous, identified] = postedBatch(fetchMock);
@@ -100,7 +100,7 @@ describe('Browser event envelope and identity', () => {
     sdk.identify('user-1', 'tenant-1');
     sdk.identify('user-2');
     sdk.reset();
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -118,7 +118,7 @@ describe('Browser event envelope and identity', () => {
       events,
       autocapture: { enabled: false },
     });
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -140,7 +140,7 @@ describe('observable AI events', () => {
       'x-abto-device-id': sdk.getIdentity().deviceId,
     });
 
-    sdk.capture('user_action');
+    sdk.capture('user_action', { value: 1, scale: 'count' });
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);

@@ -14,6 +14,12 @@ import {
 } from './event-registry.js';
 import type { BrowserIdentity } from './identity.js';
 import { derivePromptMeta } from './privacy.js';
+import {
+  ABTO_ERR_EVENT_DROPPED,
+  ABTO_ERR_INTERACTION_DROPPED,
+  ABTO_ERR_CUSTOM_CAPTURE_INVALID,
+  ABTO_CUSTOM_METRIC_FIELDS,
+} from './delivery-policy.generated.js';
 import { isCollectorMetricValue, isCollectorScale } from './metric.js';
 import { Transport } from './transport.js';
 import type {
@@ -22,6 +28,7 @@ import type {
   BrowserSystemEventName,
   BrowserSystemEventPropsMap,
   CapturedEvent,
+  CaptureOptions,
   CommonProperties,
   CustomEventProperties,
   Environment,
@@ -38,7 +45,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '1.0.0';
+const SDK_VERSION = '1.1.0';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -110,22 +117,16 @@ function readRequestId(source: RequestIdSource): string | undefined {
   return readHeader(source, 'x-abto-request-id');
 }
 
-/** Keeps only what Analytics can store, warning about the rest so the developer can fix it. */
-function checkedMetric(
-  name: string,
-  value: number | undefined,
-  scale: string | undefined,
-): { value?: number; scale?: string } {
-  const metric: { value?: number; scale?: string } = {};
-  if (value !== undefined) {
-    if (isCollectorMetricValue(value)) metric.value = value;
-    else console.warn(`[abto] custom event "${name}" metric value is outside the collector contract and was omitted.`);
-  }
-  if (scale !== undefined) {
-    if (isCollectorScale(scale)) metric.scale = scale;
-    else console.warn(`[abto] custom event "${name}" metric scale is outside the collector contract and was omitted.`);
-  }
-  return metric;
+// JsonValue is shallow; reject unsupported values before they can invalidate a whole batch.
+function validProperties(properties: unknown): properties is CustomEventProperties {
+  const record = (v: unknown): v is Record<string, unknown> =>
+    v !== null && typeof v === 'object' && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+  const scalar = (v: unknown): boolean => v === null || typeof v === 'boolean' ||
+    (typeof v === 'string' && !v.includes('\0')) || (typeof v === 'number' && Number.isFinite(v));
+  const value = (v: unknown): boolean => scalar(v) || (Array.isArray(v) && v.every(scalar)) ||
+    (record(v) && Object.entries(v).every(([k, item]) => !k.includes('\0') && scalar(item)));
+  return record(properties) && Object.entries(properties).every(([k, v]) =>
+    !k.startsWith('$') && !k.includes('\0') && !(ABTO_CUSTOM_METRIC_FIELDS as readonly string[]).includes(k) && value(v));
 }
 
 function contextProperties(
@@ -232,9 +233,7 @@ class BrowserLlmTrace implements LlmTrace {
     metadata: ResponseInteractionMetadata = {},
   ): Promise<void> {
     if (!isAIInteractionType(type)) {
-      console.warn(
-        `[abto] response interaction was dropped: type must be one of ${ABTO_AI_INTERACTION_TYPES.join(', ')}. Use a custom event for other product actions.`,
-      );
+      console.warn(ABTO_ERR_INTERACTION_DROPPED);
       return;
     }
     const requestId = metadata.requestId ?? this.requestId;
@@ -319,21 +318,12 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
     this.responseRequestIds.set(responseId, requestId);
   }
 
-  /**
-   * Sends a Custom Event.
-   *
-   * An event carries only the metric `value` and its unit label `scale`. Both are optional, and
-   * an event sent with its name alone counts as a conversion. A metric outside the contract is
-   * warned about and omitted while the event still goes out: losing the event itself would leave
-   * a larger hole in the measurement.
-   *
-   * The metric is positional so the call reads the same in every ABTO SDK.
-   */
-  capture<N extends EventNameFor<R>>(event: N, value?: number, scale?: string): void {
+  /** Sends optional value and scale as metric columns and all other attributes as extra_json. */
+  capture<N extends EventNameFor<R>>(event: N, options: CaptureOptions = {}): void {
     const name = event as string;
     const eventNameIssue = validateCustomEventName(name);
     if (eventNameIssue !== undefined) {
-      console.warn(`[abto] custom event name "${name}" ${eventNameIssue}.`);
+      console.warn(ABTO_ERR_EVENT_DROPPED.replace('{issue}', `"${name}" ${eventNameIssue}`));
       return;
     }
 
@@ -345,7 +335,18 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
       console.warn(`[abto] Discovered unregistered custom event "${name}" in development.`);
     }
 
-    this.emit(name, { metric: checkedMetric(name, value, scale) });
+    if (options === null || typeof options !== 'object' || Array.isArray(options) ||
+      (options.value !== undefined && !isCollectorMetricValue(options.value)) ||
+      (options.scale !== undefined && !isCollectorScale(options.scale))) {
+      console.warn(ABTO_ERR_CUSTOM_CAPTURE_INVALID);
+      return;
+    }
+    const { value, scale, ...properties } = options;
+    if (!validProperties(properties)) {
+      console.warn(ABTO_ERR_CUSTOM_CAPTURE_INVALID);
+      return;
+    }
+    this.emit(name, { metric: { ...(value === undefined ? {} : { value }), ...(scale === undefined ? {} : { scale }) }, properties });
   }
 
   #captureSystem<N extends BrowserSystemEventName>(

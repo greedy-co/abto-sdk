@@ -62,12 +62,15 @@ const abto = initAbto({
   events,
 });
 
-abto.capture('checkout_completed', 49_000, 'KRW');
+abto.capture('checkout_completed', {
+  value: 49000,
+  scale: 'KRW',
+});
 ```
 
-이벤트가 직접 싣는 값은 수치 `value`와 단위 라벨 `scale` 두 가지다. 둘 다 선택이며,
-수치 없이 이름만 보내면(`abto.capture('summary_copied')`) 전환 건수로 집계된다.
-Success Metric이 읽는 것도 이 둘이다. 자유형 property는 받지 않는다.
+`value`와 `scale`은 모두 선택이다. 이름만 보내거나 추가 속성만 보낼 수 있다. 생략한 `value`와 `scale`은 전송하지 않고, 빈 문자열 `scale`은 그대로 전송한다.
+단순 행동 건수는 `{ value: 1, scale: 'count' }`로 기록한다.
+Success Metric은 이벤트 이름과 metric을 집계하며, 같은 객체에 추가한 나머지 속성은 자동으로 `extra_json`에 들어간다.
 
 `defineEvents()`에서 이름을 추론하므로 잘못된 이벤트 이름을 개발 시점에 확인할 수 있다. 런타임 정책은 환경별로 다르다.
 
@@ -76,7 +79,13 @@ Success Metric이 읽는 것도 이 둘이다. 자유형 property는 받지 않�
 | `development` | 전송하고 `Discovered` 경고 |
 | `production` | drop |
 
-계약을 벗어난 metric(비유한 값, 정수부 38자리·소수부 12자리 초과, 16자 초과 `scale`)은 경고와 함께 그 값만 빠지고 이벤트 자체는 전송된다.
+필수 metric이 없거나 계약을 벗어나면 경고 후 해당 커스텀 이벤트를 보내지 않는다.
+
+추가 속성은 같은 객체에 넣는다. `value`·`scale`은 최상위 metric으로, `tier`는 `extra_json.tier`로 전송된다.
+
+```ts
+abto.capture('checkout_completed', { value: 49000, scale: 'KRW', tier: 'pro' });
+```
 
 ## 초기화와 autocapture
 
@@ -134,7 +143,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "1.0.0"
+        "$lib_version": "1.1.0"
       }
     }
   ]
@@ -158,7 +167,7 @@ const abto = initAbto({
 
 수신 계약의 상한은 요청당 100 events다. SDK 기본값은 20이며 약 60 KiB 이하 payload만 keepalive로 전송한다. malformed request와 인증 실패는 요청 단위 4xx, 개별 validation/storage 실패는 2xx 응답의 UUID별 `warning`, `drop`, `retry`로 처리한다.
 커스텀 `event_name`은 Backend와 같은 UTF-16 기준 최대 200자이며, `defineEvents()`와 runtime capture가 enqueue 전에 검증한다.
-metric `scale`은 최대 16자이며, 초과한 값은 event 전체가 drop되지 않도록 top-level metadata에서 제외한다.
+metric `scale`은 최대 16자이며, 빈 값이나 초과한 값은 해당 커스텀 이벤트를 경고 후 보내지 않는다.
 
 ### SDK 자체 전송 진단
 
@@ -238,7 +247,7 @@ trace.attachRequestId(response);
 
 await trace.markResponseRendered({
   responseId: 'resp_123',
-  timeToRenderMs: 1_380,
+  timeToRenderMs: 1380,
 });
 
 await trace.captureResponseInteraction('copied', {
@@ -305,3 +314,9 @@ node ../../examples/browser-smoke/collector.mjs
 ```
 
 실브라우저 검증 절차는 [`examples/browser-smoke/README.md`](../../examples/browser-smoke/README.md)를 따른다.
+
+추가 속성 값은 JSON 스칼라(문자열·유한한 수·불리언·null), 스칼라 배열, 스칼라 값으로 구성된 객체를 받습니다.
+더 깊은 중첩, U+0000, 최상위 `$` 접두 키는 해당 커스텀 이벤트와 함께 거절합니다.
+이벤트 ID·시각·기기/세션 ID·`$` 문맥은 SDK가 자동으로 추가합니다.
+
+이 capture API는 1.0.0의 위치 인자 API를 대체합니다. 업그레이드 시 호출부를 바꿔야 하며, 기존 저장 이벤트의 해석은 유지됩니다.
