@@ -15,7 +15,7 @@ https://github.com/greedy-co/abto-sdk
 다른 Swift package에서는 dependency를 직접 추가한다.
 
 ```swift
-.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "0.5.2")
+.package(url: "https://github.com/greedy-co/abto-sdk.git", from: "1.0.0")
 ```
 
 공개 mirror 저장소는 루트 `Package.swift`와 Swift 릴리스용 `vX.Y.Z` 태그를 함께 제공한다.
@@ -37,7 +37,7 @@ abto.identify(userId: "u_123", tenantId: "t_1")
 let gatewayDeviceId = abto.deviceId
 
 // LLM call 이전 event — 수동 capture
-abto.capture("checkout_started", properties: ["cart_size": 3])
+abto.capture("checkout_completed", 49_000, "KRW")
 
 // LLM 호출 생애주기 — request_id 로 게이트웨이 비용/latency 와 조인
 let trace = abto.startLlmTrace(featureId: "resume.make", taskType: "draft_generation")

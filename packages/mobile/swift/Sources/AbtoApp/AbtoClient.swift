@@ -2,8 +2,8 @@ import Foundation
 
 private let abtoMetricAbsoluteLimit = 1e38
 private let abtoMetricMaxFractionDigits = 12
+// trace_id rides as a first-class wire field, so it is not copied into the bag.
 private let abtoEnvelopeContextKeys = [
-    "trace_id": "$trace_id",
     "feature_id": "$feature_id",
     "task_type": "$task_type",
     "surface": "$surface",
@@ -35,11 +35,11 @@ package func abtoScaleValue(_ value: String?) -> String? {
     return value
 }
 
-package func abtoEventNameIssue(_ event: String, allowSystemEvent: Bool = false) -> String? {
+package func abtoEventNameIssue(_ event: String) -> String? {
     if event.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "must not be blank" }
     if event.contains("\0") { return "must not contain U+0000" }
     if event.hasPrefix("$") { return "must not start with $" }
-    if !allowSystemEvent && abtoReservedEventNames.contains(event) {
+    if abtoReservedEventNames.contains(event) {
         return "must not use an ABTO system event name"
     }
     if event.utf16.count > abtoEventNameMaxLength {
@@ -48,21 +48,23 @@ package func abtoEventNameIssue(_ event: String, allowSystemEvent: Bool = false)
     return nil
 }
 
+/// Builds the property bag carried in `extra_json`.
+///
+/// The bag holds only what no first-class wire field carries. device_id, session_id and trace_id
+/// ride at the top level, so a copy here would be a duplicate no aggregation reads, stored forever
+/// in every event's jsonb. Context with no column of its own stays, because the bag is its only
+/// carrier.
 package func abtoExtraJSON(
-    properties: [String: Any],
     systemProperties: [String: Any],
     envelope: [String: Any],
     context: AbtoContext,
     environment: AbtoEnvironment
 ) -> [String: Any] {
-    var extraJSON = properties.filter { !$0.key.hasPrefix("$") }
+    var extraJSON: [String: Any] = [:]
     for (key, value) in systemProperties { extraJSON[key] = value }
     extraJSON["$lib"] = "ios"
     extraJSON["$environment"] = environment.rawValue
     extraJSON["$schema_version"] = abtoSchemaVersion
-    extraJSON["$device_id"] = context.anonymousId
-    extraJSON["$anonymous_id"] = context.anonymousId
-    extraJSON["$session_id"] = context.sessionId
     if let userId = context.userId { extraJSON["$user_id"] = userId }
     if let tenantId = context.tenantId { extraJSON["$tenant_id"] = tenantId }
     for (key, item) in envelope {
@@ -139,48 +141,42 @@ public final class AbtoClient {
     }
 
     /// Manual event delivery, the default path for tracking behavior before an LLM call.
-    @discardableResult
+    /// Sends a Custom Event.
+    ///
+    /// An event carries only the metric `value` and its unit label `scale`; both are optional and
+    /// an event sent with its name alone counts as a conversion. Free-form properties are not
+    /// accepted: they reached no dashboard and only accumulated in every event's jsonb.
+    /// The metric is positional so the call reads the same in every ABTO SDK.
     public func capture(
         _ event: String,
-        properties: [String: Any] = [:],
-        envelope: [String: Any] = [:],
-        value: Double? = nil,
-        scale: String? = nil
-    ) -> Bool {
-        captureEvent(event, properties: properties, envelope: envelope, value: value, scale: scale)
+        _ value: Double? = nil,
+        _ scale: String? = nil
+    ) {
+        if let issue = abtoEventNameIssue(event) {
+            print("[abto] event was dropped: \(issue).")
+            return
+        }
+        captureEvent(event, value: value, scale: scale)
     }
 
-    @discardableResult
     func captureSystemEvent(
         _ event: String,
         systemProperties: [String: Any],
-        properties: [String: Any] = [:],
         envelope: [String: Any] = [:]
-    ) -> Bool {
-        captureEvent(
-            event,
-            properties: properties,
-            systemProperties: systemProperties,
-            envelope: envelope,
-            allowSystemEvent: true
-        )
+    ) {
+        captureEvent(event, systemProperties: systemProperties, envelope: envelope)
     }
 
+    /// Builds and enqueues one event. Names are checked by the public `capture`; the SDK's own
+    /// system event names are constants and need no check.
     private func captureEvent(
         _ event: String,
-        properties: [String: Any] = [:],
         systemProperties: [String: Any] = [:],
         envelope: [String: Any] = [:],
         value: Double? = nil,
-        scale: String? = nil,
-        allowSystemEvent: Bool = false
-    ) -> Bool {
-        if let issue = abtoEventNameIssue(event, allowSystemEvent: allowSystemEvent) {
-            print("[abto] event was dropped: \(issue).")
-            return false
-        }
+        scale: String? = nil
+    ) {
         let extraJSON = abtoExtraJSON(
-            properties: properties,
             systemProperties: systemProperties,
             envelope: envelope,
             context: context,
@@ -201,7 +197,6 @@ public final class AbtoClient {
             print("[abto] \(event) \(captured)")
         }
         transport.enqueue(captured)
-        return true
     }
 
     public func startLlmTrace(featureId: String, taskType: String? = nil, surface: String? = nil) -> AbtoLlmTrace {
@@ -267,25 +262,14 @@ public final class AbtoLlmTrace {
 
     public func captureOutcome(
         _ interactionType: AbtoResponseInteraction,
-        responseId: String? = nil,
-        properties extra: [String: Any] = [:]
+        responseId: String? = nil
     ) {
-        captureCanonicalOutcome(interactionType.rawValue, responseId: responseId, properties: extra)
-    }
-
-    @available(*, deprecated, message: "Use the AbtoResponseInteraction overload. String values remain supported during the 0.x compatibility window.")
-    public func captureOutcome(_ interactionType: String, responseId: String? = nil, properties extra: [String: Any] = [:]) {
-        guard let canonical = AbtoResponseInteraction(rawValue: interactionType) else {
-            print(abtoErrInteractionDropped)
-            return
-        }
-        captureCanonicalOutcome(canonical.rawValue, responseId: responseId, properties: extra)
+        captureCanonicalOutcome(interactionType.rawValue, responseId: responseId)
     }
 
     private func captureCanonicalOutcome(
         _ interactionType: String,
-        responseId: String?,
-        properties extra: [String: Any]
+        responseId: String?
     ) {
         var systemProperties: [String: Any] = ["$interaction_type": interactionType]
         if let responseId { systemProperties["$response_id"] = responseId }
@@ -295,7 +279,6 @@ public final class AbtoLlmTrace {
         client.captureSystemEvent(
             "llm_response_interacted",
             systemProperties: systemProperties,
-            properties: extra,
             envelope: envelope(overrides)
         )
     }

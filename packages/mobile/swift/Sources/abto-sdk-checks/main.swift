@@ -155,22 +155,15 @@ covers("event.metric_scale_limit")
 check(abtoScaleValue(String(repeating: "x", count: 17)) == nil, "oversized metric scale omitted")
 check(abtoScaleValue(String(repeating: "🙂", count: 9)) == nil, "metric scale uses backend UTF-16 limit")
 
-let eventNameClient = try! AbtoClient(projectKey: "ek_event_name", store: AbtoInMemoryStore())
 covers("event.reserved_name_rejected")
-check(!eventNameClient.capture("pageview"), "reserved system event name rejected by public capture")
+check(abtoEventNameIssue("pageview") != nil, "reserved system event name rejected by public capture")
 covers("event.name_length_limit")
-check(!eventNameClient.capture(String(repeating: "x", count: 201)), "overlong event name rejected before enqueue")
-check(!eventNameClient.capture(String(repeating: "🙂", count: 101)), "event name limit uses backend UTF-16 units")
+check(abtoEventNameIssue(String(repeating: "x", count: 201)) != nil, "overlong event name rejected before enqueue")
+check(abtoEventNameIssue(String(repeating: "🙂", count: 101)) != nil, "event name limit uses backend UTF-16 units")
 
 let protectedContext = AbtoContext(store: AbtoInMemoryStore())
 protectedContext.identify(userId: "real-user", tenantId: "real-tenant")
-let protectedExtraJSON = abtoExtraJSON(
-    properties: [
-        "environment": "customer-environment",
-        "user_id": "customer-user",
-        "$environment": "spoofed",
-        "$user_id": "spoofed",
-    ],
+let contextExtraJSON = abtoExtraJSON(
     systemProperties: [
         "$capture_mode": "full",
         "$response_id": "resp_1",
@@ -179,14 +172,34 @@ let protectedExtraJSON = abtoExtraJSON(
     context: protectedContext,
     environment: .production
 )
-check(protectedExtraJSON["environment"] as? String == "customer-environment", "customer environment retained")
-check(protectedExtraJSON["user_id"] as? String == "customer-user", "customer user_id retained")
-check(protectedExtraJSON["$environment"] as? String == "production", "SDK environment is namespaced")
-check(protectedExtraJSON["$user_id"] as? String == "real-user", "SDK user context cannot be overwritten")
-check(protectedExtraJSON["$feature_id"] as? String == "feature.real", "SDK envelope is namespaced")
-check(protectedExtraJSON["$capture_mode"] as? String == "full", "LLM helper system properties retain their canonical keys")
-check(protectedExtraJSON["$response_id"] as? String == "resp_1", "LLM helper system properties retain response ids")
-check(!protectedExtraJSON.values.contains { ($0 as? String) == "spoofed" }, "customer reserved properties rejected")
+check(contextExtraJSON["$environment"] as? String == "production", "SDK environment is namespaced")
+check(contextExtraJSON["$user_id"] as? String == "real-user", "SDK user context is carried by the bag")
+check(contextExtraJSON["$feature_id"] as? String == "feature.real", "SDK envelope is namespaced")
+check(contextExtraJSON["$capture_mode"] as? String == "full", "LLM helper system properties retain their canonical keys")
+check(contextExtraJSON["$response_id"] as? String == "resp_1", "LLM helper system properties retain response ids")
+// Fields promoted to the wire top level leave no copy in the bag.
+check(contextExtraJSON["$device_id"] == nil, "device id is not copied into extra_json")
+check(contextExtraJSON["$anonymous_id"] == nil, "anonymous id is not copied into extra_json")
+check(contextExtraJSON["$session_id"] == nil, "session id is not copied into extra_json")
+check(contextExtraJSON["$trace_id"] == nil, "trace id is not copied into extra_json")
+
+covers("event.no_free_form_properties")
+// A custom event carries nothing but its name and metric; the bag holds only SDK `$` context.
+let customEventExtraJSON = abtoExtraJSON(
+    systemProperties: [:],
+    envelope: [:],
+    context: protectedContext,
+    environment: .production
+)
+check(
+    customEventExtraJSON.keys.allSatisfy { $0.hasPrefix("$") },
+    "a custom event bag holds only SDK context"
+)
+
+covers("event.promoted_fields_not_in_extra_json")
+for promoted in ["value", "scale", "$device_id", "$anonymous_id", "$session_id", "$trace_id"] {
+    check(customEventExtraJSON[promoted] == nil, "\(promoted) is not copied into extra_json")
+}
 
 let promptProperties = abtoPromptProperties(
     prompt: "prompt-canary",
