@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("app.abto:abto-app:0.5.2")
+    implementation("app.abto:abto-app:1.0.0")
 }
 ```
 
@@ -51,7 +51,7 @@ Add the public Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "0.5.2"
+    from: "1.0.0"
 )
 ```
 
