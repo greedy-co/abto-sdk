@@ -111,12 +111,12 @@ export const events = defineEvents({
 Pass the selected registry to the existing initialization and capture only at the approved trigger:
 
 ```ts
-abto.capture("checkout_completed", 49_000, "KRW");
+abto.capture("checkout_completed", { value: 49000, scale: "KRW" });
 ```
 
-An event carries only the metric `value` and its unit label `scale`, and both are optional.
-Send an event with its name alone when there is no number to aggregate; it counts as a conversion.
-Free-form properties are not accepted.
+`value` and `scale` are both optional (an empty scale string is allowed). The flat capture object can also be omitted; omitted metrics are not sent, and all other fields automatically move into `extra_json`.
+Use `{ value: 1, scale: 'count' }` for a simple action count.
+Do not introduce a nested `properties` wrapper. Show only value and scale in the basic setup example; add other fields only when the product needs them.
 Do not register custom event names beginning with `$`.
 ABTO reserves that namespace for system context.
 Do not claim request correlation for a custom event unless the current SDK API explicitly establishes it.

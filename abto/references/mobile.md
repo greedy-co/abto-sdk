@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("app.abto:abto-app:1.0.0")
+    implementation("app.abto:abto-app:1.1.0")
 }
 ```
 
@@ -51,7 +51,7 @@ Add the public Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "1.0.0"
+    from: "1.1.0"
 )
 ```
 
@@ -87,8 +87,45 @@ Use the SDK's `deviceId` as the Gateway `x-abto-device-id`.
 Do not generate a separate server device identifier for the same app installation.
 Do not create a placeholder product event merely to demonstrate the SDK.
 Use `captureOutcome` only for the canonical interaction values exposed by the installed package: `copied`, `inserted`, `accepted`, `rejected`, `shared`, `downloaded`, `expanded`, `collapsed`, `rated_positive`, `rated_negative`, `regenerated`, and `aborted`.
-Prefer `AbtoResponseInteraction.ACCEPTED` on Android, `.accepted` on Swift, and `AbtoResponseInteraction.accepted` on Dart when those typed APIs exist in the installed public version.
-During the `0.x` compatibility window, legacy string calls remain accepted only when they match the same canonical list; unsupported values are warned and dropped before enqueueing.
+Use `AbtoResponseInteraction.ACCEPTED` on Android, `.accepted` on Swift, and `AbtoResponseInteraction.accepted` (or the canonical string `'accepted'`) on Dart.
+Android and Swift require enums; Dart validates canonical strings at runtime.
 When a product action has no exact match, propose a selected custom event instead of passing an arbitrary string.
 Use platform lifecycle hooks that already exist in the application.
 Do not block the UI thread while flushing.
+
+## Custom Event capture
+
+`event` is required; `value`, `scale`, and `properties` are optional. Omitted metrics are not sent. For `scale`, omit it to send no scale field, or pass an empty string to preserve an empty label. Optional `properties` are sent as `extra_json`, not as a nested `properties` field.
+
+```kotlin
+abto.capture(
+  event = "checkout_completed",
+  value = 49000,
+  scale = "KRW",
+  properties = mapOf("tier" to "pro")
+)
+```
+
+```swift
+abto.capture(
+  "checkout_completed",
+  value: 49000,
+  scale: "KRW",
+  properties: ["tier": "pro"]
+)
+```
+
+```dart
+abto.capture(
+  'checkout_completed',
+  value: 49000,
+  scale: 'KRW',
+  properties: {'tier': 'pro'}
+);
+```
+
+For a simple action count, send 1 with scale 'count'.
+Property values must be JSON scalars, scalar arrays, or objects of scalars; deeper nesting is unsupported.
+Top-level `$` keys, `value`, `scale`, and U+0000 are reserved or invalid.
+Invalid input drops the custom event with a warning. System events retain their existing metric-free path.
+This API replaces the 1.0.0 positional capture API; check the installed version before editing a customer's code.
