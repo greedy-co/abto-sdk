@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.1
+
+- See the [dart-v1.1.1 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v1.1.1).
+
+## 1.1.0
+
+- See the [dart-v1.1.0 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v1.1.0).
+
+## 1.0.0
+
+- See the [dart-v1.0.0 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v1.0.0).
+
+## 0.5.3
+
+- See the [dart-v0.5.3 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v0.5.3).
+
 ## 0.5.2
 
 - See the [dart-v0.5.2 release notes](https://github.com/greedy-co/abto-sdk/releases/tag/dart-v0.5.2).
