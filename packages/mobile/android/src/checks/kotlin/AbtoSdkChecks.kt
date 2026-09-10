@@ -158,12 +158,6 @@ fun main() {
     check(isUuidV7(identityClient.sessionId), "client exposes sessionId")
     identityClient.reset()
     check(identityClient.deviceId != clientDeviceBeforeReset, "client deviceId follows reset")
-    covers("event.reserved_name_rejected")
-    check(!identityClient.capture("pageview"), "reserved system event name rejected by public capture")
-    covers("event.name_length_limit")
-    check(!identityClient.capture("x".repeat(201)), "overlong event name rejected before enqueue")
-    check(!identityClient.capture("🙂".repeat(101)), "event name limit uses backend UTF-16 units")
-
     // trace request id join
     val client = AbtoClient(AbtoConfig("ek_test"), AbtoInMemoryStore())
     val trace = client.startLlmTrace(featureId = "smoke.demo")
@@ -260,7 +254,7 @@ fun main() {
             ),
             AbtoInMemoryStore(),
         )
-        unavailableClient.capture("bounded_retry")
+        unavailableClient.capture(event = "bounded_retry", value = 1, scale = "count")
         check(
             unavailableRetryBudgetReached.await(5, TimeUnit.SECONDS),
             "unavailable collector reaches the retry attempt budget",
@@ -279,19 +273,19 @@ fun main() {
                 environment = AbtoEnvironment.DEVELOPMENT,
                 debug = false,
                 batchSize = 100,
-                flushIntervalMs = 10_000,
+                flushIntervalMs = 10000,
             ),
             AbtoInMemoryStore(),
         )
-        repeat(100) { burstClient.capture("burst_initial_$it") }
+        repeat(100) { burstClient.capture(event = "burst_initial_$it", value = 1, scale = "count") }
         check(blockedRequestStarted.await(5, TimeUnit.SECONDS), "burst transport starts one in-flight request")
-        repeat(2_000) { burstClient.capture("burst_buffered_$it") }
+        repeat(2000) { burstClient.capture(event = "burst_buffered_$it", value = 1, scale = "count") }
         releaseBlockedRequest.countDown()
         check(boundedBurstRequests.await(10, TimeUnit.SECONDS), "bounded burst drains the retained buffer")
         Thread.sleep(300)
         check(blockedRequestCount.get() == 11, "burst coalesces flush work and caps queued batches")
         covers("transport.buffer_cap")
-        check(blockedEventCount.get() == 1_100, "burst retains at most one thousand buffered events")
+        check(blockedEventCount.get() == 1100, "burst retains at most one thousand buffered events")
 
         val oversizedClient = AbtoClient(
             AbtoConfig(
@@ -302,7 +296,7 @@ fun main() {
             ),
             AbtoInMemoryStore(),
         )
-        oversizedClient.capture("oversized_response")
+        oversizedClient.capture(event = "oversized_response", value = 1, scale = "count")
         val oversizedFlush = CountDownLatch(1)
         oversizedClient.flush { oversizedFlush.countDown() }
         check(oversizedFlush.await(10, TimeUnit.SECONDS), "oversized response flush completed")
@@ -318,8 +312,8 @@ fun main() {
             ),
             AbtoInMemoryStore(),
         )
-        retryClient.capture("first")
-        retryClient.capture("second")
+        retryClient.capture(event = "first", value = 1, scale = "count")
+        retryClient.capture(event = "second", value = 1, scale = "count")
         val firstFlush = CountDownLatch(1)
         retryClient.flush { firstFlush.countDown() }
         check(firstFlush.await(10, TimeUnit.SECONDS), "first retry flush completed")
@@ -340,39 +334,94 @@ fun main() {
             ),
             AbtoInMemoryStore(),
         )
-        finiteClient.capture("invalid_metric", value = Double.NaN)
+        // 잘못된 이름은 전송 자체가 일어나지 않아야 한다 — 반환값이 아니라 wire 로 확인한다.
+        covers("event.reserved_name_rejected")
+        covers("event.name_length_limit")
+        finiteClient.capture(event = "pageview", value = 1, scale = "count")
+        finiteClient.capture(event = "x".repeat(201), value = 1, scale = "count")
+        finiteClient.capture(event = "🙂".repeat(101), value = 1, scale = "count")
+        finiteClient.capture(event = "name_guard_probe", value = 1, scale = "count")
+        val guardFlush = CountDownLatch(1)
+        finiteClient.flush { guardFlush.countDown() }
+        check(guardFlush.await(10, TimeUnit.SECONDS), "name guard flush completed")
+        val guardBody = requestBodies.lastOrNull().orEmpty()
+        check(guardBody.contains("name_guard_probe"), "a valid event name reaches the wire")
+        check(!guardBody.contains("\"event_name\":\"pageview\""), "reserved system event name rejected by public capture")
+        check(!guardBody.contains("x".repeat(201)), "overlong event name rejected before enqueue")
+        check(!guardBody.contains("🙂".repeat(101)), "event name limit uses backend UTF-16 units")
+
+        finiteClient.capture(event = "invalid_metric", value = Double.NaN, scale = "count")
         val finiteFlush = CountDownLatch(1)
         finiteClient.flush { finiteFlush.countDown() }
         check(finiteFlush.await(10, TimeUnit.SECONDS), "non-finite metric flush completed")
         val finiteBody = requestBodies.lastOrNull { it.contains(""""event_name":"invalid_metric"""") }.orEmpty()
-        covers("event.metric_non_finite_omitted")
-        check(!finiteBody.contains("NaN") && !finiteBody.contains("\"value\":"), "non-finite metric value omitted")
+        covers("event.metric_non_finite_rejected")
+        check(finiteBody.isEmpty(), "non-finite metric event rejected")
 
         finiteClient.identify("real-user", "real-tenant")
-        finiteClient.capture(
-            "bounded_metric",
-            properties = mapOf(
-                "environment" to "customer-environment",
-                "user_id" to "customer-user",
-                "\$environment" to "spoofed",
-                "\$user_id" to "spoofed",
-            ),
-            value = 1.0 / 3.0,
-            scale = "x".repeat(17),
-        )
+        finiteClient.capture(event = "bounded_metric", value = 1.0 / 3.0, scale = "count")
+        finiteClient.capture(event = "bad_scale", value = 1, scale = "x".repeat(17))
+        finiteClient.capture(event = "bad_properties", value = 1, scale = "count", properties = mapOf("\$user_id" to "spoof"))
         val boundedFlush = CountDownLatch(1)
         finiteClient.flush { boundedFlush.countDown() }
         check(boundedFlush.await(10, TimeUnit.SECONDS), "precision-bounded metric flush completed")
         val boundedBody = requestBodies.lastOrNull { it.contains(""""event_name":"bounded_metric"""") }.orEmpty()
         covers("event.metric_precision_enforced")
-        check(!boundedBody.contains("\"value\":"), "over-precision metric value omitted")
+        check(boundedBody.isEmpty(), "over-precision metric event rejected")
         covers("event.metric_scale_limit")
-        check(!boundedBody.contains("\"scale\":"), "oversized metric scale omitted")
-        check(boundedBody.contains("\"environment\":\"customer-environment\""), "customer environment property retained")
-        check(boundedBody.contains("\"user_id\":\"customer-user\""), "customer user_id property retained")
-        check(boundedBody.contains("\"\$environment\":\"development\""), "SDK environment context is namespaced")
-        check(boundedBody.contains("\"\$user_id\":\"real-user\""), "SDK user context cannot be overwritten")
-        check(!boundedBody.contains("spoofed"), "customer reserved properties are rejected")
+        check(requestBodies.none { it.contains("bad_scale") || it.contains("bad_properties") }, "invalid scale and properties rejected")
+
+        covers("event.properties_in_extra_json")
+        covers("event.promoted_fields_not_in_extra_json")
+        finiteClient.capture(event = "promoted_metric", value = 49000, scale = "KRW", properties = mapOf("tier" to "pro", "nullable" to null, "tags" to listOf("a"), "detail" to mapOf("enabled" to true)))
+        val promotedFlush = CountDownLatch(1)
+        finiteClient.flush { promotedFlush.countDown() }
+        check(promotedFlush.await(10, TimeUnit.SECONDS), "promoted metric flush completed")
+        val promotedBody = requestBodies.lastOrNull { it.contains(""""event_name":"promoted_metric"""") }.orEmpty()
+        // An Int literal reaches the wire as the same Double the other SDKs send.
+        check(promotedBody.contains(""""value":49000.0"""), "metric value is promoted to the wire field")
+        check(promotedBody.contains(""""scale":"KRW""""), "metric scale is promoted to the wire field")
+        val promotedExtraJson = promotedBody.substringAfter("\"extra_json\":")
+        check(promotedExtraJson.contains("\"tier\":\"pro\""), "user properties are in extra_json")
+        check(promotedExtraJson.contains("\"nullable\":null"), "null custom properties retained")
+        check(!promotedExtraJson.contains("\"properties\":"), "no properties wrapper on the wire")
+        for (promoted in listOf("value", "scale", "\$device_id", "\$anonymous_id", "\$session_id", "\$trace_id")) {
+            check(!promotedExtraJson.contains(""""$promoted""""), "$promoted is not copied into extra_json")
+        }
+
+        covers("event.optional_scale_preserved")
+        for ((name, scale) in listOf("scale_omitted" to null, "scale_empty" to "")) {
+            val before = requestBodies.size
+            finiteClient.capture(event = name, value = 0, scale = scale)
+            val done = CountDownLatch(1)
+            finiteClient.flush { done.countDown() }
+            check(done.await(10, TimeUnit.SECONDS), "optional scale flush completes")
+            val body = requestBodies.drop(before).firstOrNull { it.contains(name) }.orEmpty()
+            check(body.isNotEmpty(), "optional scale event reaches transport")
+            if (scale == null) check(!body.contains("\"scale\":"), "omitted scale stays absent")
+            else check(body.contains("\"scale\":\"\""), "empty scale is preserved")
+        }
+
+        covers("event.optional_metrics_preserved")
+        for (name in listOf("name_only", "properties_only", "scale_only", "scale_only_empty")) {
+            val before = requestBodies.size
+            when (name) {
+                "name_only" -> finiteClient.capture(name)
+                "properties_only" -> finiteClient.capture(name, properties = mapOf("tier" to "pro"))
+                "scale_only" -> finiteClient.capture(name, scale = "KRW")
+                else -> finiteClient.capture(name, scale = "")
+            }
+            val done = CountDownLatch(1)
+            finiteClient.flush { done.countDown() }
+            check(done.await(10, TimeUnit.SECONDS), "optional metrics flush completes")
+            val body = requestBodies.drop(before).firstOrNull { it.contains(name) }.orEmpty()
+            check(body.isNotEmpty(), "optional metrics event reaches transport")
+            check(!body.contains("\"value\":"), "omitted value stays absent")
+            if (name == "scale_only") check(body.contains("\"scale\":\"KRW\""), "scale without value is preserved")
+            else if (name == "scale_only_empty") check(body.contains("\"scale\":\"\""), "empty scale without value is preserved")
+            else check(!body.contains("\"scale\":"), "omitted scale stays absent")
+            if (name == "properties_only") check(body.contains("\"tier\":\"pro\""), "properties without metrics are preserved")
+        }
 
         val privacyClient = AbtoClient(
             AbtoConfig(
@@ -391,8 +440,6 @@ fun main() {
             timeToVisibleMs = 42,
         )
         privacyTrace.captureOutcome(AbtoResponseInteraction.COPIED, responseId = "response-1")
-        @Suppress("DEPRECATION")
-        privacyTrace.captureOutcome("retried", responseId = "response-1")
         val privacyFlush = CountDownLatch(1)
         privacyClient.flush { privacyFlush.countDown() }
         check(privacyFlush.await(10, TimeUnit.SECONDS), "metadata-only LLM events flushed")
@@ -408,6 +455,11 @@ fun main() {
         check(privacyBody.contains("\"\$output_length_chars\":15"), "response length metadata is transmitted")
         check(privacyBody.contains("\"\$interaction_type\":\"copied\""), "LLM helper emits canonical interaction type")
         check(privacyBody.contains("\"\$feature_id\":\"assistant.reply\""), "featureId maps to the collector contract")
+        // The canonical type is now the only way in, so a non-canonical value cannot reach the wire.
+        check(
+            AbtoResponseInteraction.fromWireValue("retried") == null,
+            "a non-canonical interaction type has no canonical value",
+        )
         check(!privacyBody.contains("retried"), "LLM helper drops non-canonical interaction types")
         check(privacyBody.contains("\"\$request_id\":\"req_helper\""), "LLM helper keeps request id in canonical context")
     } finally {
@@ -418,12 +470,19 @@ fun main() {
     if (System.getenv("ABTO_E2E") == "1") {
         val e2eClient = AbtoClient(
             AbtoConfig(
-                projectKey = "ek_smoke_android",
-                endpoint = "http://localhost:4870/v1/collect/events",
+                projectKey = System.getenv("ABTO_E2E_KEY") ?: "ek_smoke_android",
+                endpoint = System.getenv("ABTO_E2E_ENDPOINT") ?: "http://localhost:4870/v1/collect/events",
                 environment = AbtoEnvironment.DEVELOPMENT,
             ),
             AbtoInMemoryStore(),
         )
+        e2eClient.capture("sdk_e2e_android_currency", value = 49000, scale = "KRW", properties = mapOf("tier" to "pro"))
+        e2eClient.capture("sdk_e2e_android_omitted", value = 0)
+        e2eClient.capture("sdk_e2e_android_empty", value = 0, scale = "")
+        e2eClient.capture("sdk_e2e_android_name_only")
+        e2eClient.capture("sdk_e2e_android_properties_only", properties = mapOf("tier" to "pro"))
+        e2eClient.capture("sdk_e2e_android_scale_only", scale = "KRW")
+        e2eClient.capture("sdk_e2e_android_scale_only_empty", scale = "")
         e2eClient.identify("u_smoke_android")
         val e2eTrace = e2eClient.startLlmTrace(featureId = "smoke.android", taskType = "smoke_test", surface = "sdk_checks")
         e2eTrace.submitPrompt(prompt = "Android 스모크 프롬프트", language = "ko")

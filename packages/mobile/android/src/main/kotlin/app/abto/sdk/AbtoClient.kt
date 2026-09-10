@@ -2,33 +2,38 @@ package app.abto.sdk
 
 import kotlin.math.abs
 
-private const val METRIC_ABSOLUTE_LIMIT = 1e38
-private const val METRIC_MAX_FRACTION_DIGITS = 12
 
 internal fun abtoMetricValue(value: Double?): Double? {
-    if (value == null || !value.isFinite() || abs(value) >= METRIC_ABSOLUTE_LIMIT) return null
+    if (value == null || !value.isFinite() || abs(value) >= ABTO_METRIC_ABSOLUTE_LIMIT) return null
     val parts = abs(value).toString().lowercase().split("e", limit = 2)
     val fractionDigits = parts[0].substringAfter('.', "").trimEnd('0').length
     val exponent = parts.getOrNull(1)?.toIntOrNull() ?: 0
-    return value.takeIf { maxOf(0, fractionDigits - exponent) <= METRIC_MAX_FRACTION_DIGITS }
+    return value.takeIf { maxOf(0, fractionDigits - exponent) <= ABTO_METRIC_MAX_FRACTION_DIGITS }
 }
 
 internal fun abtoScaleValue(value: String?): String? =
-    value?.takeIf { it.length <= ABTO_SCALE_MAX_LENGTH }
+    value?.takeIf { !it.contains('\u0000') && it.length <= ABTO_SCALE_MAX_LENGTH }
 
-internal fun abtoEventNameIssue(event: String, allowSystemEvent: Boolean = false): String? = when {
-    event.isBlank() -> "must not be blank"
-    event.contains('\u0000') -> "must not contain U+0000"
-    event.startsWith("\$") -> "must not start with \$"
-    !allowSystemEvent && event in ABTO_RESERVED_EVENT_NAMES ->
-        "must not use an ABTO system event name"
-    event.length > ABTO_EVENT_NAME_MAX_LENGTH ->
-        "must be at most $ABTO_EVENT_NAME_MAX_LENGTH UTF-16 code units"
+// Mirrors the shallow JsonValue contract using native collection types.
+internal fun abtoValidProperties(properties: Map<String, Any?>): Boolean {
+    fun scalar(v: Any?): Boolean = v == null || v is Boolean ||
+        (v is String && !v.contains('\u0000')) || (v is Number && v.toDouble().isFinite())
+    fun value(v: Any?): Boolean = scalar(v) || (v is List<*> && v.all(::scalar)) ||
+        (v is Map<*, *> && v.all { (k, item) -> k is String && !k.contains('\u0000') && scalar(item) })
+    return properties.all { (k, v) -> !k.startsWith("$") && !k.contains('\u0000') && k !in ABTO_CUSTOM_METRIC_FIELDS && value(v) }
+}
+
+internal fun abtoEventNameIssue(event: String): String? = when {
+    event.isBlank() -> ABTO_ERR_EVENT_NAME_BLANK
+    event.contains('\u0000') -> ABTO_ERR_EVENT_NAME_NUL
+    event.startsWith("\$") -> ABTO_ERR_EVENT_NAME_DOLLAR_PREFIX
+    event in ABTO_RESERVED_EVENT_NAMES -> ABTO_ERR_EVENT_NAME_RESERVED
+    event.length > ABTO_EVENT_NAME_MAX_LENGTH -> ABTO_ERR_EVENT_NAME_TOO_LONG
     else -> null
 }
 
+// trace_id rides as a first-class wire field, so it is not copied into the bag.
 private val envelopeContextKeys = mapOf(
-    "trace_id" to "\$trace_id",
     "feature_id" to "\$feature_id",
     "task_type" to "\$task_type",
     "surface" to "\$surface",
@@ -62,41 +67,42 @@ class AbtoClient(
         context.reset()
     }
 
-    /** Manual event delivery, the default path for tracking behavior before an LLM call. */
+    /** Sends optional [value] and [scale] as metric columns and optional [properties] as extra_json. */
     fun capture(
         event: String,
-        properties: Map<String, Any?> = emptyMap(),
-        envelope: Map<String, Any?> = emptyMap(),
-        value: Double? = null,
+        value: Number? = null,
         scale: String? = null,
-    ): Boolean = captureEvent(event, properties, envelope, value, scale)
+        properties: Map<String, Any?> = emptyMap(),
+    ) {
+        abtoEventNameIssue(event)?.let { issue ->
+            System.err.println(ABTO_ERR_EVENT_DROPPED.replace("{issue}", issue))
+            return
+        }
+        if ((value != null && abtoMetricValue(value.toDouble()) == null) || (scale != null && abtoScaleValue(scale) == null) || !abtoValidProperties(properties)) {
+            System.err.println(ABTO_ERR_CUSTOM_CAPTURE_INVALID)
+            return
+        }
+        captureEvent(event, value = value?.toDouble(), scale = scale, properties = properties)
+    }
 
     internal fun captureSystemEvent(
         event: String,
         systemProperties: Map<String, Any?>,
-        properties: Map<String, Any?> = emptyMap(),
         envelope: Map<String, Any?> = emptyMap(),
-    ): Boolean = captureEvent(
-        event,
-        properties,
-        envelope,
-        systemProperties = systemProperties,
-        allowSystemEvent = true,
-    )
+    ) = captureEvent(event, envelope, systemProperties = systemProperties)
 
+    /**
+     * Builds and enqueues one event. Names are checked by the public [capture]; the SDK's own
+     * system event names are constants and need no check.
+     */
     private fun captureEvent(
         event: String,
-        properties: Map<String, Any?> = emptyMap(),
         envelope: Map<String, Any?> = emptyMap(),
         value: Double? = null,
         scale: String? = null,
         systemProperties: Map<String, Any?> = emptyMap(),
-        allowSystemEvent: Boolean = false,
-    ): Boolean {
-        abtoEventNameIssue(event, allowSystemEvent)?.let { issue ->
-            System.err.println("[abto] event was dropped: $issue.")
-            return false
-        }
+        properties: Map<String, Any?> = emptyMap(),
+    ) {
         val traceId = envelope["trace_id"] as? String
         val captured = buildMap<String, Any?> {
             put("event_id", uuidV7())
@@ -104,24 +110,21 @@ class AbtoClient(
             put("session_id", context.sessionId)
             traceId?.let { put("trace_id", it) }
             put("event_name", event)
-            abtoMetricValue(value)?.let { put("value", it) }
-            abtoScaleValue(scale)?.let { put("scale", it) }
+            value?.let { put("value", it) }
+            scale?.let { put("scale", it) }
             put("occurred_at", isoTimestamp())
+            // The bag holds only what no first-class wire field carries. device_id, session_id and
+            // trace_id ride at the top level, so a copy here would be a duplicate no aggregation
+            // reads, stored forever in every event's jsonb. Context with no column of its own
+            // stays, because the bag is its only carrier.
             put(
                 "extra_json",
                 buildMap {
-                    putAll(
-                        properties
-                            .filterValues { it != null }
-                            .filterKeys { !it.startsWith("\$") },
-                    )
+                    putAll(properties)
                     putAll(systemProperties.filterValues { it != null })
                     put("\$lib", "android")
                     put("\$environment", config.environment.wireName)
                     put("\$schema_version", ABTO_SCHEMA_VERSION)
-                    put("\$device_id", context.anonymousId)
-                    put("\$anonymous_id", context.anonymousId)
-                    put("\$session_id", context.sessionId)
                     context.userId?.let { put("\$user_id", it) }
                     context.tenantId?.let { put("\$tenant_id", it) }
                     for ((key, item) in envelope) {
@@ -135,7 +138,6 @@ class AbtoClient(
             println("[abto] $event $captured")
         }
         transport.enqueue(captured)
-        return true
     }
 
     fun startLlmTrace(featureId: String, taskType: String? = null, surface: String? = null): AbtoLlmTrace =
@@ -200,29 +202,13 @@ class AbtoLlmTrace internal constructor(
     fun captureOutcome(
         interactionType: AbtoResponseInteraction,
         responseId: String? = null,
-        extra: Map<String, Any?> = emptyMap(),
     ) {
-        captureCanonicalOutcome(interactionType.wireValue, responseId, extra)
-    }
-
-    @Deprecated("Use the AbtoResponseInteraction overload. String values remain supported during the 0.x compatibility window.")
-    fun captureOutcome(
-        interactionType: String,
-        responseId: String? = null,
-        extra: Map<String, Any?> = emptyMap(),
-    ) {
-        val canonical = AbtoResponseInteraction.fromWireValue(interactionType)
-        if (canonical == null) {
-            System.err.println(ABTO_ERR_INTERACTION_DROPPED)
-            return
-        }
-        captureCanonicalOutcome(canonical.wireValue, responseId, extra)
+        captureCanonicalOutcome(interactionType.wireValue, responseId)
     }
 
     private fun captureCanonicalOutcome(
         interactionType: String,
         responseId: String?,
-        extra: Map<String, Any?>,
     ) {
         client.captureSystemEvent(
             "llm_response_interacted",
@@ -231,7 +217,6 @@ class AbtoLlmTrace internal constructor(
                 responseId?.let { put("\$response_id", it) }
                 requestId?.let { put("\$request_id", it) }
             },
-            properties = extra,
             envelope = envelope(if (responseId != null) mapOf("response_id" to responseId) else emptyMap()),
         )
     }
