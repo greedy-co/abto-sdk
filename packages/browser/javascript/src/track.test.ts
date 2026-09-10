@@ -8,14 +8,7 @@ afterEach(() => {
 });
 
 const events = {
-  checkout_completed: {
-    description: '결제가 완료됨',
-    properties: {
-      tier: { type: 'string', required: true },
-      amount: { type: 'number', required: true },
-      currency: { type: 'string', enum: ['KRW', 'USD'], required: true },
-    },
-  },
+  checkout_completed: { description: 'Checkout completed' },
 } as const;
 
 function installFetchStub(): ReturnType<typeof vi.fn> {
@@ -49,11 +42,7 @@ describe('custom event boundary', () => {
     const sdk = client();
 
     sdk.identify('user-9', 'tenant-9');
-    sdk.capture('checkout_completed', {
-      tier: 'pro',
-      amount: 49000,
-      currency: 'KRW',
-    });
+    sdk.capture('checkout_completed', 49_000, 'KRW');
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -61,14 +50,43 @@ describe('custom event boundary', () => {
     expect(event.event_id).toEqual(expect.any(String));
     expect(event.device_id).toEqual(expect.any(String));
     expect(event.occurred_at).toEqual(expect.any(String));
+    expect(event.value).toBe(49_000);
+    expect(event.scale).toBe('KRW');
     expect(event.extra_json).toMatchObject({
-      tier: 'pro',
-      amount: 49000,
-      currency: 'KRW',
       $user_id: 'user-9',
       $tenant_id: 'tenant-9',
       $schema_version: '2026-09-02',
     });
+  });
+
+  it('sends an event with no metric as a conversion signal', async () => {
+    const fetchMock = installFetchStub();
+    const sdk = client();
+
+    sdk.capture('checkout_completed');
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.event_name).toBe('checkout_completed');
+    expect(event).not.toHaveProperty('value');
+    expect(event).not.toHaveProperty('scale');
+  });
+
+  it('omits a metric outside the collector contract but still sends the event', async () => {
+    const fetchMock = installFetchStub();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const sdk = client();
+
+    sdk.capture('checkout_completed', 1 / 3, 'x'.repeat(17));
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.event_name).toBe('checkout_completed');
+    expect(event).not.toHaveProperty('value');
+    expect(event).not.toHaveProperty('scale');
+    expect(event.extra_json).not.toHaveProperty('value');
+    expect(event.extra_json).not.toHaveProperty('scale');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('outside the collector contract'));
   });
 
   it('never lets public capture claim a $ system event name', async () => {
@@ -76,7 +94,7 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('$pageview' as never, {} as never);
+    sdk.capture('$pageview' as never);
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -88,19 +106,19 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('🙂'.repeat(101) as never, {} as never);
+    sdk.capture('🙂'.repeat(101) as never);
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('200 UTF-16'));
   });
 
-  it('accepts an unregistered custom event in development and warns about drift', async () => {
+  it('accepts an unregistered custom event in development and warns about the discovery', async () => {
     const fetchMock = installFetchStub();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client('development');
 
-    sdk.capture('discovered_event' as never, { source: 'experiment' } as never);
+    sdk.capture('discovered_event' as never);
     await sdk.flush();
 
     expect(postedBatch(fetchMock)[0].event_name).toBe('discovered_event');
@@ -112,86 +130,10 @@ describe('custom event boundary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const sdk = client();
 
-    sdk.capture('unknown_event' as never, {} as never);
+    sdk.capture('unknown_event' as never);
     await sdk.flush();
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('not registered'));
-  });
-
-  it('drops required, type, and enum drift in production', async () => {
-    const fetchMock = installFetchStub();
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const sdk = client();
-
-    sdk.capture('checkout_completed', {
-      amount: '49000',
-      currency: 'EUR',
-    } as never);
-    await sdk.flush();
-
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('sends registered schema drift in development with a warning', async () => {
-    const fetchMock = installFetchStub();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const sdk = client('development');
-
-    sdk.capture('checkout_completed', {
-      amount: '49000',
-      currency: 'EUR',
-    } as never);
-    await sdk.flush();
-
-    expect(postedBatch(fetchMock)[0].event).toBe('checkout_completed');
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('schema drift'));
-  });
-
-  it('allows undeclared additive properties', async () => {
-    const fetchMock = installFetchStub();
-    const sdk = client();
-
-    sdk.capture('checkout_completed', {
-      tier: 'pro',
-      amount: 1000,
-      currency: 'KRW',
-      campaign: 'launch',
-    } as never);
-    await sdk.flush();
-
-    expect(postedBatch(fetchMock)[0].properties.campaign).toBe('launch');
-  });
-
-  it.each(['development', 'production'] as const)(
-    'drops reserved custom payload properties in %s',
-    async (environment) => {
-      const fetchMock = installFetchStub();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const sdk = client(environment);
-
-      sdk.capture('checkout_completed', {
-        tier: 'pro',
-        amount: 1000,
-        currency: 'KRW',
-        $custom: 'spoofed',
-      } as never);
-      await sdk.flush();
-
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('$custom is reserved'));
-    },
-  );
-
-  it('drops reserved payload properties on unregistered development events', async () => {
-    const fetchMock = installFetchStub();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const sdk = client('development');
-
-    sdk.capture('discovered_event' as never, { $custom: 'spoofed' } as never);
-    await sdk.flush();
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('$custom is reserved'));
   });
 });

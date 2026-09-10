@@ -6,9 +6,7 @@ import { defineEvents } from './event-registry.js';
 const UUID_V7_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const events = defineEvents({
-  user_action: {
-    properties: { name: { type: 'string', required: true } },
-  },
+  user_action: { description: 'A product action' },
 });
 
 afterEach(() => {
@@ -34,6 +32,9 @@ function postedBatch(fetchMock: ReturnType<typeof vi.fn>): any[] {
     event: event.event_name,
     timestamp: event.occurred_at,
     distinct_id: event.device_id,
+    // device_id, session_id and trace_id are first-class wire fields with no copy in the bag.
+    session_id: event.session_id,
+    trace_id: event.trace_id,
     properties: event.extra_json,
   }));
 }
@@ -58,7 +59,7 @@ describe('Browser event envelope and identity', () => {
   it('discards persisted events before beginning a new device lifecycle', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('user_action', { name: 'queued' });
+    sdk.capture('user_action');
     expect(new BrowserOutbox('public_project_key').read()).toHaveLength(1);
 
     sdk.forgetDevice();
@@ -72,23 +73,25 @@ describe('Browser event envelope and identity', () => {
   it('puts identity context in properties and switches distinct_id after identify', async () => {
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('user_action', { name: 'anonymous' });
+    sdk.capture('user_action');
     sdk.identify('user-1', 'tenant-1');
-    sdk.capture('user_action', { name: 'identified' });
+    sdk.capture('user_action');
     await sdk.flush();
 
     const [anonymous, identified] = postedBatch(fetchMock);
     expect(anonymous.uuid).toMatch(UUID_V7_RE);
-    expect(anonymous.distinct_id).toBe(anonymous.properties.$anonymous_id);
-    expect(anonymous.properties.$device_id).toMatch(UUID_V7_RE);
-    expect(anonymous.properties.$session_id).toMatch(UUID_V7_RE);
+    expect(anonymous.distinct_id).toMatch(UUID_V7_RE);
+    expect(anonymous.session_id).toMatch(UUID_V7_RE);
+    expect(anonymous.properties.$device_id).toBeUndefined();
+    expect(anonymous.properties.$anonymous_id).toBeUndefined();
+    expect(anonymous.properties.$session_id).toBeUndefined();
     expect(anonymous.properties.$window_id).toMatch(UUID_V7_RE);
     expect(anonymous.properties.$pageview_id).toMatch(UUID_V7_RE);
     expect(anonymous.properties.$user_id).toBeUndefined();
-    expect(identified.distinct_id).toBe(identified.properties.$device_id);
+    expect(identified.distinct_id).toBe(anonymous.distinct_id);
     expect(identified.properties.$user_id).toBe('user-1');
     expect(identified.properties.$tenant_id).toBe('tenant-1');
-    expect(identified.properties.$session_id).toBe(anonymous.properties.$session_id);
+    expect(identified.session_id).toBe(anonymous.session_id);
   });
 
   it('replaces tenant identity and clears it on reset', async () => {
@@ -97,7 +100,7 @@ describe('Browser event envelope and identity', () => {
     sdk.identify('user-1', 'tenant-1');
     sdk.identify('user-2');
     sdk.reset();
-    sdk.capture('user_action', { name: 'after-reset' });
+    sdk.capture('user_action');
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -115,7 +118,7 @@ describe('Browser event envelope and identity', () => {
       events,
       autocapture: { enabled: false },
     });
-    sdk.capture('user_action', { name: 'versioned' });
+    sdk.capture('user_action');
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -137,7 +140,7 @@ describe('observable AI events', () => {
       'x-abto-device-id': sdk.getIdentity().deviceId,
     });
 
-    sdk.capture('user_action', { name: 'after-trace-start' });
+    sdk.capture('user_action');
     await sdk.flush();
 
     const [event] = postedBatch(fetchMock);
@@ -172,7 +175,8 @@ describe('observable AI events', () => {
       'llm_response_interacted',
     ]);
     expect(batch[0].properties.$prompt_text).toBeUndefined();
-    expect(batch[0].properties.$trace_id).toBe(trace.traceId);
+    expect(batch[0].trace_id).toBe(trace.traceId);
+    expect(batch[0].properties.$trace_id).toBeUndefined();
     expect(batch[0].properties.$feature_id).toBeUndefined();
     expect(batch[0].properties.$surface).toBeUndefined();
     expect(batch[1].properties.$response_text).toBeUndefined();

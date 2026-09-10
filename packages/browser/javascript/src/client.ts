@@ -10,12 +10,11 @@ import { ContextStore } from './context.js';
 import { BrowserDiagnostics } from './diagnostics.js';
 import {
   validateCustomEventName,
-  validateCustomPropertyNames,
-  validateEventProperties,
   type EventRegistry,
 } from './event-registry.js';
 import type { BrowserIdentity } from './identity.js';
 import { derivePromptMeta } from './privacy.js';
+import { isCollectorMetricValue, isCollectorScale } from './metric.js';
 import { Transport } from './transport.js';
 import type {
   AbtoBrowserConfig,
@@ -27,7 +26,6 @@ import type {
   CustomEventProperties,
   Environment,
   EventNameFor,
-  EventPropertiesFor,
   LlmTrace,
   PromptMetadata,
   RequestIdSource,
@@ -40,7 +38,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '0.5.3';
+const SDK_VERSION = '0.5.4';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -112,10 +110,30 @@ function readRequestId(source: RequestIdSource): string | undefined {
   return readHeader(source, 'x-abto-request-id');
 }
 
+/** Keeps only what Analytics can store, warning about the rest so the developer can fix it. */
+function checkedMetric(
+  name: string,
+  value: number | undefined,
+  scale: string | undefined,
+): { value?: number; scale?: string } {
+  const metric: { value?: number; scale?: string } = {};
+  if (value !== undefined) {
+    if (isCollectorMetricValue(value)) metric.value = value;
+    else console.warn(`[abto] custom event "${name}" metric value is outside the collector contract and was omitted.`);
+  }
+  if (scale !== undefined) {
+    if (isCollectorScale(scale)) metric.scale = scale;
+    else console.warn(`[abto] custom event "${name}" metric scale is outside the collector contract and was omitted.`);
+  }
+  return metric;
+}
+
 function contextProperties(
   common: CommonProperties,
   config: ResolvedConfig,
 ): CustomEventProperties {
+  // device_id, session_id and trace_id ride as first-class wire fields, so no copy is kept here.
+  // What remains is the context that has no column of its own, for which the bag is the only carrier.
   return compact({
     $lib: 'web',
     $lib_version: SDK_VERSION,
@@ -124,13 +142,9 @@ function contextProperties(
     $schema_version: SCHEMA_VERSION,
     $tenant_id: common.tenant_id,
     $user_id: common.user_id,
-    $device_id: common.device_id,
-    $anonymous_id: common.anonymous_id,
-    $session_id: common.session_id,
     $window_id: common.window_id,
     $pageview_id: common.pageview_id,
     $feature_id: common.feature_id,
-    $trace_id: common.trace_id,
     $request_id: common.request_id,
     $response_id: common.response_id,
     $surface: common.surface,
@@ -305,7 +319,17 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
     this.responseRequestIds.set(responseId, requestId);
   }
 
-  capture<N extends EventNameFor<R>>(event: N, properties: EventPropertiesFor<R, N>): void {
+  /**
+   * Sends a Custom Event.
+   *
+   * An event carries only the metric `value` and its unit label `scale`. Both are optional, and
+   * an event sent with its name alone counts as a conversion. A metric outside the contract is
+   * warned about and omitted while the event still goes out: losing the event itself would leave
+   * a larger hole in the measurement.
+   *
+   * The metric is positional so the call reads the same in every ABTO SDK.
+   */
+  capture<N extends EventNameFor<R>>(event: N, value?: number, scale?: string): void {
     const name = event as string;
     const eventNameIssue = validateCustomEventName(name);
     if (eventNameIssue !== undefined) {
@@ -313,32 +337,15 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
       return;
     }
 
-    const reservedPropertyIssues = validateCustomPropertyNames(
-      properties as Record<string, unknown>,
-    );
-    if (reservedPropertyIssues.length > 0) {
-      console.warn(`[abto] custom event "${name}" schema drift: ${reservedPropertyIssues.join('; ')}`);
-      return;
-    }
-
-    const definition = this.config.events[name];
-    if (definition === undefined) {
+    if (this.config.events[name] === undefined) {
       if (this.config.environment === 'production') {
         console.warn(`[abto] custom event "${name}" is not registered and was dropped.`);
         return;
       }
       console.warn(`[abto] Discovered unregistered custom event "${name}" in development.`);
-      this.emit(name, properties as CustomEventProperties);
-      return;
     }
 
-    const result = validateEventProperties(definition, properties as Record<string, unknown>);
-    if (!result.valid) {
-      const message = `[abto] custom event "${name}" schema drift: ${result.issues.join('; ')}`;
-      console.warn(message);
-      if (this.config.environment === 'production') return;
-    }
-    this.emit(name, properties as CustomEventProperties);
+    this.emit(name, { metric: checkedMetric(name, value, scale) });
   }
 
   #captureSystem<N extends BrowserSystemEventName>(
@@ -346,7 +353,7 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
     properties: BrowserSystemEventPropsMap[N],
     envelope: Partial<CommonProperties> = {},
   ): void {
-    this.emit(event, properties as unknown as CustomEventProperties, envelope);
+    this.emit(event, { properties: properties as unknown as CustomEventProperties, envelope });
   }
 
   flush(): Promise<void> {
@@ -362,15 +369,22 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
 
   private emit(
     event: string,
-    properties: CustomEventProperties,
-    envelope: Partial<CommonProperties> = {},
+    parts: {
+      properties?: CustomEventProperties;
+      envelope?: Partial<CommonProperties>;
+      metric?: { value?: number; scale?: string };
+    } = {},
   ): void {
+    const { properties = {}, envelope = {}, metric = {} } = parts;
     const common = { ...this.context.toCommonProperties(), ...envelope };
     const captured: CapturedEvent = {
       uuid: newUuidV7(),
       event,
       timestamp: new Date().toISOString(),
-      distinct_id: common.user_id ?? common.anonymous_id ?? common.device_id ?? newUuidV7(),
+      device_id: common.device_id ?? common.anonymous_id ?? newUuidV7(),
+      session_id: common.session_id,
+      trace_id: common.trace_id,
+      ...metric,
       properties: {
         ...properties,
         ...contextProperties(common, this.config),

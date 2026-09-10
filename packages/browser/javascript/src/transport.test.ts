@@ -10,13 +10,16 @@ const config = {
   projectKey: 'public_project_key',
 };
 
-function event(uuid = '019b5b74-11d0-7000-8000-000000000001', value = 'ok'): CapturedEvent {
+function event(
+  uuid = '019b5b74-11d0-7000-8000-000000000001',
+  properties: CapturedEvent['properties'] = {},
+): CapturedEvent {
   return {
     uuid,
     event: 'custom_event',
     timestamp: '2026-07-15T00:00:00.000Z',
-    distinct_id: 'user_1',
-    properties: { value },
+    device_id: 'device_1',
+    properties,
   };
 }
 
@@ -141,7 +144,6 @@ describe('Transport durable outbox', () => {
     const transport = new Transport(config, diagnostics);
     transport.enqueue({
       ...event(),
-      properties: { customer_email: 'private@example.com' },
     });
 
     await transport.flush();
@@ -386,67 +388,29 @@ describe('Transport durable outbox', () => {
     expect(body.batch).toEqual([
       {
         event_id: '019b5b74-11d0-7000-8000-000000000001',
-        device_id: 'user_1',
+        device_id: 'device_1',
         event_name: 'custom_event',
         occurred_at: '2026-07-15T00:00:00.000Z',
-        extra_json: { value: 'ok' },
+        extra_json: {},
       },
     ]);
     transport.shutdown();
   });
 
-  it('promotes numeric value and scale properties to Analytics metric fields', async () => {
+  it('carries the metric through to the Analytics metric fields', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
     const transport = new Transport(config);
     transport.enqueue({
       ...event(),
-      properties: { value: 3000, scale: 'KRW', product: 'pro' },
-    });
-
-    await transport.flush();
-
-    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(body.batch[0]).toMatchObject({
       value: 3000,
       scale: 'KRW',
-      extra_json: { value: 3000, scale: 'KRW', product: 'pro' },
-    });
-    transport.shutdown();
-  });
-
-  it('omits metric values outside the collector decimal precision', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
-    vi.stubGlobal('fetch', fetchMock);
-    const transport = new Transport(config);
-    transport.enqueue({
-      ...event(),
-      properties: { value: 1 / 3, product: 'pro' },
     });
 
     await transport.flush();
 
     const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(body.batch[0]).not.toHaveProperty('value');
-    expect(body.batch[0].extra_json).toEqual({ value: 1 / 3, product: 'pro' });
-    transport.shutdown();
-  });
-
-  it('omits an oversized scale while retaining the event and original properties', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
-    vi.stubGlobal('fetch', fetchMock);
-    const transport = new Transport(config);
-    const oversizedScale = 'x'.repeat(17);
-    transport.enqueue({
-      ...event(),
-      properties: { scale: oversizedScale, product: 'pro' },
-    });
-
-    await transport.flush();
-
-    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string);
-    expect(body.batch[0]).not.toHaveProperty('scale');
-    expect(body.batch[0].extra_json).toEqual({ scale: oversizedScale, product: 'pro' });
+    expect(body.batch[0]).toMatchObject({ value: 3000, scale: 'KRW', extra_json: {} });
     transport.shutdown();
   });
 
@@ -454,7 +418,7 @@ describe('Transport durable outbox', () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
     const transport = new Transport(config);
-    transport.enqueue(event('large', 'x'.repeat(70 * 1024)));
+    transport.enqueue(event('large', { $lib: 'x'.repeat(70 * 1024) }));
 
     await transport.flush();
 
@@ -488,7 +452,7 @@ describe('Transport durable outbox', () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
     const transport = new Transport(config, diagnostics);
-    transport.enqueue(event('near-limit', 'x'.repeat(60 * 1024 - 300)));
+    transport.enqueue(event('near-limit', { $lib: 'x'.repeat(60 * 1024 - 300) }));
 
     await transport.flush(true);
 
@@ -517,7 +481,7 @@ describe('Transport durable outbox', () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
     const transport = new Transport(config);
-    transport.enqueue(event('large', 'x'.repeat(70 * 1024)));
+    transport.enqueue(event('large', { $lib: 'x'.repeat(70 * 1024) }));
 
     await transport.flush(true);
 

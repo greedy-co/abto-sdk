@@ -37,7 +37,7 @@ Browser SDK가 보내는 이벤트는 두 종류다.
 | `$ai_response_rendered` | `llm_response_rendered` | 응답이 UI에 렌더됨을 앱이 확인 | `trace.markResponseRendered()` |
 | `$ai_response_interacted` | `llm_response_interacted` | 응답에 대한 명시적 행동 | `trace.captureResponseInteraction()` |
 
-`$session_start`와 `$session_end`는 보내지 않는다. 모든 이벤트의 `$session_id`와 timestamp의 최솟값·최댓값을 분석 계층에서 사용해 세션 시작, 종료, duration을 파생한다. 브라우저 종료 신호는 유실될 수 있으므로 `$session_end`를 확정 사실로 기록하지 않는다.
+`$session_start`와 `$session_end`는 보내지 않는다. 모든 이벤트의 `session_id`와 timestamp의 최솟값·최댓값을 분석 계층에서 사용해 세션 시작, 종료, duration을 파생한다. 브라우저 종료 신호는 유실될 수 있으므로 `$session_end`를 확정 사실로 기록하지 않는다.
 
 ## 커스텀 이벤트 정본: `abto.events.ts`
 
@@ -48,17 +48,7 @@ Browser SDK가 보내는 이벤트는 두 종류다.
 import { defineEvents } from '@abto-app/event';
 
 export const events = defineEvents({
-  checkout_completed: {
-    description: '결제가 완료됨',
-    properties: {
-      value: { type: 'number', required: true },
-      scale: {
-        type: 'string',
-        enum: ['KRW', 'USD'],
-        required: true,
-      },
-    },
-  },
+  checkout_completed: { description: '결제가 완료됨' },
 });
 ```
 
@@ -72,24 +62,21 @@ const abto = initAbto({
   events,
 });
 
-abto.capture('checkout_completed', {
-  value: 49_000,
-  scale: 'KRW',
-});
+abto.capture('checkout_completed', 49_000, 'KRW');
 ```
 
-`value`와 `scale`은 Success Metric이 읽는 metric 필드로 승격되는 예약 이름이다.
-금액이나 개수처럼 집계할 수치는 이 두 이름으로 실어야 하며,
-다른 이름의 property는 `extra_json`에만 남아 전환 건수로만 쓰인다.
+이벤트가 직접 싣는 값은 수치 `value`와 단위 라벨 `scale` 두 가지다. 둘 다 선택이며,
+수치 없이 이름만 보내면(`abto.capture('summary_copied')`) 전환 건수로 집계된다.
+Success Metric이 읽는 것도 이 둘이다. 자유형 property는 받지 않는다.
 
-`defineEvents()`에서 타입을 추론하므로 잘못된 이벤트 이름, required 누락, enum 위반을 개발 시점에 확인할 수 있다. 런타임 정책은 환경별로 다르다.
+`defineEvents()`에서 이름을 추론하므로 잘못된 이벤트 이름을 개발 시점에 확인할 수 있다. 런타임 정책은 환경별로 다르다.
 
-| 환경 | 미등록 이벤트 | 등록 schema drift |
-|---|---|---|
-| `development` | 전송하고 `Discovered` 경고 | 전송하고 drift 경고 |
-| `production` | drop | required/type/enum 위반 drop |
+| 환경 | 미등록 이벤트 |
+|---|---|
+| `development` | 전송하고 `Discovered` 경고 |
+| `production` | drop |
 
-알 수 없는 추가 속성은 막지 않는다. schema가 선언한 required/type/enum만 검사해 점진적 확장을 허용한다.
+계약을 벗어난 metric(비유한 값, 정수부 38자리·소수부 12자리 초과, 16자 초과 `scale`)은 경고와 함께 그 값만 빠지고 이벤트 자체는 전송된다.
 
 ## 초기화와 autocapture
 
@@ -147,7 +134,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "0.5.3"
+        "$lib_version": "0.5.4"
       }
     }
   ]
@@ -195,8 +182,9 @@ diagnostics는 위 고정 SDK 이름과 counter만 포함하고 사용자 ID, ev
 없으면 진단만 보내는 요청도 생기지 않는다.
 
 SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고정 Event 계약은 `$` 접두
-`event_name`을 거절한다. Transport가 위 표의 canonical 이름으로만 변환해 전송하며 `$lib`,
-`$device_id`, `$session_id` 같은 SDK 소유 context는 `extra_json`에 그대로 보존한다.
+`event_name`을 거절한다. Transport가 위 표의 canonical 이름으로만 변환해 전송한다.
+`device_id`·`session_id`·`trace_id`는 wire의 1급 필드로 실리고, 담을 필드가 없는
+`$lib`·`$user_id`·`$feature_id` 같은 SDK 소유 context만 `extra_json`에 남는다.
 Dashboard 이벤트 카탈로그와 Success Metric에서는 canonical wire 이름을 사용한다.
 
 autocapture를 명시적으로 켠 경우 annotation은 원시 `$autocapture`를 다른 이벤트로 바꾸지 않는다. 원시 상호작용을 보존하면서 분석 차원만 보강한다.
@@ -269,15 +257,16 @@ provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request �
 
 ## 식별자와 세션
 
+`$` 접두가 붙은 것은 `extra_json`이 유일한 자리인 context이고, 나머지는 wire의 1급 필드다.
+
 | 속성 | 수명과 역할 |
 |---|---|
-| `$device_id` | 프로젝트별 브라우저 설치, localStorage 유지 |
-| `$anonymous_id` | 로그인 전 distinct identity |
+| `device_id` | 프로젝트별 브라우저 설치, localStorage 유지 |
+| `session_id` | 탭 사이에서 공유하는 논리 세션, 30분 idle 또는 24시간 max age에 회전 |
+| `trace_id` | 한 사용자 행동에서 발생한 브라우저 이벤트를 묶는 값 |
 | `$user_id` | `identify()`로 연결한 제품 사용자 |
-| `$session_id` | 탭 사이에서 공유하는 논리 세션, 30분 idle 또는 24시간 max age에 회전 |
 | `$window_id` | 탭/window별 ID, sessionStorage 유지 |
 | `$pageview_id` | 페이지/SPA route 구간, pageview마다 회전 |
-| `$trace_id` | 한 사용자 행동에서 발생한 브라우저 이벤트를 묶는 값 |
 | `$request_id` | Gateway의 실제 provider 호출 PK |
 
 ```ts

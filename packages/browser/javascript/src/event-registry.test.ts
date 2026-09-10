@@ -1,28 +1,9 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
-import {
-  defineEvents,
-  type InferCustomEventProperties,
-  validateCustomEventName,
-  validateEventProperties,
-} from './event-registry.js';
+import { describe, expect, it } from 'vitest';
+import { defineEvents, validateCustomEventName } from './event-registry.js';
 
 describe('defineEvents', () => {
-  it('rejects ABTO-owned $ event and property names', () => {
-    expect(() =>
-      defineEvents({
-        $pageview: { properties: {} },
-      }),
-    ).toThrow('reserved');
-
-    expect(() =>
-      defineEvents({
-        checkout_completed: {
-          properties: {
-            $session_id: { type: 'string' },
-          },
-        },
-      }),
-    ).toThrow('property');
+  it('rejects ABTO-owned $ event names', () => {
+    expect(() => defineEvents({ $pageview: {} })).toThrow('reserved');
   });
 
   it.each([
@@ -35,11 +16,7 @@ describe('defineEvents', () => {
     'llm_response_rendered',
     'llm_response_interacted',
   ])('rejects the ABTO-owned %s Backend wire name', (name) => {
-    expect(() =>
-      defineEvents({
-        [name]: { properties: {} },
-      }),
-    ).toThrow('system event on the wire');
+    expect(() => defineEvents({ [name]: {} })).toThrow('system event on the wire');
   });
 
   it('enforces the Backend event_name UTF-16 length limit', () => {
@@ -47,43 +24,16 @@ describe('defineEvents', () => {
     expect(validateCustomEventName('🙂'.repeat(100))).toBeUndefined();
     expect(validateCustomEventName('x'.repeat(201))).toContain('200 UTF-16');
     expect(validateCustomEventName('🙂'.repeat(101))).toContain('200 UTF-16');
-    expect(() =>
-      defineEvents({
-        ['x'.repeat(201)]: { properties: {} },
-      }),
-    ).toThrow('200 UTF-16');
+    expect(() => defineEvents({ ['x'.repeat(201)]: {} })).toThrow('200 UTF-16');
   });
 
-  it('infers required, optional, and enum property types', () => {
+  it('keeps the declaration to a name and a human description', () => {
     const registry = defineEvents({
-      checkout_completed: {
-        properties: {
-          tier: { type: 'string', required: true },
-          amount: { type: 'number', required: true },
-          currency: { type: 'string', enum: ['KRW', 'USD'] as const },
-          recurring: { type: 'boolean' },
-        },
-      },
+      checkout_completed: { description: '결제 완료' },
+      summary_copied: {},
     });
 
-    type Properties = InferCustomEventProperties<(typeof registry)['checkout_completed']>;
-    expectTypeOf<Properties>().toMatchTypeOf<{
-      tier: string;
-      amount: number;
-      currency?: 'KRW' | 'USD';
-      recurring?: boolean;
-    }>();
-  });
-
-  it('rejects reserved $ keys supplied in a custom event payload', () => {
-    const result = validateEventProperties(
-      { properties: {} },
-      { $schema_version: 'spoofed' },
-    );
-
-    expect(result).toEqual({
-      valid: false,
-      issues: ['$schema_version is reserved; $ properties belong to ABTO'],
-    });
+    expect(Object.keys(registry)).toEqual(['checkout_completed', 'summary_copied']);
+    expect(registry.checkout_completed.description).toBe('결제 완료');
   });
 });

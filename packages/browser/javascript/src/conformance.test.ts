@@ -43,13 +43,8 @@ function covers(scenario: string): void {
 }
 
 const events = defineEvents({
-  user_action: { properties: { name: { type: 'string', required: false } } },
-  checkout_completed: {
-    properties: {
-      value: { type: 'number', required: false },
-      scale: { type: 'string', required: false },
-    },
-  },
+  user_action: { description: 'A product action' },
+  checkout_completed: { description: 'Checkout completed' },
 });
 
 afterEach(() => {
@@ -106,9 +101,9 @@ describe('client conformance', () => {
     const fetchMock = installFetchStub();
     const sdk = client();
     sdk.identify('user-1');
-    sdk.capture('user_action', {});
+    sdk.capture('user_action');
     sdk.reset();
-    sdk.capture('user_action', {});
+    sdk.capture('user_action');
     await sdk.flush();
 
     const [identified, afterReset] = postedBatch(fetchMock);
@@ -144,7 +139,7 @@ describe('client conformance', () => {
     covers('event.metric_non_finite_omitted');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', { value: Number.POSITIVE_INFINITY });
+    sdk.capture('checkout_completed', Number.POSITIVE_INFINITY);
     await sdk.flush();
     expect(postedBatch(fetchMock)[0].value).toBeUndefined();
     sdk.shutdown();
@@ -154,7 +149,7 @@ describe('client conformance', () => {
     covers('event.metric_precision_enforced');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', { value: 1.1234567890123456 });
+    sdk.capture('checkout_completed', 1.1234567890123456);
     await sdk.flush();
     expect(postedBatch(fetchMock)[0].value).toBeUndefined();
     sdk.shutdown();
@@ -164,12 +159,39 @@ describe('client conformance', () => {
     covers('event.metric_scale_limit');
     const fetchMock = installFetchStub();
     const sdk = client();
-    sdk.capture('checkout_completed', {
-      value: 1,
-      scale: 'K'.repeat(ABTO_SCALE_MAX_LENGTH + 1),
-    });
+    sdk.capture('checkout_completed', 1, 'K'.repeat(ABTO_SCALE_MAX_LENGTH + 1));
     await sdk.flush();
     expect(postedBatch(fetchMock)[0].scale).toBeUndefined();
+    sdk.shutdown();
+  });
+
+  it('event: a custom event carries nothing but its name and metric', async () => {
+    covers('event.no_free_form_properties');
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    sdk.capture('checkout_completed', 3000, 'KRW');
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.value).toBe(3000);
+    expect(event.scale).toBe('KRW');
+    // Whatever remains in the bag is SDK context the SDK itself put there.
+    expect(Object.keys(event.extra_json).every((key) => key.startsWith('$'))).toBe(true);
+    sdk.shutdown();
+  });
+
+  it('event: fields promoted to the wire leave no copy in the bag', async () => {
+    covers('event.promoted_fields_not_in_extra_json');
+    const fetchMock = installFetchStub();
+    const sdk = client();
+    sdk.capture('checkout_completed', 3000, 'KRW');
+    await sdk.flush();
+
+    const [event] = postedBatch(fetchMock);
+    expect(event.device_id).toEqual(expect.any(String));
+    for (const key of ['value', 'scale', '$device_id', '$anonymous_id', '$session_id']) {
+      expect(event.extra_json).not.toHaveProperty(key);
+    }
     sdk.shutdown();
   });
 
@@ -249,7 +271,7 @@ function event(uuid: string): CapturedEvent {
     uuid,
     event: 'custom_event',
     timestamp: '2026-07-15T00:00:00.000Z',
-    distinct_id: 'user_1',
+    device_id: 'device_1',
     properties: {},
   };
 }

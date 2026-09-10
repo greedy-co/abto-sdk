@@ -17,9 +17,7 @@ import type {
   SensitiveCategory as ContractSensitiveCategory,
 } from './events.generated.js';
 import type {
-  CustomEventPayloadMap,
   EventRegistry,
-  InferCustomEventProperties,
 } from './event-registry.js';
 import {
   ABTO_AI_INTERACTION_TYPES,
@@ -38,7 +36,6 @@ export type {
   Environment,
   ScrollDepthProps,
   EventRegistry,
-  InferCustomEventProperties,
 };
 export {
   ABTO_AI_INTERACTION_TYPES,
@@ -67,11 +64,21 @@ export type JsonScalar = string | number | boolean | null;
 export type JsonValue = JsonScalar | JsonScalar[] | Record<string, JsonScalar>;
 export type CustomEventProperties = Record<string, JsonValue>;
 
+/**
+ * An event as the SDK holds it before sending.
+ *
+ * Everything the wire carries as a first-class field is a field here too, so the transport copies
+ * it straight through. `properties` is only the `$` context and a system event's own props.
+ */
 export interface CapturedEvent {
   uuid: string;
   event: string;
   timestamp: string;
-  distinct_id: string;
+  device_id: string;
+  session_id?: string | undefined;
+  trace_id?: string | undefined;
+  value?: number | undefined;
+  scale?: string | undefined;
   properties: CustomEventProperties;
 }
 
@@ -197,7 +204,4 @@ export interface LlmTrace {
 }
 
 export type EventNameFor<R extends EventRegistry> = Extract<keyof R, string>;
-export type EventPropertiesFor<
-  R extends EventRegistry,
-  N extends EventNameFor<R>,
-> = CustomEventPayloadMap<R>[N];
+

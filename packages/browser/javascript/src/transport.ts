@@ -8,9 +8,7 @@ import { toBrowserSystemEventWireName } from './system-events.generated.js';
 import {
   ABTO_MAX_BUFFERED_EVENTS,
   ABTO_MAX_RETRY_DELAY_MS,
-  ABTO_METRIC_MAX_FRACTION_DIGITS,
   ABTO_RETRY_JITTER_RATIO,
-  ABTO_SCALE_MAX_LENGTH,
 } from './delivery-policy.generated.js';
 import type { BrowserDiagnostics } from './diagnostics.js';
 import { BrowserOutbox } from './outbox.js';
@@ -21,45 +19,19 @@ const BATCH_SIZE = 20;
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_KEEPALIVE_BYTES = 60 * 1024;
 const RETRY_BASE_MS = 1000;
-const METRIC_ABSOLUTE_LIMIT = 1e38;
 
 type BatchResponse = Partial<BrowserEventBatchResponse>;
 
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined;
-}
-
-function optionalScale(value: unknown): string | undefined {
-  const scale = optionalString(value);
-  return scale !== undefined && scale.length <= ABTO_SCALE_MAX_LENGTH ? scale : undefined;
-}
-
-function isCollectorMetricValue(value: unknown): value is number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) >= METRIC_ABSOLUTE_LIMIT) {
-    return false;
-  }
-  const [coefficient, exponentText] = Math.abs(value).toString().toLowerCase().split('e');
-  const fractionDigits = (coefficient?.split('.')[1] ?? '').replace(/0+$/, '').length;
-  const exponent = exponentText === undefined ? 0 : Number(exponentText);
-  return Math.max(0, fractionDigits - exponent) <= ABTO_METRIC_MAX_FRACTION_DIGITS;
-}
-
+/** The captured event already holds every wire field, so this only renames and drops empties. */
 function toBackendEvent(event: CapturedEvent): BrowserIngestEvent {
-  const deviceId = optionalString(event.properties.$device_id) ?? event.distinct_id;
-  const sessionId = optionalString(event.properties.$session_id);
-  const traceId = optionalString(event.properties.$trace_id);
-  const value = isCollectorMetricValue(event.properties.value)
-    ? event.properties.value
-    : undefined;
-  const scale = optionalScale(event.properties.scale);
   return {
     event_id: event.uuid,
-    device_id: deviceId,
-    ...(sessionId === undefined ? {} : { session_id: sessionId }),
-    ...(traceId === undefined ? {} : { trace_id: traceId }),
+    device_id: event.device_id,
+    ...(event.session_id === undefined ? {} : { session_id: event.session_id }),
+    ...(event.trace_id === undefined ? {} : { trace_id: event.trace_id }),
     event_name: toBrowserSystemEventWireName(event.event),
-    ...(value === undefined ? {} : { value }),
-    ...(scale === undefined ? {} : { scale }),
+    ...(event.value === undefined ? {} : { value: event.value }),
+    ...(event.scale === undefined ? {} : { scale: event.scale }),
     occurred_at: event.timestamp,
     extra_json: event.properties,
   };

@@ -11,10 +11,7 @@ export { initAbto } from './client.js';
 export {
   defineEvents,
   type CustomEventDefinition,
-  type CustomEventPayloadMap,
-  type CustomPropertyDefinition,
   type EventRegistry,
-  type InferCustomEventProperties,
 } from './event-registry.js';
 
 export { type BrowserIdentity } from './identity.js';
@@ -37,5 +34,4 @@ export type {
   RequestIdSource,
   LlmTrace,
   EventNameFor,
-  EventPropertiesFor,
 } from './types.js';

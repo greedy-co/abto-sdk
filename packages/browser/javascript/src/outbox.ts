@@ -6,7 +6,7 @@ function isCapturedEvent(value: unknown): value is CapturedEvent {
   if (value === null || typeof value !== 'object') return false;
   const event = value as Partial<CapturedEvent>;
   return typeof event.uuid === 'string' && event.uuid !== '' && typeof event.event === 'string'
-    && typeof event.timestamp === 'string' && typeof event.distinct_id === 'string'
+    && typeof event.timestamp === 'string' && typeof event.device_id === 'string'
     && event.properties !== null && typeof event.properties === 'object' && !Array.isArray(event.properties);
 }
 
