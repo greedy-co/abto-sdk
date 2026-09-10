@@ -104,32 +104,20 @@ Create or extend `abto.events.ts` only after the user selects at least one custo
 import { defineEvents } from "@abto-app/event";
 
 export const events = defineEvents({
-  checkout_completed: {
-    description: "Checkout completed",
-    properties: {
-      value: { type: "number", required: true },
-      scale: {
-        type: "string",
-        enum: ["KRW", "USD"],
-        required: true,
-      },
-    },
-  },
+  checkout_completed: { description: "Checkout completed" },
 });
 ```
 
 Pass the selected registry to the existing initialization and capture only at the approved trigger:
 
 ```ts
-abto.capture("checkout_completed", {
-  value: 49_000,
-  scale: "KRW",
-});
+abto.capture("checkout_completed", 49_000, "KRW");
 ```
 
-Use the reserved `value` and `scale` property names for a numeric Success Metric and its unit.
-Different names remain in event metadata and contribute only to conversion counts.
-Do not register custom event or property names beginning with `$`.
+An event carries only the metric `value` and its unit label `scale`, and both are optional.
+Send an event with its name alone when there is no number to aggregate; it counts as a conversion.
+Free-form properties are not accepted.
+Do not register custom event names beginning with `$`.
 ABTO reserves that namespace for system context.
 Do not claim request correlation for a custom event unless the current SDK API explicitly establishes it.
 
