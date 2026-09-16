@@ -36,6 +36,8 @@ from .policy_generated import (
     DIRECT_PATH_SUFFIX as _DIRECT_PATH_SUFFIX,
     PROVIDER_IDS as _PROVIDERS,
     SAFE_GATEWAY_STATUSES as _SAFE_GATEWAY_STATUSES,
+    ERROR_SOURCE_GATEWAY as _ERROR_SOURCE_GATEWAY,
+    HEADER_ERROR_SOURCE as _HEADER_ERROR_SOURCE,
 )
 
 PUBLIC_GATEWAY_BASE_URL = "https://gateway.abto.app/v1"
@@ -259,14 +261,22 @@ def _direct_headers(headers: Mapping[str, str], openai_key: str) -> Dict[str, st
 
 
 def _safe_gateway_response(response: Any) -> bool:
+    """Report whether the Gateway ended this request before reaching a provider.
+
+    Only such a 503 is safe to send to the fallback destination: the request never ran a
+    model, so retrying it cannot duplicate execution or billing. A ``provider`` or
+    ``transport`` source means the provider was already reached, so that response is
+    returned as is. A 503 with no source header is treated the same way as ``gateway``:
+    that is what the Gateway sent before this header existed.
+    """
     request_id = response.headers.get("x-abto-request-id")
-    error_source = response.headers.get("x-abto-error-source")
+    error_source = response.headers.get(_HEADER_ERROR_SOURCE)
     if request_id is None and response.status_code in _SAFE_GATEWAY_STATUSES:
         return True
     return (
         response.status_code == 503
         and request_id is not None
-        and error_source is None
+        and error_source in (None, _ERROR_SOURCE_GATEWAY)
     )
 
 

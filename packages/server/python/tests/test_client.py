@@ -6,6 +6,9 @@ import pytest
 import abto.client as client_module
 from abto import OpenAIDirectFallbackOptions, init_abto
 from abto.policy_generated import (
+    ERROR_SOURCE_GATEWAY,
+    ERROR_SOURCE_PROVIDER,
+    ERROR_SOURCE_TRANSPORT,
     ERR_API_KEY_REQUIRED,
     ERR_FALLBACK_OPENAI_KEY_REQUIRED,
     ERR_PROVIDER_KEY_INVALID_CHARACTERS,
@@ -578,15 +581,22 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
         ({"x-abto-request-id": "req-admission"}, 1),
         (
             {
+                "x-abto-request-id": "req-admission",
+                "x-abto-error-source": ERROR_SOURCE_GATEWAY,
+            },
+            1,
+        ),
+        (
+            {
                 "x-abto-request-id": "req-provider",
-                "x-abto-error-source": "provider",
+                "x-abto-error-source": ERROR_SOURCE_PROVIDER,
             },
             0,
         ),
         (
             {
                 "x-abto-request-id": "req-transport",
-                "x-abto-error-source": "transport",
+                "x-abto-error-source": ERROR_SOURCE_TRANSPORT,
             },
             0,
         ),
