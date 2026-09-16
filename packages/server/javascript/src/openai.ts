@@ -12,6 +12,7 @@ import {
   DIRECT_HEADER_PREFIXES,
   DIRECT_PATH_SUFFIX,
   SAFE_GATEWAY_STATUSES,
+  ERROR_SOURCE_GATEWAY,
   ERR_FALLBACK_BASE_URL_REQUIRED,
   ERR_FALLBACK_OPENAI_KEY_REQUIRED,
   ERR_FALLBACK_BASE_URL_INVALID,
@@ -298,6 +299,10 @@ function isTimeoutFailure(error: unknown, timedOut: boolean): boolean {
     || (error instanceof Error && error.name === 'TimeoutError');
 }
 
+// Only a 503 the Gateway ended before reaching a provider is safe to send to the fallback destination:
+// the request never ran a model, so retrying it cannot duplicate execution or billing.
+// A `provider` or `transport` source means the provider was already reached, so that response is returned as is.
+// A 503 with no source header is treated the same way as `gateway`: that is what the Gateway sent before this header existed.
 function isSafeGatewayResponse(response: Response): boolean {
   const requestId = response.headers.get(HEADER_REQUEST_ID);
   const errorSource = response.headers.get(HEADER_ERROR_SOURCE);
@@ -307,7 +312,9 @@ function isSafeGatewayResponse(response: Response): boolean {
   ) {
     return true;
   }
-  return response.status === 503 && requestId !== null && errorSource === null;
+  return response.status === 503
+    && requestId !== null
+    && (errorSource === null || errorSource === ERROR_SOURCE_GATEWAY);
 }
 
 function directHeaders(source: Headers, openAIKey: string): Headers {

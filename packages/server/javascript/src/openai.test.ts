@@ -4,6 +4,9 @@ import { covers } from './conformance.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  ERROR_SOURCE_GATEWAY,
+  ERROR_SOURCE_PROVIDER,
+  ERROR_SOURCE_TRANSPORT,
   ERR_FALLBACK_BASE_URL_REQUIRED,
   ERR_API_KEY_INVALID_CHARACTERS,
   ERR_FALLBACK_OPENAI_KEY_REQUIRED,
@@ -369,15 +372,22 @@ describe('ABTO OpenAI Gateway client', () => {
       },
       {
         headers: {
+          'x-abto-request-id': 'req-admission',
+          'x-abto-error-source': ERROR_SOURCE_GATEWAY,
+        },
+        expectedCalls: 2,
+      },
+      {
+        headers: {
           'x-abto-request-id': 'req-provider',
-          'x-abto-error-source': 'provider',
+          'x-abto-error-source': ERROR_SOURCE_PROVIDER,
         },
         expectedCalls: 1,
       },
       {
         headers: {
           'x-abto-request-id': 'req-transport',
-          'x-abto-error-source': 'transport',
+          'x-abto-error-source': ERROR_SOURCE_TRANSPORT,
         },
         expectedCalls: 1,
       },
