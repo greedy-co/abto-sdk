@@ -58,7 +58,7 @@ Use the narrowest relevant page:
 | Question | Documentation route |
 |---|---|
 | SDK role, key placement, or public support | `/sdk/` |
-| Gateway request fields, errors, or compatibility | `/sdk/gateway-compatibility/` |
+| Gateway request fields, errors, or compatibility | `/gateway/overview/`, `/gateway/chat-completions/` |
 | Browser, server, Python, Flutter, Android, or iOS API | The matching `/sdk/.../` runtime page |
 | Event schema, privacy, or collection behavior | `/events/` |
 | Nodes, variants, routing, or Success Metrics | `/concepts/` and the matching `/dashboard/.../` page |

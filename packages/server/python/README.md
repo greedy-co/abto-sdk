@@ -91,7 +91,7 @@ Default behavior matches the JavaScript Calling SDK:
 - DNS, connection-establishment, or TLS failure; pre-Gateway edge `502`, `503`, or `504`; or pre-provider admission `503`: send the current request directly to OpenAI.
 - Gateway timeout, ambiguous disconnect, or interrupted response body: return the original error and keep the direct circuit closed.
 - `on_timeout=True`: replay the timed-out request directly, explicitly accepting duplicate execution and billing risk.
-- Provider, transport, or internal error, deterministic `4xx` or `429`: do not fall back for the current request.
+- `x-abto-error-source: provider|transport`, deterministic `4xx` or `429`: do not fall back for the current request.
 
 The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
 

@@ -75,10 +75,10 @@ Default behavior:
 
 - DNS, connection-establishment, or TLS failure: send the current request directly because the provider was not reached.
 - Edge `502`, `503`, or `504` without `x-abto-request-id`: treat it as a pre-Gateway failure and send the current request directly.
-- Admission `503` with `x-abto-request-id` but no `x-abto-error-source`: treat it as a pre-provider failure and send the current request directly.
+- Admission `503` with `x-abto-request-id` and `x-abto-error-source: gateway` (or no source header): treat it as a pre-provider failure and send the current request directly.
 - Gateway timeout, ambiguous disconnect, or interrupted response body: return the original error and keep the direct circuit closed.
 - `fallback.onTimeout: true`: replay the timed-out request directly, explicitly accepting duplicate execution and billing risk.
-- `x-abto-error-source: provider|transport|internal`, deterministic `4xx` and `429`, or caller abort: do not fall back for the current request.
+- `x-abto-error-source: provider|transport`, deterministic `4xx` and `429`, or caller abort: do not fall back for the current request.
 
 A safely classified failure, or an explicitly enabled timeout replay, opens the circuit for 30 seconds. New requests bypass the Gateway during that interval; afterward, one request probes Gateway recovery.
 
