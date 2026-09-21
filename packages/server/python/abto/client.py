@@ -191,7 +191,12 @@ def abto_request_hook(
                 ERR_GATEWAY_ORIGIN_REFUSED
             )
         trusted_headers = get_headers()
-        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID, "traceparent"):
+        # Customer tracing owns its parent span and sampling flags; ABTO identity is additive.
+        if any(name.lower() == "traceparent" for name in request.headers):
+            trusted_headers.pop("traceparent", None)
+        elif "traceparent" in trusted_headers:
+            _remove_header(request.headers, "tracestate")
+        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID):
             _remove_header(request.headers, name)
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):

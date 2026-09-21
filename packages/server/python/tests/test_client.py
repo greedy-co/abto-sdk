@@ -101,7 +101,32 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
     assert request.headers["x-abto-key-openai"] == "openai-trusted"
     assert request.headers["x-abto-key-anthropic"] == "anthropic-trusted"
     assert "x-abto-key-gemini" not in request.headers
+    assert request.headers["traceparent"] == "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
+
+
+@pytest.mark.parametrize("trace_id", [None, "a" * 32])
+def test_hook_preserves_customer_trace_with_abto_identity(trace_id):
+    abto = init_abto(api_key="abto-test", gateway_base_url=PUBLIC_GATEWAY_BASE_URL)
+    traceparent = "00-" + "1" * 32 + "-" + "2" * 16 + "-00"
+    request = Request(f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions", {
+        "Traceparent": traceparent, "Tracestate": "customer=opaque,other=value",
+    })
+    with abto.with_context(device_id="device-traced", feature_id="support.reply", trace_id=trace_id):
+        abto.httpx_event_hooks()["request"][0](request)
+    assert request.headers["Traceparent"] == traceparent
+    assert request.headers["Tracestate"] == "customer=opaque,other=value"
     assert "traceparent" not in request.headers
+    assert request.headers["x-abto-device-id"] == "device-traced"
+    assert request.headers["x-abto-feature-id"] == "support.reply"
+
+
+def test_hook_derives_trace_only_when_customer_has_none():
+    abto = init_abto(api_key="abto-test", gateway_base_url=PUBLIC_GATEWAY_BASE_URL)
+    request = Request(f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions", {"Tracestate": "orphan=old-trace"})
+    with abto.with_context(trace_id="a" * 32):
+        abto.httpx_event_hooks()["request"][0](request)
+    assert re.fullmatch(r"00-a{32}-[0-9a-f]{16}-01", request.headers["traceparent"])
+    assert "Tracestate" not in request.headers
 
 
 def test_hook_adds_gateway_authorization_without_request_context():
@@ -173,6 +198,8 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
                 "x-api-key": "gateway-secret",
                 "openai-project": "project-safe",
                 "idempotency-key": "request-safe",
+                "traceparent": "00-" + "1" * 32 + "-" + "2" * 16 + "-00",
+                "tracestate": "customer=opaque",
             },
             content=body,
         )
@@ -192,6 +219,9 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
     assert "x-api-key" not in direct.headers
     assert direct.headers["openai-project"] == "project-safe"
     assert direct.headers["idempotency-key"] == "request-safe"
+    assert direct.headers["traceparent"] == gateway_requests[0].headers["traceparent"]
+    assert direct.headers["traceparent"] == "00-" + "1" * 32 + "-" + "2" * 16 + "-00"
+    assert direct.headers["tracestate"] == "customer=opaque"
     assert "x-abto-key-anthropic" not in direct.headers
     assert "x-abto-feature-id" not in direct.headers
 
