@@ -169,6 +169,8 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run test:package --if-present
+      - run: npm run test:tracing --if-present
 
   npm-release:
     needs: public-safety

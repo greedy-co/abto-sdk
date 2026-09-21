@@ -4,15 +4,18 @@
 
 Before checking builds, verify the interaction record:
 
+- Current official Docs were read for every selected runtime, with URLs and access date recorded; documented APIs were checked against installed public package versions.
 - The user confirmed the exact repository/runtime map before the first file edit.
 - Every model-call search hit is represented in the LLM inventory or documented as a non-runtime false positive.
 - Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
 - Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `featureId`.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
+- Each new fallback setting has endpoint discovery evidence and user confirmation of the prefilled proposal, a user-supplied destination, or an explicit no-fallback decision. Missing or ambiguous destinations were asked about, not filled from an example; existing authorized fallback and timeout choices were preserved.
 - Direct fallback is reported as enabled only when an explicit fallback base URL is configured; with none set, the report states plainly that a Gateway outage fails those calls outright.
 - Every approved OpenAI call preserves its native retry setting or official SDK default; no ABTO-specific fallback attempt counter was introduced.
 - Every other native OpenAI client option is preserved unless it is a documented ABTO-owned routing, credential, or transport field; every composition, override, or rejection is disclosed.
 - A caller-provided Node.js `clientOptions.fetch` remains the underlying transport, and Python reserved arguments fail explicitly instead of being silently discarded.
+- A LangChain integration uses a verified Chat Completions path and an installed public `openaiOptions()` API, preserves framework retries and custom transport, and passes the customer's module-system build.
 - No incompatible or ambiguous API was silently converted into OpenAI Chat Completions.
 - Every event-related edit maps to a user-selected event candidate ID and exact trigger.
 - Every ABTO-specific uncertainty is resolved through the official [ABTO Docs](https://docs.abto.app/) or remains explicitly unresolved without a guessed implementation.
@@ -104,3 +107,12 @@ State:
 - The observed ABTO receiving surface or the exact reason a live check was skipped.
 - The exact official ABTO Docs page and installed package coordinate and version used for any resolved knowledge gap.
 - Each SDK defect's classification, previous and installed versions, checked public versions, customer impact, update or upstream changes, release state, and re-verification result.
+
+## First-value verification
+
+For an authorized Calling integration, run one selected call and verify a matching feature request in ABTO, including response, executed model, cost, and latency where available.
+A successful provider response alone is not proof of ABTO ingestion: direct fallback bypasses Gateway logging.
+If credentials or read access are missing, distinguish local tests from unverified ingestion and name the missing access.
+Offer routing verification next: use a test feature, save a tested option, apply its traffic allocation, then invoke the same feature and inspect the actual execution in ABTO.
+Do not change production routing as an implicit part of SDK installation; follow the user's authorized scope.
+Add client identity and selected business events only when requested, carrying the same device ID through background jobs when present.

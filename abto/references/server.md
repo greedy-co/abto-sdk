@@ -4,6 +4,7 @@
 
 - [Supported calling boundary](#supported-calling-boundary)
 - [Node.js](#nodejs)
+- [LangChain](#langchain)
 - [Python](#python)
 - [Preserve and disclose direct fallback](#preserve-and-disclose-direct-fallback)
 - [Add request correlation only when selected](#add-request-correlation-only-when-selected)
@@ -22,97 +23,24 @@ Create a small dedicated module only when no suitable module exists.
 
 ## Node.js
 
-Require Node.js 18 or later.
-Use the repository's package manager:
+Read the current [Node.js JavaScript guide](https://docs.abto.app/sdk/javascript/server/) for installation, credentials, initialization, CommonJS/ESM usage, and request examples.
+Adapt its example to the customer's package manager and existing configuration module; verify the installed SDK exports and the Node requirements of all selected dependencies.
+Keep Calling Keys and provider keys on the server. Preserve the existing completion return shape and wrap only the approved call with its request context.
 
-```bash
-npm install @abto-app/calling openai
-pnpm add @abto-app/calling openai
-yarn add @abto-app/calling openai
-```
+## LangChain
 
-Initialize with server-only secrets:
-
-```ts
-import { initAbto } from "@abto-app/calling";
-
-const abto = initAbto({
-  abtoApiKey: process.env.ABTO_API_KEY,
-  providerKeys: {
-    openai: process.env.OPENAI_API_KEY,
-    anthropic: process.env.ANTHROPIC_API_KEY,
-    gemini: process.env.GEMINI_API_KEY,
-  },
-  gatewayBaseURL: "https://gateway.abto.app/v1",
-  fallback: {
-    // The endpoint this code called before ABTO. Required; there is no default.
-    baseURL: "https://api.openai.com/v1",
-  },
-});
-```
-
-Wrap each approved call in its approved request context while preserving the existing completion return shape:
-
-```ts
-import type OpenAI from "openai";
-
-const completion = await abto.withContext(
-  {
-    deviceId,
-    featureId: "support.reply",
-  },
-  async () => {
-    const openai = await abto.openai() as OpenAI;
-    return openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-    });
-  },
-);
-```
+Read the LangChain and tracing sections of the current [Node.js JavaScript guide](https://docs.abto.app/sdk/javascript/server/).
+Confirm that the customer's actual ChatOpenAI call uses Chat Completions and accepts client configuration.
+Verify that the installed public Calling SDK exposes the documented configuration API before using it; if absent, check for a compatible published release rather than importing internal source or inventing an adapter.
+Keep the customer's model options, custom fetch, invoke calls, chains, parsers, callbacks, tracing initialization, and retry policy.
+Apply request context at invocation time rather than storing one user's device ID on a shared model.
+Use Docs for version-specific tracing guidance; do not copy a fixed compatibility matrix into this skill.
+Do not convert the customer's module system or silently chain a third-party router to complete the integration.
 
 ## Python
 
-Require Python 3.9 or later:
-
-```bash
-python -m pip install "abto[openai]"
-```
-
-Initialize with server-only secrets:
-
-```python
-import os
-from abto import OpenAIDirectFallbackOptions, init_abto
-
-abto = init_abto(
-    api_key=os.environ["ABTO_API_KEY"],
-    gateway_base_url="https://gateway.abto.app/v1",
-    provider_keys={
-        "openai": os.environ["OPENAI_API_KEY"],
-        "anthropic": os.getenv("ANTHROPIC_API_KEY"),
-        "gemini": os.getenv("GEMINI_API_KEY"),
-    },
-    # The endpoint this code called before ABTO. Required; there is no default.
-    fallback=OpenAIDirectFallbackOptions(base_url="https://api.openai.com/v1"),
-)
-openai = abto.openai()
-```
-
-Wrap each approved call in its approved request context while preserving the existing completion return shape:
-
-```python
-with abto.with_context(
-    device_id=device_id,
-    feature_id="support.reply",
-):
-    completion = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-    )
-```
-
-Use the framework's existing async or sync client pattern.
+Read the current [Python guide](https://docs.abto.app/sdk/python/) for installation, credentials, initialization, and request examples.
+Verify the installed public API and Python requirements, and keep the framework's existing sync or async pattern.
 Do not introduce a second concurrency model only for ABTO.
 
 ## Preserve and disclose direct fallback
@@ -124,7 +52,17 @@ Never report fallback as active without confirming the configured base URL.
 Preserve the resolved setting during Core wiring unless the user explicitly approves changing the application's availability policy.
 Do not set `fallback: false` or enable timeout replay merely to make ABTO reporting simpler.
 Direct fallback returns the request to the endpoint the application called before ABTO, so its destination is customer input, never a default.
-Record the base URL each approved call path already uses and pass it as `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python); for an application that took its key straight from OpenAI, that is `https://api.openai.com/v1`.
+Resolve and confirm the destination with the skill user during the existing LLM inventory approval, before applying configuration:
+
+1. Trace each call's effective pre-ABTO endpoint through its client constructor, shared configuration, environment references, and installed provider SDK's precedence rules. Record its source location and configuration expression. An implicit provider SDK default counts as discovered only when the installed SDK and applicable overrides establish it; an API key or model name alone is not evidence of the endpoint.
+2. **Destination found:** automatically prefill the proposed `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python) from that existing configuration. Show the destination, evidence, and resulting fallback behavior, then ask the user to confirm it with the call IDs. Reuse environment/configuration references rather than hardcoding their resolved values; redact credentials in URLs and never ask the user to paste secrets.
+3. **Destination missing or ambiguous:** ask which base URL that call should use for direct fallback, or whether the user explicitly wants no fallback. Do not substitute `https://api.openai.com/v1` from an example or silently leave fallback off. Keep the affected path pending until answered; continue independently approved paths.
+4. Apply only the confirmed proposal or user-supplied destination. An existing explicit fallback choice, including disabled fallback, takes precedence over rediscovery; preserve it and do not ask again when already authorized in this task. A new proposal must not silently enable fallback or replace that choice.
+
+Keep different destinations separate by call path and environment; do not reuse one discovered URL for every model client.
+A third-party router URL alone does not establish compatibility: verify the installed Calling SDK can preserve its required protocol, credentials, and headers before offering it as an eligible fallback. If not, report the incompatibility and ask for a supported destination or no fallback; do not substitute a provider endpoint or invent a router adapter.
+The automatic step prepares a reviewable configuration candidate, not an unconfirmed availability-policy change.
+Preserve existing timeout and timeout-replay choices; do not copy `timeoutMs: 30_000` or `onTimeout: false` over customer settings merely because they appear in an example.
 Tell the user plainly that without it there is no fallback: a Gateway outage makes those requests fail outright.
 Setting any other fallback option without it fails at init; configuring nothing leaves fallback off.
 

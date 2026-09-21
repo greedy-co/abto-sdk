@@ -14,7 +14,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 ## Load the relevant references
 
 1. Always read [SDK selection](references/sdk-selection.md) and [Discovery and reporting](references/discovery-and-reporting.md).
-2. When an ABTO-specific term, behavior, API, supported field, version, event rule, Dashboard meaning, or troubleshooting step is missing or uncertain, consult the official [ABTO Docs](https://docs.abto.app/) before proposing code.
+2. At the start of every integration or update task, fetch and read the current official [ABTO Docs](https://docs.abto.app/) pages for each selected runtime before proposing installation commands or code. Do not rely only on this skill, remembered documentation, or search snippets.
    Follow the documentation, installed-version, and conflict procedure in [SDK selection](references/sdk-selection.md) instead of guessing or generating compatibility glue.
 3. Read only the implementation reference for each confirmed runtime:
    - Browser JavaScript: [Browser JavaScript](references/browser-javascript.md)
@@ -44,15 +44,18 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - Present every candidate with an ID, capability, repository/runtime, exact call site, API surface, device path, proposed dot-separated `featureId`, compatibility, and intended action.
 - Mark only confirmed OpenAI Chat Completions calls as automatically wireable.
   Inventory OpenAI Responses, embeddings, images, audio, native Anthropic or Gemini calls, and ambiguous framework abstractions, but do not rewrite them into a different API or invent an adapter.
+- A verified LangChain `ChatOpenAI` Chat Completions path can use the public `openaiOptions()` configuration API when the installed Calling SDK exposes it; follow the Server reference and keep the existing framework client.
 - Propose a `featureId` only when existing product or route language makes the capability unambiguous.
   Otherwise mark the candidate ambiguous and ask what capability and stable key the user wants.
+- Discover each call's pre-ABTO endpoint and automatically prefill a fallback configuration proposal from that evidence; confirm it with the skill user in the inventory approval below before applying it.
+  If the destination cannot be established, ask for it or an explicit choice to proceed without fallback. Never fill a missing URL from a Docs example; follow [Server](references/server.md#preserve-and-disclose-direct-fallback).
 - Ask one batch question that lets the user approve all eligible IDs or name inclusions and exclusions.
   Stop before adding dependencies, initialization, context, or feature IDs.
 
 ### 3. Install and wire the approved core
 
-- Treat approval of the inventory as authorization only for the selected SDK dependencies, minimal initialization, and the approved LLM call sites and `featureId` values.
-- Use [SDK selection](references/sdk-selection.md) as the public availability source of truth.
+- Treat approval of the inventory as authorization only for the selected SDK dependencies, minimal initialization, approved LLM call sites and `featureId` values, and explicitly presented fallback choices.
+- Use the current official Docs for public availability and [SDK selection](references/sdk-selection.md) to choose the runtime.
   Never import a Server SDK into a client bundle or install multiple SDKs for the same runtime responsibility.
 - Prefer an existing configuration or provider-client module.
   Create one small ABTO initialization module only when no suitable module exists; do not create demonstrations, sample endpoints, generic wrappers, or future-facing abstractions.

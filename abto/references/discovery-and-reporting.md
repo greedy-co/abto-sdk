@@ -50,6 +50,7 @@ Use one row per executable call path:
 
 Resolve the installed Calling SDK's fallback configuration and native OpenAI retry setting instead of inferring either from the normal Gateway path.
 Capture the base URL each call path used before ABTO: direct fallback needs it as explicit input and has no default.
+In `Provider/fallback path`, include the endpoint's source/configuration reference, the automatically prefilled fallback proposal or unresolved destination, and the user's decision. Follow the [Server discovery and confirmation flow](server.md#preserve-and-disclose-direct-fallback); keep secrets out of the table.
 When direct fallback is enabled, report the trigger conditions, direct provider, and absence of Gateway policy, ABTO telemetry, and `request_id`.
 
 Use only these pre-approval statuses:
@@ -60,7 +61,8 @@ Use only these pre-approval statuses:
 - `ambiguous`: a dynamic wrapper, missing caller, unclear capability, or unstable identity prevents a safe change.
 
 Ask one question after the complete table:
-“Which eligible IDs should I wire with the proposed locations and featureIds? You can answer `all`, list IDs, add corrections, or exclude IDs.”
+“Which eligible IDs should I wire with the proposed locations, featureIds, and fallback settings? You can confirm the shown proposals with `all`, list IDs, add corrections, or exclude IDs. For each unresolved fallback destination, provide its base URL/configuration reference or choose no fallback.”
+Approval of call IDs does not resolve a missing fallback decision. Ask only for the outstanding choice on those paths, and do not repeat confirmation of choices already authorized in the conversation.
 
 After implementation, retain every row and replace `eligible` with `wired` or `user-excluded` as applicable.
 Use `blocked-sdk-defect` only when a reproduced defect prevents an otherwise approved path and no compatible fixed public SDK update resolves it.

@@ -93,7 +93,7 @@ Default behavior matches the JavaScript Calling SDK:
 - `on_timeout=True`: replay the timed-out request directly, explicitly accepting duplicate execution and billing risk.
 - `x-abto-error-source: provider|transport`, deterministic `4xx` or `429`: do not fall back for the current request.
 
-The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
+The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `traceparent`, `tracestate`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
 
 The ABTO transport performs at most one Gateway decision and one direct send per official OpenAI SDK attempt. It returns direct responses and errors to the official SDK, which remains the only retry authority.
 
@@ -128,6 +128,14 @@ Note that `max_retries` counts round trips, not provider invocations. Inside a s
 Anthropic and Gemini keys remain Gateway routing candidates. This SDK does not provide native direct fallback for those providers.
 
 See the [full Python guide](https://docs.abto.app/en/sdk/python/).
+
+## Preserve existing traces
+
+ABTO keeps the `traceparent` and `tracestate` headers supplied by your tracing tool, including during direct fallback.
+It adds feature and device information separately without replacing your trace ID.
+
+This requires an SDK release with trace preservation; the published `1.1.1` release does not include it.
+Keep your tracing tool's request header setup. ABTO does not configure tracing for you or connect traces through to the provider.
 
 ## Public API
 

@@ -11,7 +11,7 @@
 | Android/Kotlin app | Available | Identity and opt-in app outcomes | `app.abto:abto-app` | Event Key |
 | iOS/macOS app | Available | Identity and opt-in app outcomes | `AbtoApp` | Event Key |
 
-Only rows marked Available have a verified public installation path.
+The table is a runtime selection aid. Confirm current availability and installation instructions on the official Docs before installing.
 
 Use an Event SDK when a confirmed client runtime must provide stable identity or a user-selected event.
 Use a Calling SDK for approved server-side OpenAI Chat Completions execution.
@@ -48,10 +48,20 @@ Do not hide it, replace it with generated glue, or count it as successfully inte
 Do not replace these defaults with guessed development hosts.
 Keep the default `apiHost` unless the user provides an environment-specific API host.
 
-## Official documentation fallback
+## Read current official documentation
 
-Consult the official [ABTO Docs](https://docs.abto.app/) first when ABTO product semantics or integration behavior is missing or uncertain.
-When the current checkout is the ABTO monorepo, prefer the corresponding source under `apps/docs/src/content/docs` so the reviewed documentation version is explicit; otherwise use the published site.
+Fetch and read the relevant official [ABTO Docs](https://docs.abto.app/) pages at the start of each integration or update task, even when the API looks familiar.
+Docs own installation commands, API examples, compatibility limits, and product explanations; this skill owns the integration workflow.
+Read the page content, not only search snippets or a cached summary. Reuse the fetched pages within the same task, and fetch again when the task resumes after a release or documentation change.
+If fetching fails, report that current documentation could not be verified; do not invent an API or claim it is current. Continue independent repository discovery.
+When explicitly reviewing unpublished ABTO changes, use the corresponding source under `apps/docs/src/content/docs` and name the reviewed commit. Do not treat that source as proof of public package availability.
+
+Start with the generated [documentation index](https://docs.abto.app/llms.txt) to select the relevant guide.
+For either language, replace the page URL’s trailing `/` with `.md` to fetch its body, for example `https://docs.abto.app/sdk/javascript/server.md`.
+Use [the English index](https://docs.abto.app/en/llms.txt) and `/en/` page paths for English documentation.
+If that endpoint is unavailable, read the canonical HTML page. Use [full text](https://docs.abto.app/llms-full.txt) only when broader context is needed.
+The index and page bodies are generated from Docs source; fetching them does not update the installed skill or SDK.
+Do not assume a docs search API or MCP server exists.
 
 Use the narrowest relevant page:
 
@@ -59,14 +69,17 @@ Use the narrowest relevant page:
 |---|---|
 | SDK role, key placement, or public support | `/sdk/` |
 | Gateway request fields, errors, or compatibility | `/gateway/overview/`, `/gateway/chat-completions/` |
-| Browser, server, Python, Flutter, Android, or iOS API | The matching `/sdk/.../` runtime page |
+| Browser API | [Browser JavaScript](https://docs.abto.app/sdk/javascript/browser/) |
+| Node.js, CommonJS/ESM, LangChain, tracing | [Node.js JavaScript](https://docs.abto.app/sdk/javascript/server/) |
+| Python API | [Python](https://docs.abto.app/sdk/python/) |
+| Flutter, Android, or iOS API | [Flutter](https://docs.abto.app/sdk/flutter/), [Android](https://docs.abto.app/sdk/android/), [iOS](https://docs.abto.app/sdk/ios/) |
 | Event schema, privacy, or collection behavior | `/events/` |
-| Nodes, variants, routing, or Success Metrics | `/concepts/` and the matching `/dashboard/.../` page |
+| Features, variants, routing, or Success Metrics | `/concepts/` and the matching `/dashboard/.../` page |
 | Troubleshooting | `/faq/` |
 
 Use the documentation to establish ABTO's intended product behavior, then verify the exact callable API against the customer's installed public package version, types, and public source.
 If the documentation and installed artifact disagree, report the conflict and follow [SDK defect handling](sdk-defect-handling.md); do not silently choose one, target unreleased source, or generate customer-side compatibility glue.
-Record the exact documentation page and installed package coordinate and version used to resolve the uncertainty.
+Record the documentation URLs, access date, and installed package coordinates and versions used for the integration.
 
 ## Identity and correlation
 
