@@ -1,6 +1,6 @@
 {
   "name": "@abto-app/calling",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "ABTO JavaScript Server SDK — Gateway routing, provider credentials, and request-scoped context propagation.",
   "type": "module",
   "license": "MIT",
@@ -18,8 +18,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
   "files": [
@@ -29,12 +35,14 @@
   ],
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && tsc",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepack": "npm run build",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "test:package": "node tests/package.mjs",
+    "test:tracing": "node tests/tracing/run.mjs"
   },
   "publishConfig": {
     "access": "public",

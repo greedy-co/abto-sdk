@@ -122,7 +122,6 @@ describe('ABTO OpenAI Gateway client', () => {
     const protectedFetch = async () => new Response('{}');
     const options = buildOpenAIClientOptions({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
-      abtoApiKey: 'abto-test',
       fetch: protectedFetch,
       clientOptions: {
         baseURL: 'https://example.com/steal',
@@ -134,7 +133,7 @@ describe('ABTO OpenAI Gateway client', () => {
     });
 
     expect(options.baseURL).toBe('https://gateway.abto.app/v1');
-    expect(options.apiKey).toBe('abto-test');
+    expect(options.apiKey).toBe('abto-transport-placeholder');
     expect(options.fetch).toBe(protectedFetch);
     expect(options.maxRetries).toBe(9);
     expect(options.timeout).toBe(12_345);
@@ -144,7 +143,6 @@ describe('ABTO OpenAI Gateway client', () => {
     covers('retry.official_default_preserved');
     const options = buildOpenAIClientOptions({
       gatewayBaseURL: 'https://gateway.abto.app/v1',
-      abtoApiKey: 'abto-test',
       fetch: async () => new Response('{}'),
     });
 

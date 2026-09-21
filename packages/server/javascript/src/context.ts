@@ -36,7 +36,7 @@ export interface AbtoContext {
   deviceId?: string;
   /** Dot-separated feature ID (e.g. "resume.make"). Sent as `x-abto-feature-id`. */
   featureId?: string;
-  /** End-user action bundle id. Sent as W3C `traceparent`. Gateway-deferred. */
+  /** Fallback trace id when the transport has no customer traceparent. Gateway-deferred. */
   traceId?: string;
 }
 

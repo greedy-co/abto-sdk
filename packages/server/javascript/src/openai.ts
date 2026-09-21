@@ -82,9 +82,17 @@ export interface CreateGatewayFetchOptions {
   fetchImpl?: FetchLike;
 }
 
+export type OpenAIClientOptions<T extends object = object> =
+  Omit<T, 'baseURL' | 'apiKey' | 'fetch'> & {
+    baseURL: string;
+    apiKey: string;
+    // OpenAI 4 uses node-fetch types in ESM; OpenAI 6 uses Web Fetch types.
+    // Keep the transport boundary compatible with both without a peer type import.
+    fetch: (...args: any[]) => Promise<any>;
+  };
+
 export interface BuildOpenAIClientOptions {
   gatewayBaseURL: string;
-  abtoApiKey: string;
   fetch: FetchLike;
   clientOptions?: Record<string, unknown>;
 }
@@ -195,7 +203,6 @@ function trustedBaseHeaders(input: string | URL | Request, init?: RequestInit): 
       normalized === 'authorization'
       || normalized === HEADER_DEVICE_ID
       || normalized === HEADER_FEATURE_ID
-      || normalized === 'traceparent'
       || normalized.startsWith('x-abto-key-')
     ) {
       headers.delete(key);
@@ -432,7 +439,12 @@ export function createGatewayFetch({
     for (const [key, value] of Object.entries(providerHeaders)) {
       headers.set(key, value);
     }
-    for (const [key, value] of Object.entries(getAbtoHeaders(getContext()))) {
+    // Customer tracing owns its parent span and sampling flags; ABTO identity is additive.
+    const contextHeaders = getAbtoHeaders(getContext(), {
+      includeTraceparent: !headers.has('traceparent'),
+    });
+    if (contextHeaders.traceparent) headers.delete('tracestate');
+    for (const [key, value] of Object.entries(contextHeaders)) {
       headers.set(key, value);
     }
     headers.set('Authorization', `Bearer ${trimmedAbtoApiKey}`);
@@ -569,22 +581,23 @@ export function createGatewayFetch({
 
 export function buildOpenAIClientOptions({
   gatewayBaseURL,
-  abtoApiKey,
   fetch,
   clientOptions = {},
 }: BuildOpenAIClientOptions): Record<string, unknown> {
   return {
     ...clientOptions,
     baseURL: gatewayBaseURL,
-    apiKey: abtoApiKey,
+    // Frameworks serialize nested client options without redacting apiKey.
+    // The transport closure injects the real credential at dispatch time.
+    apiKey: 'abto-transport-placeholder',
     fetch,
   };
 }
 
-export async function createAbtoOpenAIWithCircuit<T = unknown>(
+export function createOpenAIOptionsWithCircuit(
   options: CreateAbtoOpenAIOptions = {},
   circuit = createOpenAIFallbackCircuit(),
-): Promise<T> {
+): OpenAIClientOptions<Record<string, unknown>> {
   const {
     gatewayBaseURL,
     abtoApiKey = getEnv('ABTO_API_KEY'),
@@ -606,11 +619,6 @@ export async function createAbtoOpenAIWithCircuit<T = unknown>(
   }
   requireHttpURL(resolvedBaseURL, ERR_GATEWAY_BASE_URL_INVALID);
 
-  const specifier: string = 'openai';
-  const { default: OpenAI } = (await import(specifier)) as {
-    default: new (opts: Record<string, unknown>) => unknown;
-  };
-
   const callerFetch = clientOptions.fetch;
   if (callerFetch !== undefined && typeof callerFetch !== 'function') {
     throw new Error('[abto] clientOptions.fetch must be a function.');
@@ -624,14 +632,23 @@ export async function createAbtoOpenAIWithCircuit<T = unknown>(
     fetchImpl: callerFetch as FetchLike | undefined,
   }, circuit);
 
-  return new OpenAI(
-    buildOpenAIClientOptions({
-      gatewayBaseURL: resolvedBaseURL,
-      abtoApiKey,
-      fetch: abtoFetch,
-      clientOptions,
-    }),
-  ) as T;
+  return buildOpenAIClientOptions({
+    gatewayBaseURL: resolvedBaseURL,
+    fetch: abtoFetch,
+    clientOptions,
+  }) as OpenAIClientOptions<Record<string, unknown>>;
+}
+
+export async function createAbtoOpenAIWithCircuit<T = unknown>(
+  options: CreateAbtoOpenAIOptions = {},
+  circuit = createOpenAIFallbackCircuit(),
+): Promise<T> {
+  const clientOptions = createOpenAIOptionsWithCircuit(options, circuit);
+  const specifier: string = 'openai';
+  const { default: OpenAI } = (await import(specifier)) as {
+    default: new (opts: Record<string, unknown>) => unknown;
+  };
+  return new OpenAI(clientOptions) as T;
 }
 
 export function createAbtoOpenAI<T = unknown>(

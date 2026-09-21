@@ -1,0 +1,15 @@
+{
+  "name": "abto-calling-consumer-test",
+  "private": true,
+  "dependencies": {
+    "@langchain/core": "0.2.36",
+    "@langchain/openai": "0.2.7",
+    "openai": "4.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.1",
+    "ts-node": "10.9.2",
+    "typescript": "5.9.3"
+  }
+}

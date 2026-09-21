@@ -9,6 +9,8 @@ import type { ProviderKeys } from './credentials.js';
 import {
   createAbtoOpenAIWithCircuit,
   createOpenAIFallbackCircuit,
+  createOpenAIOptionsWithCircuit,
+  type OpenAIClientOptions,
   resolveFallback,
   type CreateAbtoOpenAIOptions,
   type OpenAIDirectFallbackConfig,
@@ -46,6 +48,8 @@ export interface AbtoNodeClient {
   getHeaders(ctx?: AbtoContext): Record<string, string>;
   createTraceId(): string;
   openai<T = unknown>(options?: AbtoOpenAIOptions): Promise<T>;
+  /** Configure an existing OpenAI-compatible client without loading OpenAI. */
+  openaiOptions<T extends object = object>(clientOptions?: T): OpenAIClientOptions<T>;
   flush(): Promise<void>;
   shutdown(): Promise<void>;
 }
@@ -136,6 +140,16 @@ export function initAbto(config: AbtoConfig = {}): AbtoNodeClient {
       }
       defaultOpenAIClient ??= createClient();
       return defaultOpenAIClient as Promise<T>;
+    },
+    openaiOptions<T extends object = object>(clientOptions?: T): OpenAIClientOptions<T> {
+      return createOpenAIOptionsWithCircuit({
+        abtoApiKey,
+        providerKeys,
+        gatewayBaseURL: resolved.gatewayBaseURL,
+        fallback: config.fallback,
+        getContext: () => resolveContext(),
+        clientOptions: clientOptions as Record<string, unknown> | undefined,
+      }, openAIFallbackCircuit) as OpenAIClientOptions<T>;
     },
     async flush(): Promise<void> {
       // Server SDK currently does not emit telemetry directly.

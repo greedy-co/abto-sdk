@@ -1,0 +1,13 @@
+{
+  "name": "abto-coexistence-legacy",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@langchain/core": "0.2.36",
+    "@langchain/openai": "0.2.7",
+    "langchain": "0.2.20",
+    "langfuse-langchain": "3.39.2",
+    "openai": "4.56.0",
+    "langsmith": "0.1.68"
+  }
+}
