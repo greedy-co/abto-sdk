@@ -48,6 +48,14 @@ ProviderKeyValue = Union[str, Callable[[], Optional[str]]]
 ProviderKeys = Mapping[str, ProviderKeyValue]
 
 
+def _provider_keys_from_env() -> Dict[str, Optional[str]]:
+    """Default provider keys, read from ``<PROVIDER>_API_KEY`` for every provider the Gateway accepts.
+
+    Derived from the generated id list so a new provider needs no edit here.
+    """
+    return {provider: os.getenv(f"{provider.upper()}_API_KEY") for provider in _PROVIDERS}
+
+
 @dataclass(frozen=True)
 class OpenAIDirectFallbackOptions:
     """Configure OpenAI direct fallback for safely identifiable Gateway failures.
@@ -571,11 +579,7 @@ class Abto:
         fallback: Optional[OpenAIDirectFallbackConfig] = None,
     ) -> None:
         self.api_key = _validated_api_key(api_key or os.getenv("ABTO_API_KEY") or "")
-        self._provider_keys = provider_keys if provider_keys is not None else {
-            "openai": os.getenv("OPENAI_API_KEY"),
-            "anthropic": os.getenv("ANTHROPIC_API_KEY"),
-            "gemini": os.getenv("GEMINI_API_KEY"),
-        }
+        self._provider_keys = provider_keys if provider_keys is not None else _provider_keys_from_env()
         # No implicit default: the destination that receives the Calling Key and
         # provider keys is named by the application, never guessed here.
         resolved_gateway_base_url = gateway_base_url or os.getenv("ABTO_GATEWAY_BASE_URL")
