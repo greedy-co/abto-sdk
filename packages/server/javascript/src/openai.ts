@@ -2,6 +2,7 @@
 
 import { getAbtoContext, getAbtoHeaders, type AbtoContext } from './context.js';
 import {
+  providerKeysFromEnv,
   resolveProviderHeaders,
   type ProviderKeys,
 } from './credentials.js';
@@ -601,11 +602,7 @@ export function createOpenAIOptionsWithCircuit(
   const {
     gatewayBaseURL,
     abtoApiKey = getEnv('ABTO_API_KEY'),
-    providerKeys = {
-      openai: getEnv('OPENAI_API_KEY'),
-      anthropic: getEnv('ANTHROPIC_API_KEY'),
-      gemini: getEnv('GEMINI_API_KEY'),
-    },
+    providerKeys = providerKeysFromEnv(getEnv),
     fallback,
     getContext = getAbtoContext,
     clientOptions = {},

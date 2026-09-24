@@ -8,6 +8,20 @@ export type ProviderKeyValue =
 
 export type ProviderKeys = Partial<Record<ProviderKeyName, ProviderKeyValue>>;
 
+/**
+ * Default provider keys, read from `<PROVIDER>_API_KEY` for every provider the Gateway accepts.
+ * Derived from the generated id list so a new provider needs no edit here.
+ */
+export function providerKeysFromEnv(
+  getEnv: (name: string) => string | undefined,
+): ProviderKeys {
+  const keys: ProviderKeys = {};
+  for (const provider of PROVIDER_IDS) {
+    keys[provider] = getEnv(`${provider.toUpperCase()}_API_KEY`);
+  }
+  return keys;
+}
+
 export async function resolveProviderHeaders(
   keys: ProviderKeys = {},
 ): Promise<Record<string, string>> {

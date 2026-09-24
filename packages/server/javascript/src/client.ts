@@ -5,7 +5,7 @@ import {
   runWithAbtoContext,
   type AbtoContext,
 } from './context.js';
-import type { ProviderKeys } from './credentials.js';
+import { providerKeysFromEnv, type ProviderKeys } from './credentials.js';
 import {
   createAbtoOpenAIWithCircuit,
   createOpenAIFallbackCircuit,
@@ -69,11 +69,7 @@ export function initAbto(config: AbtoConfig = {}): AbtoNodeClient {
     throw new Error('[abto] capture is not supported by the current Gateway contract.');
   }
   const abtoApiKey = config.abtoApiKey ?? getEnv('ABTO_API_KEY');
-  const providerKeys = config.providerKeys ?? {
-    openai: getEnv('OPENAI_API_KEY'),
-    anthropic: getEnv('ANTHROPIC_API_KEY'),
-    gemini: getEnv('GEMINI_API_KEY'),
-  };
+  const providerKeys = config.providerKeys ?? providerKeysFromEnv(getEnv);
   const {
     abtoApiKey: _abtoApiKey,
     providerKeys: _providerKeys,
