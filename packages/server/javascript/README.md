@@ -162,6 +162,8 @@ const abto = initAbto({
     openai: process.env.OPENAI_API_KEY,
     anthropic: process.env.ANTHROPIC_API_KEY,
     gemini: process.env.GEMINI_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+    kimi: process.env.KIMI_API_KEY,
   },
   fallback: {
     baseURL: 'https://api.openai.com/v1', // the address this code used before ABTO

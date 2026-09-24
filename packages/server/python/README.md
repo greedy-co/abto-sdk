@@ -26,6 +26,8 @@ abto = init_abto(
         # Include candidate keys for every provider the project may route to.
         # "anthropic": os.environ["ANTHROPIC_API_KEY"],
         # "gemini": os.environ["GEMINI_API_KEY"],
+        # "deepseek": os.environ["DEEPSEEK_API_KEY"],
+        # "kimi": os.environ["KIMI_API_KEY"],
     },
 )
 openai = abto.openai()
@@ -78,6 +80,8 @@ abto = init_abto(
         "openai": os.environ["OPENAI_API_KEY"],
         "anthropic": os.getenv("ANTHROPIC_API_KEY"),
         "gemini": os.getenv("GEMINI_API_KEY"),
+        "deepseek": os.getenv("DEEPSEEK_API_KEY"),
+        "kimi": os.getenv("KIMI_API_KEY"),
     },
     fallback=OpenAIDirectFallbackOptions(
         timeout_seconds=30,

@@ -13,7 +13,7 @@
 ## Supported calling boundary
 
 Automatically wire only confirmed OpenAI Chat Completions calls.
-The Gateway may route that request to OpenAI, Anthropic, or Gemini with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
+The Gateway may route that request to OpenAI, Anthropic, Gemini, DeepSeek, or Kimi with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
 
 Inventory and report OpenAI Responses or other OpenAI APIs, native Anthropic or Gemini clients, and ambiguous framework or raw HTTP wrappers.
 Do not migrate them, generate an adapter, or change streaming and error semantics merely to increase the number of wired calls.
