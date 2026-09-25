@@ -10,10 +10,13 @@ import math
 import os
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Mapping, MutableMapping, Optional, Tuple, Union
 from urllib.parse import SplitResult, urlsplit
 
+from .borrowed_client import send_borrowed, _TransportAttempt
 from .context import AbtoContext, create_trace_id, get_headers, with_context
 from .policy_generated import (
     ERR_FALLBACK_BASE_URL_INVALID,
@@ -42,10 +45,22 @@ from .policy_generated import (
 
 PUBLIC_GATEWAY_BASE_URL = "https://gateway.abto.app/v1"
 _UNSET = object()
-_RESOLVED_PROVIDER_HEADERS_KEY = "abto.resolved_provider_headers"
-_RESOLVED_PROVIDER_HEADERS_TOKEN = object()
 ProviderKeyValue = Union[str, Callable[[], Optional[str]]]
 ProviderKeys = Mapping[str, ProviderKeyValue]
+
+# Resolve rotating keys once per attempt without exposing them on caller requests.
+_provider_headers: ContextVar[Optional[Tuple[Any, Dict[str, str]]]] = ContextVar(
+    "abto_provider_headers", default=None,
+)
+
+
+@contextmanager
+def _provider_headers_scope(request: Any, headers: Optional[Dict[str, str]]) -> Iterator[None]:
+    token = _provider_headers.set((request, headers) if headers is not None else None)
+    try:
+        yield
+    finally:
+        _provider_headers.reset(token)
 
 
 def _provider_keys_from_env() -> Dict[str, Optional[str]]:
@@ -209,19 +224,11 @@ def abto_request_hook(
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):
                 del request.headers[name]
-        extensions = getattr(request, "extensions", {})
-        cached_provider_headers = extensions.pop(
-            _RESOLVED_PROVIDER_HEADERS_KEY,
-            _UNSET,
+        cached = _provider_headers.get()
+        resolved_provider_headers = (
+            cached[1] if cached is not None and cached[0] is request
+            else resolve_provider_headers(provider_keys)
         )
-        if (
-            isinstance(cached_provider_headers, tuple)
-            and len(cached_provider_headers) == 2
-            and cached_provider_headers[0] is _RESOLVED_PROVIDER_HEADERS_TOKEN
-        ):
-            resolved_provider_headers = cached_provider_headers[1]
-        else:
-            resolved_provider_headers = resolve_provider_headers(provider_keys)
         for key, value in resolved_provider_headers.items():
             request.headers[key] = value
         for key, value in trusted_headers.items():
@@ -271,6 +278,31 @@ def _direct_headers(headers: Mapping[str, str], openai_key: str) -> Dict[str, st
             direct[name] = value
     direct["Authorization"] = f"Bearer {openai_key}"
     return direct
+
+
+def _destination_guard(request: Any, expected_url: Any) -> None:
+    # Host can steer a virtual host even when the URL itself stays unchanged.
+    # Use the URL type's authority formatting for ports and IPv6.
+    if (
+        _origin(request.url) != _origin(expected_url)
+        or request.url.userinfo
+        or request.headers.get("host", "").lower()
+        != expected_url.netloc.decode("ascii").lower()
+    ):
+        raise ValueError("[abto] Request hooks must not change the configured destination.")
+
+
+def _finalize_direct_request(request: Any, expected_url: Any, openai_key: str) -> None:
+    _destination_guard(request, expected_url)
+    headers = _direct_headers(request.headers, openai_key)
+    # These describe the already-built HTTP body, not forwarded application
+    # metadata. Removing them after build_request() breaks real HTTP/1 framing.
+    for name in ("content-length", "transfer-encoding"):
+        if name in request.headers:
+            headers[name] = request.headers[name]
+    request.headers.clear()
+    request.headers.update(headers)
+    request.headers["Host"] = expected_url.netloc.decode("ascii")
 
 
 def _safe_gateway_response(response: Any) -> bool:
@@ -326,6 +358,38 @@ class _CircuitBreaker:
             self._half_open = False
 
 
+def _handle_gateway_error(
+    error: BaseException, httpx: Any, circuit: _CircuitBreaker, *, on_timeout: bool,
+    attempt: Optional[_TransportAttempt] = None,
+) -> bool:
+    """Update recovery state and report whether a direct fallback is allowed."""
+    # A customer observer may raise the same HTTPX types after a completed call.
+    if attempt is not None and (attempt.error is not error or attempt.response_received):
+        circuit.release_half_open_probe()
+        return False
+    if isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout)) or (
+        on_timeout and isinstance(error, (httpx.ReadTimeout, httpx.WriteTimeout))
+    ):
+        circuit.open()
+        return True
+    # Pool exhaustion, customer errors and cancellation must propagate without replay.
+    circuit.release_half_open_probe()
+    return False
+
+
+@contextmanager
+def _gateway_header_timeout(
+    request: Any, default_timeout: Any, header_timeout: Any
+) -> Iterator[None]:
+    caller_timeout = request.extensions.get("timeout", default_timeout)
+    if header_timeout is not None:
+        request.extensions["timeout"] = header_timeout
+    try:
+        yield
+    finally:
+        request.extensions["timeout"] = caller_timeout
+
+
 def _build_fallback_http_client(
     httpx: Any,
     *,
@@ -337,10 +401,12 @@ def _build_fallback_http_client(
     direct_transport: Any = None,
     direct_timeout: Any = _UNSET,
     circuit: Optional[_CircuitBreaker] = None,
+    gateway_client: Any = None,
 ) -> Any:
     normal_timeout = (
         direct_timeout
         if direct_timeout is not _UNSET
+        else gateway_client.timeout if gateway_client is not None
         else httpx.Timeout(600.0, connect=5.0)
     )
     event_hooks = {
@@ -352,21 +418,6 @@ def _build_fallback_http_client(
             )
         ]
     }
-
-    class CircuitResponseStream(httpx.SyncByteStream):
-        def __init__(self, stream: Any, circuit: _CircuitBreaker) -> None:
-            self._stream = stream
-            self._circuit = circuit
-
-        def __iter__(self):
-            try:
-                yield from self._stream
-            except httpx.RequestError:
-                self._circuit.release_half_open_probe()
-                raise
-
-        def close(self) -> None:
-            self._stream.close()
 
     class GatewayFallbackClient(httpx.Client):
         def __init__(self) -> None:
@@ -382,11 +433,47 @@ def _build_fallback_http_client(
             self._circuit = circuit or _CircuitBreaker()
             self._fallback_timeout = httpx.Timeout(fallback.timeout_seconds)
 
+        def build_request(self, *args: Any, **kwargs: Any) -> Any:
+            # Preserve current customer defaults and cookie updates, not a snapshot.
+            if gateway_client is not None:
+                return gateway_client.build_request(*args, **kwargs)
+            return super().build_request(*args, **kwargs)
+
+        def __exit__(self, *args: Any) -> None:
+            self.close()
+
         def close(self) -> None:
             try:
                 self._direct_client.close()
             finally:
                 super().close()
+
+        def _send_gateway(
+            self, request: Any, *, attempt: Optional[_TransportAttempt] = None,
+            provider_headers: Optional[Dict[str, str]] = None, **kwargs: Any,
+        ) -> Any:
+            # Redirects must not carry provider-key headers to another origin.
+            kwargs["follow_redirects"] = False
+            if gateway_client is None:
+                with _provider_headers_scope(request, provider_headers):
+                    return super().send(request, **kwargs)
+            if self.is_closed:
+                raise RuntimeError("Cannot send a request, as the client has been closed.")
+            # Reject an already-invalid input before running customer hooks.
+            if _origin(request.url) != _origin(gateway_base_url):
+                raise ValueError(ERR_GATEWAY_ORIGIN_REFUSED)
+            expected_url = request.url
+            request.headers.update({k: v for k, v in get_headers().items()
+                                    if k in (HEADER_DEVICE_ID, HEADER_FEATURE_ID)})
+
+            def finalize(outgoing: Any) -> None:
+                _destination_guard(outgoing, expected_url)
+                with _provider_headers_scope(outgoing, provider_headers):
+                    event_hooks["request"][0](outgoing)
+
+            return send_borrowed(
+                gateway_client, request, finalize, stream=kwargs.get("stream", False), attempt=attempt,
+            )
 
         def _send_gateway_headers(
             self,
@@ -395,32 +482,27 @@ def _build_fallback_http_client(
             auth: Any,
             follow_redirects: Any,
             header_timeout: Any = None,
+            provider_headers: Optional[Dict[str, str]] = None,
+            attempt: Optional[_TransportAttempt] = None,
         ) -> Any:
-            caller_timeout = request.extensions.get(
-                "timeout",
-                self.timeout.as_dict(),
-            )
-            if header_timeout is not None:
-                request.extensions["timeout"] = header_timeout
-            try:
-                response = super().send(
+            with _gateway_header_timeout(request, self.timeout.as_dict(), header_timeout):
+                return self._send_gateway(
                     request,
                     stream=True,
+                    provider_headers=provider_headers,
+                    attempt=attempt,
                     auth=auth,
                     follow_redirects=follow_redirects,
                 )
-            finally:
-                request.extensions["timeout"] = caller_timeout
-            response.stream = CircuitResponseStream(
-                response.stream,
-                self._circuit,
-            )
-            return response
 
         @staticmethod
         def _finish_gateway_response(response: Any, *, stream: bool) -> Any:
             if not stream:
-                response.read()
+                try:
+                    response.read()
+                except BaseException:
+                    response.close()
+                    raise
             return response
 
         def _send_direct(
@@ -444,9 +526,20 @@ def _build_fallback_http_client(
                     )
                 },
             )
+            if gateway_client is not None:
+                expected_url = direct_request.url
+                # Customer logging hooks do not need the provider credential.
+                direct_request.headers.pop("authorization", None)
+
+                def finalize(outgoing: Any) -> None:
+                    _finalize_direct_request(outgoing, expected_url, openai_key)
+
+                return send_borrowed(gateway_client, direct_request, finalize, stream=stream)
             return self._direct_client.send(
                 direct_request,
                 stream=stream,
+                auth=None,
+                follow_redirects=False,
             )
 
         def send(
@@ -457,6 +550,8 @@ def _build_fallback_http_client(
             auth: Any = httpx.USE_CLIENT_DEFAULT,
             follow_redirects: Any = httpx.USE_CLIENT_DEFAULT,
         ) -> Any:
+            if self.is_closed:
+                raise RuntimeError("Cannot send a request, as the client has been closed.")
             direct_url = _direct_openai_url(
                 request.url, gateway_base_url, fallback.base_url
             )
@@ -467,7 +562,7 @@ def _build_fallback_http_client(
             )
 
             if not eligible:
-                return super().send(
+                return self._send_gateway(
                     request,
                     stream=stream,
                     auth=auth,
@@ -475,26 +570,19 @@ def _build_fallback_http_client(
                 )
 
             provider_headers = resolve_provider_headers(provider_keys)
-            request.extensions[_RESOLVED_PROVIDER_HEADERS_KEY] = (
-                _RESOLVED_PROVIDER_HEADERS_TOKEN,
-                provider_headers,
-            )
             openai_key = _openai_key_from_headers(provider_headers)
+            attempt = _TransportAttempt() if gateway_client is not None else None
             if openai_key is None:
                 try:
                     response = self._send_gateway_headers(
                         request,
                         auth=auth,
                         follow_redirects=follow_redirects,
+                        attempt=attempt,
+                        provider_headers=provider_headers,
                     )
-                except httpx.PoolTimeout:
-                    self._circuit.release_half_open_probe()
-                    raise
-                except (httpx.ConnectError, httpx.ConnectTimeout):
-                    self._circuit.open()
-                    raise
-                except httpx.RequestError:
-                    self._circuit.release_half_open_probe()
+                except BaseException as error:
+                    _handle_gateway_error(error, httpx, self._circuit, on_timeout=False, attempt=attempt)
                     raise
                 if _safe_gateway_response(response):
                     self._circuit.open()
@@ -522,9 +610,12 @@ def _build_fallback_http_client(
                     auth=auth,
                     follow_redirects=follow_redirects,
                     header_timeout=self._fallback_timeout.as_dict(),
+                    provider_headers=provider_headers,
+                    attempt=attempt,
                 )
-            except (httpx.ConnectError, httpx.ConnectTimeout):
-                self._circuit.open()
+            except BaseException as error:
+                if not _handle_gateway_error(error, httpx, self._circuit, on_timeout=fallback.on_timeout, attempt=attempt):
+                    raise
                 return self._send_direct(
                     request,
                     direct_url=direct_url,
@@ -532,28 +623,10 @@ def _build_fallback_http_client(
                     content=content,
                     stream=stream,
                 )
-            except (httpx.ReadTimeout, httpx.WriteTimeout):
-                if fallback.on_timeout:
-                    self._circuit.open()
-                    return self._send_direct(
-                        request,
-                        direct_url=direct_url,
-                        openai_key=openai_key,
-                        content=content,
-                        stream=stream,
-                    )
-                self._circuit.release_half_open_probe()
-                raise
-            except httpx.PoolTimeout:
-                self._circuit.release_half_open_probe()
-                raise
-            except httpx.RequestError:
-                self._circuit.release_half_open_probe()
-                raise
 
             if _safe_gateway_response(response):
-                response.close()
                 self._circuit.open()
+                response.close()
                 return self._send_direct(
                     request,
                     direct_url=direct_url,
@@ -612,6 +685,61 @@ class Abto:
             ]
         }
 
+    def openai_options(self, **client_kwargs: Any) -> Dict[str, Any]:
+        """Return sync OpenAI-compatible options without importing OpenAI.
+
+        Use with ``ChatOpenAI(**abto.openai_options())`` or ``OpenAI``.
+        Close the returned http_client at application shutdown. A supplied
+        http_client is borrowed and remains owned by its caller.
+        """
+        return self._openai_options(False, client_kwargs)
+
+    def async_openai_options(self, **client_kwargs: Any) -> Dict[str, Any]:
+        """Return AsyncOpenAI-compatible options with native async HTTPX I/O.
+
+        For LangChain, pass the returned http_client as http_async_client.
+        Await its aclose() at shutdown; supplied clients remain caller-owned.
+        """
+        return self._openai_options(True, client_kwargs)
+
+    def _openai_options(self, asynchronous: bool, client_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            import httpx
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("ABTO OpenAI options require httpx: pip install 'abto[httpx]'") from exc
+        options = dict(client_kwargs)
+        customer_client = options.pop("http_client", None)
+        expected = httpx.AsyncClient if asynchronous else httpx.Client
+        if customer_client is not None and not isinstance(customer_client, expected):
+            # OpenAI 3 also accepts HTTPX 2 clients. Reuse their matching I/O
+            # types without making that optional transport a core dependency.
+            try:
+                import httpx2
+            except ImportError:
+                httpx2 = None
+            alternative = (httpx2.AsyncClient if asynchronous else httpx2.Client) if httpx2 else None
+            if alternative is None or not isinstance(customer_client, alternative):
+                raise TypeError(f"[abto] http_client must be an {expected.__name__}.")
+            httpx = httpx2
+        builder = _build_fallback_http_client
+        if asynchronous:
+            from .async_client import _build_async_fallback_http_client
+            builder = _build_async_fallback_http_client
+        http_client = builder(
+            httpx,
+            gateway_base_url=self.gateway_base_url,
+            api_key=self.api_key,
+            provider_keys=self._provider_keys,
+            fallback=self._fallback,
+            circuit=self._fallback_circuit,
+            gateway_client=customer_client,
+            direct_timeout=options.get("timeout", _UNSET),
+        )
+        # Framework serialization sees only a placeholder; the request hook
+        # injects credentials at dispatch, just like the JavaScript transport.
+        options.update(api_key="abto-transport-placeholder", base_url=self.gateway_base_url, http_client=http_client)
+        return options
+
     def openai(self, **client_kwargs: Any) -> Any:
         """Construct an OpenAI client pointed at the gateway with header injection.
 
@@ -630,24 +758,7 @@ class Abto:
             names = ", ".join(sorted(reserved))
             raise ValueError(f"[abto] openai() does not allow overriding: {names}.")
 
-        http_client = _build_fallback_http_client(
-            httpx,
-            gateway_base_url=self.gateway_base_url,
-            api_key=self.api_key,
-            provider_keys=self._provider_keys,
-            fallback=self._fallback,
-            circuit=self._fallback_circuit,
-            direct_timeout=client_kwargs.get(
-                "timeout",
-                httpx.Timeout(600.0, connect=5.0),
-            ),
-        )
-        return OpenAI(
-            api_key=self.api_key,
-            base_url=self.gateway_base_url,
-            http_client=http_client,
-            **client_kwargs,
-        )
+        return OpenAI(**self.openai_options(**client_kwargs))
 
 
 def init_abto(
