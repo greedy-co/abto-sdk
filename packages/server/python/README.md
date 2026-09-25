@@ -44,6 +44,110 @@ def generate(device_id: str):
         )
 ```
 
+## Connect LangChain
+
+Pass ABTO's connection options to your existing `ChatOpenAI` model.
+Keep your chains, retrievers, prompts, callbacks, and retry settings.
+
+```bash
+pip install "abto[openai]" langchain-openai
+```
+
+This example connects both sync and async calls.
+Set your Calling Key and OpenAI API key in server environment variables.
+
+```python
+import asyncio
+import os
+
+from abto import init_abto
+from langchain_openai import ChatOpenAI
+
+abto = init_abto(
+    api_key=os.environ["ABTO_CALLING_KEY"],
+    gateway_base_url="https://gateway.abto.app/v1",
+    provider_keys={"openai": os.environ["OPENAI_API_KEY"]},
+)
+
+sync_options = abto.openai_options()
+async_options = abto.async_openai_options()
+model = ChatOpenAI(
+    model="gpt-4.1-mini",
+    use_responses_api=False,
+    **sync_options,
+    http_async_client=async_options["http_client"],
+)
+
+async def main():
+    try:
+        with abto.with_context(feature_id="support.reply"):
+            reply = await model.ainvoke("How can I check my delivery status?")
+            print(reply.content)
+    finally:
+        sync_options["http_client"].close()
+        await async_options["http_client"].aclose()
+
+asyncio.run(main())
+```
+
+In synchronous code, call `model.invoke(...)` on the same model.
+In a server, create and reuse the model and connection options, then close the HTTP clients at shutdown.
+After a call, find `support.reply` in the Dashboard request list to check the response, cost, and latency.
+
+### Reuse an existing HTTP client
+
+Wrap the transport where you create your existing client, then pass the client to ABTO.
+Your custom `send()` method, request/response hooks, connection pools, and cookies stay in use.
+
+```python
+import httpx
+from abto import wrap_httpx_transport
+
+# If you already have a transport, wrap that object instead of HTTPTransport().
+existing_sync_client = httpx.Client(
+    transport=wrap_httpx_transport(httpx.HTTPTransport()),
+    trust_env=False,
+)
+sync_options = abto.openai_options(http_client=existing_sync_client)
+
+existing_async_client = httpx.AsyncClient(
+    transport=wrap_httpx_transport(httpx.AsyncHTTPTransport()),
+    trust_env=False,
+)
+async_options = abto.async_openai_options(http_client=existing_async_client)
+```
+
+Keep your existing timeout, TLS, and proxy settings.
+This example disables automatic proxy selection from environment variables. If you use a proxy, configure it explicitly on the transport.
+Wrap each transport in `mounts` as well.
+ABTO does not replace the internals of an already-created client; make this change where you construct the client.
+An unwrapped route receives no ABTO credentials, and ABTO reports a configuration error after receiving its response.
+
+Closing the returned ABTO clients does not close the clients you supplied. Keep their existing shutdown handling.
+ABTO owns Gateway and direct-fallback authentication and disables automatic redirects to keep keys on the configured destinations.
+After customer hooks run, ABTO checks the destination and `Host` header, then adds keys only to a separate wire request.
+Your request/response hooks and `send()` do not receive real ABTO credentials added by the SDK.
+Errors from your hooks or observation code in `send()` propagate without triggering ABTO direct fallback.
+Your existing OpenAI and LangChain retry settings still apply.
+Place manually configured logging transports outside the ABTO wrapper. The inner transport that performs network I/O necessarily receives authentication keys.
+
+You can also pass `openai_options()` to the official `OpenAI` client and `async_openai_options()` to `AsyncOpenAI`.
+The returned `api_key` is a placeholder that keeps the real key out of framework trace serialization. Credentials are injected when the request is sent.
+
+### Keep request context and tracing
+
+Invoke each user's chain inside `with abto.with_context(feature_id=..., device_id=...)`.
+Python `contextvars` keeps concurrent async requests separate.
+For background jobs, also store and forward the device ID received from the browser with the job data.
+
+Keep Langfuse or LangSmith callbacks, tags, and metadata in your existing invocation configuration.
+Tracing tools record the input your app sends. If you change the model, prompt, or parameters in the Dashboard, check the ABTO request record for what actually ran.
+The Gateway may remove tracing headers before forwarding to the provider, so a single trace extending through the provider is not guaranteed.
+
+This integration is for OpenAI Chat Completions. Do not use this example to convert calls that use streaming or the Responses API.
+Keep TXT loaders and vector retrievers in your existing chain, and keep embeddings on their existing provider connection.
+To continue calls directly during Gateway outages, also configure direct fallback below.
+
 ## Direct httpx usage
 
 ```python
@@ -69,13 +173,14 @@ The Gateway maps the Calling Key to `tenant_id`, creates `request_id` in the `x-
 
 ## OpenAI direct fallback during Gateway outages
 
-When an OpenAI provider key is available, direct fallback is enabled by default for Gateway failures that can be classified safely. It sends the original Chat Completions body and model to OpenAI and does not reproduce the Gateway's provider or model policy.
+When an OpenAI provider key and an explicit fallback base URL are configured, direct fallback handles Gateway failures that can be classified safely. It sends the original Chat Completions body and model to OpenAI and does not reproduce the Gateway's provider or model policy.
 
 ```python
 from abto import OpenAIDirectFallbackOptions, init_abto
 
 abto = init_abto(
     api_key=os.environ["ABTO_API_KEY"],
+    gateway_base_url="https://gateway.abto.app/v1",
     provider_keys={
         "openai": os.environ["OPENAI_API_KEY"],
         "anthropic": os.getenv("ANTHROPIC_API_KEY"),
@@ -84,6 +189,7 @@ abto = init_abto(
         "kimi": os.getenv("KIMI_API_KEY"),
     },
     fallback=OpenAIDirectFallbackOptions(
+        base_url="https://api.openai.com/v1",
         timeout_seconds=30,
         on_timeout=False,
     ),
@@ -111,7 +217,7 @@ Use `init_abto(..., fallback=False)` to disable direct fallback.
 
 `abto.openai(**kwargs)` forwards official OpenAI options such as `max_retries`, `timeout`, `organization`, `project`, `default_headers`, and `default_query` unchanged, except for the three values ABTO must own:
 
-- `api_key` is the ABTO Calling Key.
+- `api_key` is a placeholder; the real Calling Key is injected at dispatch.
 - `base_url` is the configured ABTO Gateway URL.
 - `http_client` is the ABTO routing client that enforces Gateway/direct-fallback boundaries.
 
@@ -145,6 +251,7 @@ Keep your tracing tool's request header setup. ABTO does not configure tracing f
 
 - `init_abto(api_key=None, gateway_base_url=None, provider_keys=None, fallback=None) -> Abto`
 - `abto.openai(**kwargs)`
+- `abto.openai_options(**kwargs)` / `abto.async_openai_options(**kwargs)`
 - `OpenAIDirectFallbackOptions`
 - `abto.with_context(device_id=?, feature_id=?, trace_id=?)`
 - `abto.get_headers(ctx=None)` / `abto.create_trace_id()` / `abto.httpx_event_hooks()`

@@ -29,7 +29,7 @@ Keep Calling Keys and provider keys on the server. Preserve the existing complet
 
 ## LangChain
 
-Read the LangChain and tracing sections of the current [Node.js JavaScript guide](https://docs.abto.app/sdk/javascript/server/).
+Read the LangChain and tracing sections of the current [Node.js JavaScript guide](https://docs.abto.app/sdk/javascript/server/) or [Python guide](https://docs.abto.app/sdk/python/), matching the application language.
 Confirm that the customer's actual ChatOpenAI call uses Chat Completions and accepts client configuration.
 Verify that the installed public Calling SDK exposes the documented configuration API before using it; if absent, check for a compatible published release rather than importing internal source or inventing an adapter.
 Keep the customer's model options, custom fetch, invoke calls, chains, parsers, callbacks, tracing initialization, and retry policy.
@@ -73,7 +73,13 @@ An ambiguous timeout or disconnect must not become a direct replay unless the in
 
 Preserve the rest of the official OpenAI client configuration too.
 For Node.js, the Calling SDK owns `baseURL` and `apiKey` and keeps its ABTO wrapper as the outer `fetch`; a caller-provided `clientOptions.fetch` is the underlying transport and must not be deleted.
-For Python, the Calling SDK owns `api_key`, `base_url`, and `http_client` and rejects those three reserved arguments; it forwards other `abto.openai(**kwargs)` unchanged.
+For Python, follow the current Docs for `openai_options()` and `async_openai_options()`: preserve supplied sync/async HTTP clients and their ownership, and close ABTO-created clients at application shutdown.
+For customer clients, fetch the current [Python Docs](https://docs.abto.app/sdk/python.md) and check the installed `wrap_httpx_transport` API.
+Find the client construction site and wrap its existing transport (including mounts); preserve TLS, proxy, timeout and observability settings.
+Do not replace private client fields, bypass `send()`, or drop an environment proxy silently.
+Keep manually configured logging outside the credential-injecting boundary.
+Verify the customer send override and request/response hooks still run for success, error and configured fallback.
+The `abto.openai(**kwargs)` factory owns `api_key`, `base_url`, and `http_client` and rejects those three reserved arguments.
 Do not remove a customer's custom transport at the call site to make integration easier.
 Record these documented exceptions, and follow SDK defect handling if the installed SDK silently drops another option.
 

@@ -16,6 +16,24 @@ const TARGET_PATHS = Object.freeze({
   swift: ['packages/mobile/swift/', 'Package.swift'],
 });
 
+// CI-only groups do not change SDK release-target classification.
+const CALLING_COMPATIBILITY_PATHS = Object.freeze([
+  'packages/server/javascript/', 'packages/server/python/',
+  'test/calling-langchain/python/', 'test/calling-langchain/compatibility.sh',
+  'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json',
+  '.github/workflows/sdk-verify.yml',
+  'scripts/classify-sdk-changes.mjs', 'scripts/classify-sdk-changes.test.mjs',
+]);
+const CALLING_E2E_PATHS = Object.freeze([
+  ...CALLING_COMPATIBILITY_PATHS, 'test/calling-langchain/',
+  'apps/gateway/internal/', 'apps/analytics/src/main/',
+  'contracts/calling-sdk/', 'compose.yml',
+]);
+const BROWSER_CONTRACT_PATHS = Object.freeze([
+  'packages/browser/javascript/', 'tooling/events-schema/', 'contracts/events/',
+  'examples/browser-smoke/', 'package.json', '.github/workflows/sdk-verify.yml',
+]);
+
 const RELEASE_TAG_PATHS = Object.freeze([
   ['event-js', 'packages/browser/javascript/package.json'],
   ['calling-js', 'packages/server/javascript/package.json'],
@@ -104,6 +122,10 @@ function affectsPublicMirror(path) {
 
 export function classifySdkChanges(paths, { forceAll = false } = {}) {
   const normalizedPaths = paths.map(normalizePath).filter(Boolean);
+  const affectsGroup = (candidates) => forceAll || normalizedPaths.some(
+    (path) => !isDocumentationPath(path)
+      && candidates.some((candidate) => matchesPath(path, candidate)),
+  );
   const all = forceAll || normalizedPaths.some((path) => ALL_CHANGE_PATHS.has(path));
   const runtimeTargetChanged = (target) => normalizedPaths.some(
     (path) => isRuntimeChangeForTarget(target, path),
@@ -121,6 +143,9 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
 
   return {
     all,
+    calling_compatibility: affectsGroup(CALLING_COMPATIBILITY_PATHS),
+    calling_e2e: affectsGroup(CALLING_E2E_PATHS),
+    browser_contract: affectsGroup(BROWSER_CONTRACT_PATHS),
     browser: eventJs,
     server: callingJs,
     event_js: eventJs,
