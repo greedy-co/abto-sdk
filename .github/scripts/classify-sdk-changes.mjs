@@ -81,6 +81,7 @@ const ALL_CHANGE_PATHS = new Set([
 ]);
 
 const PUBLIC_CHANGE_PATHS = new Set([
+  '.github/scripts/verify-python.sh',
   '.github/workflows/sync-agent-skill.yml',
   'scripts/apply-public-documentation-sync.mjs',
   'scripts/apply-agent-skill-sync.mjs',
@@ -136,7 +137,8 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
   const eventJsRuntime = runtimeTargetChanged('event-js');
   const eventJs = targetChanged('event-js');
   const callingJs = targetChanged('calling-js');
-  const python = targetChanged('calling-python');
+  const python = targetChanged('calling-python')
+    || normalizedPaths.includes('.github/scripts/verify-python.sh');
   const dart = targetChanged('dart');
   const android = targetChanged('android');
   const swift = targetChanged('swift');
