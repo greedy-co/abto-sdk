@@ -24,15 +24,6 @@ const CALLING_COMPATIBILITY_PATHS = Object.freeze([
   '.github/workflows/sdk-verify.yml',
   'scripts/classify-sdk-changes.mjs', 'scripts/classify-sdk-changes.test.mjs',
 ]);
-const CALLING_E2E_PATHS = Object.freeze([
-  ...CALLING_COMPATIBILITY_PATHS, 'test/calling-langchain/',
-  'apps/gateway/internal/', 'apps/analytics/src/main/',
-  'contracts/calling-sdk/', 'compose.yml',
-]);
-const BROWSER_CONTRACT_PATHS = Object.freeze([
-  'packages/browser/javascript/', 'tooling/events-schema/', 'contracts/events/',
-  'examples/browser-smoke/', 'package.json', '.github/workflows/sdk-verify.yml',
-]);
 
 const RELEASE_TAG_PATHS = Object.freeze([
   ['event-js', 'packages/browser/javascript/package.json'],
@@ -146,8 +137,6 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
   return {
     all,
     calling_compatibility: affectsGroup(CALLING_COMPATIBILITY_PATHS),
-    calling_e2e: affectsGroup(CALLING_E2E_PATHS),
-    browser_contract: affectsGroup(BROWSER_CONTRACT_PATHS),
     browser: eventJs,
     server: callingJs,
     event_js: eventJs,
