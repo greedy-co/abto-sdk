@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const tagPattern = /^(event-js-v|calling-js-v|calling-python-v|dart-v|android-v|swift-v|v)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/;
+const tagPattern = /^(event-js-v|calling-js-v|calling-python-v|calling-jvm-v|dart-v|android-v|swift-v|v)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?$/;
 
 function parseTag(tag) {
   const match = tagPattern.exec(tag.trim());

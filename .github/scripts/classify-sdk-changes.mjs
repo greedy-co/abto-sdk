@@ -11,6 +11,7 @@ const TARGET_PATHS = Object.freeze({
   'event-js': ['packages/browser/javascript/'],
   'calling-js': ['packages/server/javascript/'],
   'calling-python': ['packages/server/python/'],
+  'calling-jvm': ['packages/server/jvm/'],
   dart: ['packages/mobile/dart/'],
   android: ['packages/mobile/android/'],
   swift: ['packages/mobile/swift/', 'Package.swift'],
@@ -29,6 +30,7 @@ const RELEASE_TAG_PATHS = Object.freeze([
   ['event-js', 'packages/browser/javascript/package.json'],
   ['calling-js', 'packages/server/javascript/package.json'],
   ['calling-python', 'packages/server/python/pyproject.toml'],
+  ['calling-jvm', 'packages/server/jvm/gradle.properties'],
   ['dart', 'packages/mobile/dart/pubspec.yaml'],
   ['android', 'packages/mobile/android/gradle.properties'],
   ['swift', 'packages/mobile/swift/VERSION'],
@@ -62,6 +64,7 @@ const ALL_CHANGE_PATHS = new Set([
   'scripts/check-sdk-versions.mjs',
   'scripts/classify-sdk-changes.mjs',
   'scripts/classify-sdk-changes.test.mjs',
+  'scripts/central-bundle.test.py',
   'scripts/create-central-bundle.sh',
   'scripts/publish-central-bundle.sh',
   'scripts/previous-sdk-release-tag.mjs',
@@ -73,6 +76,7 @@ const ALL_CHANGE_PATHS = new Set([
 
 const PUBLIC_CHANGE_PATHS = new Set([
   '.github/scripts/verify-python.sh',
+  '.github/scripts/verify-jvm.sh',
   '.github/workflows/sync-agent-skill.yml',
   'scripts/apply-public-documentation-sync.mjs',
   'scripts/apply-agent-skill-sync.mjs',
@@ -130,6 +134,7 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
   const callingJs = targetChanged('calling-js');
   const python = targetChanged('calling-python')
     || normalizedPaths.includes('.github/scripts/verify-python.sh');
+  const jvm = targetChanged('calling-jvm') || normalizedPaths.some(path => ['.github/scripts/verify-jvm.sh', 'scripts/check-jvm-release-artifacts.py'].includes(path));
   const dart = targetChanged('dart');
   const android = targetChanged('android');
   const swift = targetChanged('swift');
@@ -143,15 +148,17 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
     event_js_runtime: eventJsRuntime,
     calling_js: callingJs,
     python,
+    jvm,
     dart,
     android,
     swift,
     actions: all || normalizedPaths.some((path) => path.startsWith('.github/workflows/')),
-    sdk: all || eventJs || callingJs || python || dart || android || swift,
+    sdk: all || eventJs || callingJs || python || jvm || dart || android || swift,
     agent_skill: all
       || eventJs
       || callingJs
       || python
+      || jvm
       || dart
       || android
       || swift
@@ -163,7 +170,7 @@ export function classifySdkChanges(paths, { forceAll = false } = {}) {
 }
 
 export function classifySdkReleaseTag(tag) {
-  const match = /^(event-js|calling-js|calling-python|dart|android|swift)-v(\d+\.\d+\.\d+)$/.exec(tag);
+  const match = /^(event-js|calling-js|calling-python|calling-jvm|dart|android|swift)-v(\d+\.\d+\.\d+)$/.exec(tag);
   if (match) {
     const path = RELEASE_TAG_PATHS.find(([target]) => target === match[1])?.[1];
     return classifySdkChanges([path]);

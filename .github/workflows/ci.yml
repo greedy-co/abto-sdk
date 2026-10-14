@@ -12,6 +12,7 @@ on:
       - "event-js-v*"
       - "calling-js-v*"
       - "calling-python-v*"
+      - "calling-jvm-v*"
       - "dart-v*"
       - "android-v*"
       - "swift-v*"
@@ -40,6 +41,7 @@ jobs:
       event_js: ${{ steps.paths.outputs.event_js }}
       calling_js: ${{ steps.paths.outputs.calling_js }}
       python: ${{ steps.paths.outputs.python }}
+      jvm: ${{ steps.legacy-jvm.outputs.jvm || steps.paths.outputs.jvm }}
       dart: ${{ steps.paths.outputs.dart }}
       android: ${{ steps.paths.outputs.android }}
       swift: ${{ steps.paths.outputs.swift }}
@@ -79,6 +81,11 @@ jobs:
           printf '%s\n' "${changed_paths}" \
             | node .github/scripts/classify-sdk-changes.mjs \
             >> "${GITHUB_OUTPUT}"
+
+      - name: Skip JVM until its first source promotion
+        if: ${{ hashFiles('packages/server/jvm/gradle.properties') == '' }}
+        run: echo 'jvm=false' >> "$GITHUB_OUTPUT"
+        id: legacy-jvm
 
   public-safety:
     if: github.event_name != 'schedule'
@@ -301,6 +308,55 @@ jobs:
       - run: dart pub get
       - run: dart test
 
+  jvm-matrix:
+    needs: changes
+    if: needs.changes.outputs.jvm == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - java: '17'
+            openai: '4.49.0'
+            boot1: '3.4.13'
+            boot2: '4.0.8'
+          - java: '21'
+            openai: '4.49.0'
+            boot1: '3.5.16'
+            boot2: '4.1.1'
+          - java: '25'
+            openai: '4.81.0'
+            boot1: '3.5.16'
+            boot2: '4.1.1'
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@90ddb51e90a5fd9ba75f40cf85156b7b41bf76a3 # v6
+        with:
+          gradle-version: '9.3.0'
+          cache-provider: basic
+
+      - name: Build and run independent JVM consumers
+        env:
+          JVM_JAVA_VERSION: ${{ matrix.java }}
+          OPENAI_JAVA_VERSION: ${{ matrix.openai }}
+          SPRING_BOOT_1_VERSION: ${{ matrix.boot1 }}
+          SPRING_BOOT_2_VERSION: ${{ matrix.boot2 }}
+        run: bash .github/scripts/verify-jvm.sh packages/server/jvm
+
+  jvm:
+    needs: [changes, jvm-matrix]
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - env:
+          MATRIX_RESULT: ${{ needs.jvm-matrix.result }}
+        run: test "$MATRIX_RESULT" = success || test "$MATRIX_RESULT" = skipped
+
   android:
     needs: changes
     if: needs.changes.outputs.android == 'true'
@@ -377,7 +433,7 @@ jobs:
           category: /language:swift
 
   publish-source-tags:
-    needs: [changes, public-safety, agent-skill, event-js, calling-js, python, dart, android, swift]
+    needs: [changes, public-safety, agent-skill, event-js, calling-js, python, jvm, dart, android, swift]
     if: >-
       always()
       && github.event_name == 'push'
@@ -416,7 +472,7 @@ jobs:
           fi
 
           release_tag="${release_subject#"${prefix}"}"
-          if ! [[ "${release_tag}" =~ ^(event-js|calling-js|calling-python|dart|android|swift)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if ! [[ "${release_tag}" =~ ^(event-js|calling-js|calling-python|calling-jvm|dart|android|swift)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::invalid SDK release tag ${release_tag}"
             exit 1
           fi
@@ -441,7 +497,7 @@ jobs:
           done
 
   source-release:
-    needs: [changes, public-safety, agent-skill, event-js, calling-js, npm-release, python, dart, android, swift]
+    needs: [changes, public-safety, agent-skill, event-js, calling-js, npm-release, python, jvm, dart, android, swift]
     if: >-
       always()
       && github.event_name == 'push'
@@ -450,6 +506,7 @@ jobs:
         startsWith(github.ref_name, 'event-js-v')
         || startsWith(github.ref_name, 'calling-js-v')
         || startsWith(github.ref_name, 'calling-python-v')
+        || startsWith(github.ref_name, 'calling-jvm-v')
         || startsWith(github.ref_name, 'dart-v')
         || startsWith(github.ref_name, 'android-v')
         || startsWith(github.ref_name, 'swift-v')
@@ -504,6 +561,7 @@ jobs:
       && needs.public-safety.result == 'success'
       && (
         startsWith(inputs.release_tag, 'calling-python-v')
+        || startsWith(inputs.release_tag, 'calling-jvm-v')
         || startsWith(inputs.release_tag, 'dart-v')
         || startsWith(inputs.release_tag, 'android-v')
         || startsWith(inputs.release_tag, 'swift-v')
@@ -610,7 +668,7 @@ jobs:
           recovery_path="${GITHUB_REF#refs/heads/release-recovery/}"
           release_tag="${recovery_path%%/*}"
           case "${release_tag}" in
-            calling-python-v*|dart-v*|android-v*|swift-v*|v*) ;;
+            calling-python-v*|calling-jvm-v*|dart-v*|android-v*|swift-v*|v*) ;;
             *)
               echo "::error::unsupported source release recovery tag ${release_tag}"
               exit 1
