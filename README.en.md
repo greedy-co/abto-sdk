@@ -115,8 +115,11 @@ Route server-side LLM requests through the ABTO Gateway and propagate `device_id
 | --- | --- | --- | --- |
 | Node.js | Gateway calls and request context | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway calls and request context | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
+| Java / Kotlin | Chat Completions and framework integration | `implementation("app.abto:abto-calling:1.1.0")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
 See the [Node.js Calling SDK](./packages/server/javascript) and [Python Calling SDK](./packages/server/python) for package-specific usage.
+
+[Java/Kotlin Calling SDK](./packages/server/jvm) includes factory, config, Spring AI, LangChain4j and HTTP examples.
 
 ## Connect the flow
 
@@ -152,6 +155,7 @@ packages/
 ├── browser/javascript/   # @abto-app/event
 ├── server/
 │   ├── javascript/       # @abto-app/calling
+│   ├── jvm/              # app.abto:abto-calling
 │   └── python/           # abto
 └── mobile/
     ├── dart/             # abto
@@ -173,6 +177,7 @@ SDKs on the same `major.minor` line implement the same capability contract. Each
 | Browser JavaScript | [Setup and API guide](https://docs.abto.app/en/sdk/javascript/browser/) |
 | Node.js | [Setup and API guide](https://docs.abto.app/en/sdk/javascript/server/) |
 | Python | [Setup and API guide](https://docs.abto.app/en/sdk/python/) |
+| Java / Kotlin | [Setup and API guide](https://docs.abto.app/en/sdk/jvm/) |
 | Flutter / Dart | [Setup and API guide](https://docs.abto.app/en/sdk/flutter/) |
 | Android / Kotlin | [Setup and API guide](https://docs.abto.app/en/sdk/android/) |
 | iOS / macOS | [Setup and API guide](https://docs.abto.app/en/sdk/ios/) |

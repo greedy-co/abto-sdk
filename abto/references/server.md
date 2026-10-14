@@ -6,6 +6,7 @@
 - [Node.js](#nodejs)
 - [LangChain](#langchain)
 - [Python](#python)
+- [Java and Kotlin](jvm.md)
 - [Preserve and disclose direct fallback](#preserve-and-disclose-direct-fallback)
 - [Add request correlation only when selected](#add-request-correlation-only-when-selected)
 - [Validate and propagate context](#validate-and-propagate-context)
@@ -45,7 +46,7 @@ Do not introduce a second concurrency model only for ABTO.
 
 ## Preserve and disclose direct fallback
 
-The current Node.js and Python Calling SDKs enable direct OpenAI fallback for safely classified Gateway failures when a fallback base URL is configured.
+The current Node.js, Python, and JVM Calling SDKs enable direct OpenAI fallback for safely classified Gateway failures when a fallback base URL is configured.
 Naming that destination is what turns it on; there is no separate enable flag, and configuring nothing leaves it off.
 A base URL with no OpenAI key source fails at init, because there would be no key to send along the direct path.
 Never report fallback as active without confirming the configured base URL.
@@ -55,7 +56,7 @@ Direct fallback returns the request to the endpoint the application called befor
 Resolve and confirm the destination with the skill user during the existing LLM inventory approval, before applying configuration:
 
 1. Trace each call's effective pre-ABTO endpoint through its client constructor, shared configuration, environment references, and installed provider SDK's precedence rules. Record its source location and configuration expression. An implicit provider SDK default counts as discovered only when the installed SDK and applicable overrides establish it; an API key or model name alone is not evidence of the endpoint.
-2. **Destination found:** automatically prefill the proposed `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python) from that existing configuration. Show the destination, evidence, and resulting fallback behavior, then ask the user to confirm it with the call IDs. Reuse environment/configuration references rather than hardcoding their resolved values; redact credentials in URLs and never ask the user to paste secrets.
+2. **Destination found:** automatically prefill the proposed `fallback.baseURL` (JavaScript) or `fallback.base_url` (Python), or `AbtoFallback.builder().baseUrl(...)` (JVM) from that existing configuration. Show the destination, evidence, and resulting fallback behavior, then ask the user to confirm it with the call IDs. Reuse environment/configuration references rather than hardcoding their resolved values; redact credentials in URLs and never ask the user to paste secrets.
 3. **Destination missing or ambiguous:** ask which base URL that call should use for direct fallback, or whether the user explicitly wants no fallback. Do not substitute `https://api.openai.com/v1` from an example or silently leave fallback off. Keep the affected path pending until answered; continue independently approved paths.
 4. Apply only the confirmed proposal or user-supplied destination. An existing explicit fallback choice, including disabled fallback, takes precedence over rediscovery; preserve it and do not ask again when already authorized in this task. A new proposal must not silently enable fallback or replace that choice.
 

@@ -115,8 +115,9 @@ Flutter Web은 현재 Dart SDK가 지원하지 않으므로 브라우저용 Java
 | --- | --- | --- | --- |
 | Node.js | Gateway 호출·요청 문맥 | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway 호출·요청 문맥 | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
+| Java / Kotlin | Chat Completions와 프레임워크 연동 | `implementation("app.abto:abto-calling:1.1.0")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
-패키지별 사용법은 [Node.js Calling SDK](./packages/server/javascript)와 [Python Calling SDK](./packages/server/python)에서 확인할 수 있습니다.
+패키지별 사용법은 [Node.js Calling SDK](./packages/server/javascript), [Python Calling SDK](./packages/server/python), [Java/Kotlin Calling SDK](./packages/server/jvm)에서 확인할 수 있습니다.
 
 ## 하나의 흐름으로 연결하기
 
@@ -152,6 +153,7 @@ packages/
 ├── browser/javascript/   # @abto-app/event
 ├── server/
 │   ├── javascript/       # @abto-app/calling
+│   ├── jvm/              # app.abto:abto-calling
 │   └── python/           # abto
 └── mobile/
     ├── dart/             # abto
@@ -173,6 +175,7 @@ abto/
 | Browser JavaScript | [설치 및 API 가이드](https://docs.abto.app/sdk/javascript/browser/) |
 | Node.js | [설치 및 API 가이드](https://docs.abto.app/sdk/javascript/server/) |
 | Python | [설치 및 API 가이드](https://docs.abto.app/sdk/python/) |
+| Java / Kotlin | [설치와 API 가이드](https://docs.abto.app/sdk/jvm/) |
 | Flutter / Dart | [설치 및 API 가이드](https://docs.abto.app/sdk/flutter/) |
 | Android / Kotlin | [설치 및 API 가이드](https://docs.abto.app/sdk/android/) |
 | iOS / macOS | [설치 및 API 가이드](https://docs.abto.app/sdk/ios/) |

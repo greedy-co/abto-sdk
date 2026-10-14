@@ -1,6 +1,6 @@
 ---
 name: abto
-description: Map frontend and backend repository boundaries, inventory LLM API call sites for approval, install and wire the minimum ABTO Browser, App, or Server SDKs, preserve device_id and trace correlation, recommend opt-in system or custom events, and verify the resulting ABTO integration. Use for ABTO setup, updates, troubleshooting, Gateway calling, event collection, key placement, or end-to-end integration checks across browser JavaScript, Node.js, Python, Flutter/Dart, Android/Kotlin, and iOS/macOS.
+description: Map frontend and backend repository boundaries, inventory LLM API call sites for approval, install and wire the minimum ABTO Browser, App, or Server SDKs, preserve device_id and trace correlation, recommend opt-in system or custom events, and verify the resulting ABTO integration. Use for ABTO setup, updates, troubleshooting, Gateway calling, event collection, key placement, or end-to-end integration checks across browser JavaScript, Node.js, Python, Java/Kotlin servers, Flutter/Dart, Android/Kotlin, and iOS/macOS.
 ---
 
 # ABTO
@@ -19,6 +19,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 3. Read only the implementation reference for each confirmed runtime:
    - Browser JavaScript: [Browser JavaScript](references/browser-javascript.md)
    - Node.js or Python backend: [Server](references/server.md)
+   - Java or Kotlin backend: [JVM](references/jvm.md)
    - Flutter/Dart, Android/Kotlin, or iOS/macOS: [Mobile](references/mobile.md)
 4. Read [SDK defect handling](references/sdk-defect-handling.md) only when an installed public SDK appears to behave contrary to its released contract.
 5. Read [Verification](references/verification.md) before declaring the integration complete.

@@ -7,6 +7,7 @@
 | Browser JavaScript | Available | Identity, trace headers, opt-in system or custom events | `@abto-app/event` | Event Key |
 | Node.js backend | Available | OpenAI Chat Completions Gateway calls and request context | `@abto-app/calling` | Calling Key plus provider keys |
 | Python backend | Available | OpenAI Chat Completions Gateway calls and request context | `abto[openai]` | Calling Key plus provider keys |
+| Java/Kotlin backend | Available | Non-streaming Chat Completions and framework integration | `app.abto:abto-calling` or one framework adapter | Calling Key plus provider keys |
 | Flutter/Dart native app | Available | Identity and opt-in app outcomes | `abto` | Event Key |
 | Android/Kotlin app | Available | Identity and opt-in app outcomes | `app.abto:abto-app` | Event Key |
 | iOS/macOS app | Available | Identity and opt-in app outcomes | `AbtoApp` | Event Key |
@@ -71,6 +72,7 @@ Use the narrowest relevant page:
 | Gateway request fields, errors, or compatibility | `/gateway/overview/`, `/gateway/chat-completions/` |
 | Browser API | [Browser JavaScript](https://docs.abto.app/sdk/javascript/browser/) |
 | Node.js, CommonJS/ESM, LangChain, tracing | [Node.js JavaScript](https://docs.abto.app/sdk/javascript/server/) |
+| Java/Kotlin, Spring AI, LangChain4j, LangGraph4j | [JVM](https://docs.abto.app/sdk/jvm/) |
 | Python API | [Python](https://docs.abto.app/sdk/python/) |
 | Flutter, Android, or iOS API | [Flutter](https://docs.abto.app/sdk/flutter/), [Android](https://docs.abto.app/sdk/android/), [iOS](https://docs.abto.app/sdk/ios/) |
 | Event schema, privacy, or collection behavior | `/events/` |
@@ -93,7 +95,7 @@ Do not generate a second server device identifier for the same client installati
 For a server-only call with no stable product identifier, ask before defining a new identity policy.
 
 For a Gateway-served call, the Gateway owns provider execution, token usage, cost, latency, provider routing, variant assignment, and `request_id`.
-When Node.js or Python direct OpenAI fallback is enabled, the Calling SDK owns only the decision to bypass a safely classified Gateway availability failure.
+When Node.js, Python, or JVM direct OpenAI fallback is enabled, the Calling SDK owns only the decision to bypass a safely classified Gateway availability failure.
 It does not classify or retry OpenAI or model-provider errors after that switch; the official OpenAI SDK keeps its configured retry policy.
 Do not add a second fallback retry setting or override the customer's native OpenAI retry configuration.
 The direct call bypasses Gateway policy, ABTO telemetry, and `request_id`.
