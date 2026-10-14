@@ -35,6 +35,7 @@ Run the repository's existing gates for every changed runtime:
 |---|---|
 | Browser or Node.js | dependency install, typecheck, tests, production build |
 | Python | dependency install, tests, package or application import check |
+| Java/Kotlin server | Maven or Gradle dependency resolution, existing tests, application build with the selected framework dependencies |
 | Flutter/Dart | `dart analyze`, `dart test` |
 | Android/Kotlin | Gradle dependency resolution, `gradle check`, application build |
 | iOS/macOS | Xcode build or `swift build` for the affected package |
