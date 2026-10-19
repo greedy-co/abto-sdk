@@ -40,6 +40,20 @@ def test_with_context_can_explicitly_clear_an_inherited_value():
         assert get_context().device_id == "d2"
 
 
+def test_with_context_drops_the_outer_node_when_switching_feature():
+    with with_context(feature_id="chat.default", node_id="chat.draft"):
+        with with_context(feature_id="chat.default", device_id="d1"):
+            assert get_headers()[ABTO_HEADER["node_id"]] == "chat.draft"
+        with with_context(node_id="chat.review"):
+            assert get_context().feature_id == "chat.default"
+            assert get_headers()[ABTO_HEADER["node_id"]] == "chat.review"
+        with with_context(feature_id="chat.rewrite"):
+            assert ABTO_HEADER["node_id"] not in get_headers()
+        with with_context(feature_id="chat.rewrite", node_id="chat.polish"):
+            assert get_headers()[ABTO_HEADER["node_id"]] == "chat.polish"
+        assert get_context().node_id == "chat.draft"
+
+
 def test_traceparent_format():
     tp = create_traceparent("b" * 32)
     parts = tp.split("-")

@@ -11,6 +11,7 @@ SAFE_GATEWAY_STATUSES: Final[FrozenSet[int]] = frozenset({502, 503, 504})
 PROVIDER_IDS: Final[Tuple[str, ...]] = ("openai", "anthropic", "gemini", "deepseek", "kimi",)
 HEADER_DEVICE_ID: Final[str] = "x-abto-device-id"
 HEADER_FEATURE_ID: Final[str] = "x-abto-feature-id"
+HEADER_NODE_ID: Final[str] = "x-abto-node-id"
 HEADER_PROVIDER_KEY_PREFIX: Final[str] = "x-abto-key-"
 HEADER_REQUEST_ID: Final[str] = "x-abto-request-id"
 HEADER_ERROR_SOURCE: Final[str] = "x-abto-error-source"

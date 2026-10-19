@@ -12,6 +12,12 @@ from abto.policy_generated import (
     ERR_API_KEY_REQUIRED,
     ERR_FALLBACK_OPENAI_KEY_REQUIRED,
     ERR_PROVIDER_KEY_INVALID_CHARACTERS,
+    HEADER_DEVICE_ID,
+    HEADER_ERROR_SOURCE,
+    HEADER_FEATURE_ID,
+    HEADER_NODE_ID,
+    HEADER_PROVIDER_KEY_PREFIX,
+    HEADER_REQUEST_ID,
 )
 from abto.client import (
     PUBLIC_GATEWAY_BASE_URL,
@@ -83,24 +89,26 @@ def test_hook_replaces_spoofed_context_and_preserves_ordinary_headers():
         {
             "x-client-header": "preserved",
             "Authorization": "Bearer attacker-abto-key",
-            "x-abto-device-id": "attacker-device",
-            "x-abto-feature-id": "attacker-feature",
-            "x-abto-key-openai": "attacker-openai-key",
-            "x-abto-key-gemini": "attacker-gemini-key",
+            HEADER_DEVICE_ID: "attacker-device",
+            HEADER_FEATURE_ID: "attacker-feature",
+            HEADER_NODE_ID: "attacker-node",
+            HEADER_PROVIDER_KEY_PREFIX + "openai": "attacker-openai-key",
+            HEADER_PROVIDER_KEY_PREFIX + "gemini": "attacker-gemini-key",
             "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         },
     )
 
-    with abto.with_context(device_id="trusted-device", feature_id="trusted.feature"):
+    with abto.with_context(device_id="trusted-device", feature_id="trusted.feature", node_id="trusted.node"):
         abto.httpx_event_hooks()["request"][0](request)
 
     assert request.headers["x-client-header"] == "preserved"
     assert request.headers["Authorization"] == "Bearer abto-test"
-    assert request.headers["x-abto-device-id"] == "trusted-device"
-    assert request.headers["x-abto-feature-id"] == "trusted.feature"
-    assert request.headers["x-abto-key-openai"] == "openai-trusted"
-    assert request.headers["x-abto-key-anthropic"] == "anthropic-trusted"
-    assert "x-abto-key-gemini" not in request.headers
+    assert request.headers[HEADER_DEVICE_ID] == "trusted-device"
+    assert request.headers[HEADER_FEATURE_ID] == "trusted.feature"
+    assert request.headers[HEADER_NODE_ID] == "trusted.node"
+    assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == "openai-trusted"
+    assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "anthropic"] == "anthropic-trusted"
+    assert HEADER_PROVIDER_KEY_PREFIX + "gemini" not in request.headers
     assert request.headers["traceparent"] == "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
 
 
@@ -116,8 +124,8 @@ def test_hook_preserves_customer_trace_with_abto_identity(trace_id):
     assert request.headers["Traceparent"] == traceparent
     assert request.headers["Tracestate"] == "customer=opaque,other=value"
     assert "traceparent" not in request.headers
-    assert request.headers["x-abto-device-id"] == "device-traced"
-    assert request.headers["x-abto-feature-id"] == "support.reply"
+    assert request.headers[HEADER_DEVICE_ID] == "device-traced"
+    assert request.headers[HEADER_FEATURE_ID] == "support.reply"
 
 
 def test_hook_derives_trace_only_when_customer_has_none():
@@ -140,7 +148,7 @@ def test_hook_adds_gateway_authorization_without_request_context():
     hook(request)
 
     assert request.headers["Authorization"] == "Bearer abto-test"
-    assert request.headers["x-abto-key-openai"] == "sk-openai"
+    assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == "sk-openai"
 
 
 def test_hook_rejects_provider_key_header_injection():
@@ -222,8 +230,8 @@ def test_direct_fallback_preserves_request_and_strips_abto_headers():
     assert direct.headers["traceparent"] == gateway_requests[0].headers["traceparent"]
     assert direct.headers["traceparent"] == "00-" + "1" * 32 + "-" + "2" * 16 + "-00"
     assert direct.headers["tracestate"] == "customer=opaque"
-    assert "x-abto-key-anthropic" not in direct.headers
-    assert "x-abto-feature-id" not in direct.headers
+    assert HEADER_PROVIDER_KEY_PREFIX + "anthropic" not in direct.headers
+    assert HEADER_FEATURE_ID not in direct.headers
 
 
 def test_direct_fallback_preserves_the_request_timeout():
@@ -450,7 +458,7 @@ def test_callable_provider_key_is_resolved_once_per_request():
         return "sk-openai" if resolver_calls == 1 else None
 
     def gateway_handler(request):
-        assert request.headers["x-abto-key-openai"] == "sk-openai"
+        assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == "sk-openai"
         return httpx.Response(200, json={})
 
     client = _build_fallback_http_client(
@@ -608,25 +616,25 @@ def test_stream_body_restores_the_caller_read_timeout_after_headers():
 @pytest.mark.parametrize(
     ("headers", "expected_direct_calls"),
     [
-        ({"x-abto-request-id": "req-admission"}, 1),
+        ({HEADER_REQUEST_ID: "req-admission"}, 1),
         (
             {
-                "x-abto-request-id": "req-admission",
-                "x-abto-error-source": ERROR_SOURCE_GATEWAY,
+                HEADER_REQUEST_ID: "req-admission",
+                HEADER_ERROR_SOURCE: ERROR_SOURCE_GATEWAY,
             },
             1,
         ),
         (
             {
-                "x-abto-request-id": "req-provider",
-                "x-abto-error-source": ERROR_SOURCE_PROVIDER,
+                HEADER_REQUEST_ID: "req-provider",
+                HEADER_ERROR_SOURCE: ERROR_SOURCE_PROVIDER,
             },
             0,
         ),
         (
             {
-                "x-abto-request-id": "req-transport",
-                "x-abto-error-source": ERROR_SOURCE_TRANSPORT,
+                HEADER_REQUEST_ID: "req-transport",
+                HEADER_ERROR_SOURCE: ERROR_SOURCE_TRANSPORT,
             },
             0,
         ),

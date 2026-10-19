@@ -7,6 +7,7 @@ import pytest
 from abto import wrap_httpx_transport, OpenAIDirectFallbackOptions, init_abto
 from abto.async_client import _build_async_fallback_http_client
 from abto.client import _CircuitBreaker, _build_fallback_http_client, _resolve_fallback
+from abto.policy_generated import HEADER_DEVICE_ID, HEADER_ERROR_SOURCE, HEADER_PROVIDER_KEY_PREFIX, HEADER_REQUEST_ID
 
 GATEWAY = 'https://gateway.example/v1'
 DIRECT = 'https://provider.example/v1'
@@ -43,8 +44,8 @@ def test_options_keep_customer_configuration_and_borrowed_client():
     assert len(requests) == len(hooks) == 1
     request = requests[0]
     assert request.headers['authorization'] == 'Bearer synthetic-calling-secret'
-    assert request.headers['x-abto-key-openai'] == 'synthetic-provider-secret'
-    assert request.headers['x-abto-device-id'] == 'device-one'
+    assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == 'synthetic-provider-secret'
+    assert request.headers[HEADER_DEVICE_ID] == 'device-one'
     assert request.headers['x-customer'] == 'kept'
     assert request.url.params['tenant'] == 'one'
     assert request.extensions['timeout']['read'] == 17
@@ -61,7 +62,7 @@ def test_async_options_preserve_concurrent_context_and_customer_hooks():
     async def run():
         seen, hooks = [], []
         async def hook(request):
-            hooks.append(request.headers['x-abto-device-id'])
+            hooks.append(request.headers[HEADER_DEVICE_ID])
         async def handler(request):
             await asyncio.sleep(0.01)
             seen.append(dict(request.headers))
@@ -78,10 +79,10 @@ def test_async_options_preserve_concurrent_context_and_customer_hooks():
             assert not customer.is_closed
             assert client._direct_client.is_closed
         assert sorted(hooks) == ['one', 'two']
-        assert {row['x-abto-device-id'] for row in seen} == {'one', 'two'}
+        assert {row[HEADER_DEVICE_ID] for row in seen} == {'one', 'two'}
         for row in seen:
-            assert row['traceparent'] == 'customer-' + row['x-abto-device-id']
-            assert row['tracestate'] == 'state=' + row['x-abto-device-id']
+            assert row['traceparent'] == 'customer-' + row[HEADER_DEVICE_ID]
+            assert row['tracestate'] == 'state=' + row[HEADER_DEVICE_ID]
     asyncio.run(run())
 
 
@@ -89,9 +90,9 @@ def test_async_options_preserve_concurrent_context_and_customer_hooks():
 @pytest.mark.parametrize('asynchronous', [False, True])
 @pytest.mark.parametrize('status,headers,expected_direct', [
     (502, {}, True), (503, {}, True), (504, {}, True),
-    (503, {'x-abto-request-id': 'req', 'x-abto-error-source': 'gateway'}, True),
-    (503, {'x-abto-request-id': 'req', 'x-abto-error-source': 'provider'}, False),
-    (503, {'x-abto-request-id': 'req', 'x-abto-error-source': 'transport'}, False),
+    (503, {HEADER_REQUEST_ID: 'req', HEADER_ERROR_SOURCE: 'gateway'}, True),
+    (503, {HEADER_REQUEST_ID: 'req', HEADER_ERROR_SOURCE: 'provider'}, False),
+    (503, {HEADER_REQUEST_ID: 'req', HEADER_ERROR_SOURCE: 'transport'}, False),
     (429, {}, False), (400, {}, False), (200, {}, False),
 ])
 def test_fallback_status_policy(module, asynchronous, status, headers, expected_direct):

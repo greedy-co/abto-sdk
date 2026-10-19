@@ -164,7 +164,7 @@ with with_context(device_id="d1", feature_id="resume.make"):
 
 ```text
 x-abto-device-id    optional; without it, user analytics and sticky assignment are unavailable
-x-abto-feature-id   required; dot-separated feature ID, for example resume.make
+x-abto-feature-id   required; feature ID, for example resume.make
 x-abto-key-openai   candidate provider key; add only the providers the project may route to
 Authorization       required; Bearer ABTO Calling Key
 ```
@@ -244,7 +244,6 @@ See the [full Python guide](https://docs.abto.app/en/sdk/python/).
 ABTO keeps the `traceparent` and `tracestate` headers supplied by your tracing tool, including during direct fallback.
 It adds feature and device information separately without replacing your trace ID.
 
-This requires an SDK release with trace preservation; the published `1.1.1` release does not include it.
 Keep your tracing tool's request header setup. ABTO does not configure tracing for you or connect traces through to the provider.
 
 ## Public API
@@ -253,7 +252,7 @@ Keep your tracing tool's request header setup. ABTO does not configure tracing f
 - `abto.openai(**kwargs)`
 - `abto.openai_options(**kwargs)` / `abto.async_openai_options(**kwargs)`
 - `OpenAIDirectFallbackOptions`
-- `abto.with_context(device_id=?, feature_id=?, trace_id=?)`
+- `abto.with_context(device_id=?, feature_id=?, trace_id=?, node_id=?)`: `node_id` names the call site inside the feature and is sent as `x-abto-node-id`. An inner context that switches to another `feature_id` without a `node_id` does not inherit the outer `node_id`.
 - `abto.get_headers(ctx=None)` / `abto.create_trace_id()` / `abto.httpx_event_hooks()`
 - Lower-level helpers: `with_context`, `get_context`, `get_headers`, `create_trace_id`, `create_traceparent`, `abto_request_hook`, `ABTO_HEADER`, and `AbtoContext`
 

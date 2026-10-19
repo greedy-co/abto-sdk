@@ -11,7 +11,7 @@ from .client import (
     _safe_gateway_response, abto_request_hook, resolve_provider_headers,
     _handle_gateway_error, _gateway_header_timeout,
     _origin, _destination_guard, _finalize_direct_request, ERR_GATEWAY_ORIGIN_REFUSED,
-    get_headers, HEADER_DEVICE_ID, HEADER_FEATURE_ID,
+    get_headers, HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID,
 )
 
 
@@ -85,7 +85,7 @@ def _build_async_fallback_http_client(
                 raise ValueError(ERR_GATEWAY_ORIGIN_REFUSED)
             expected_url = request.url
             request.headers.update({k: v for k, v in get_headers().items()
-                                    if k in (HEADER_DEVICE_ID, HEADER_FEATURE_ID)})
+                                    if k in (HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID)})
 
             def finalize(outgoing: Any) -> None:
                 _destination_guard(outgoing, expected_url)

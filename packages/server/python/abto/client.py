@@ -27,6 +27,7 @@ from .policy_generated import (
     ERR_GATEWAY_BASE_URL_REQUIRED,
     HEADER_DEVICE_ID,
     HEADER_FEATURE_ID,
+    HEADER_NODE_ID,
     ERR_API_KEY_REQUIRED,
     ERR_API_KEY_INVALID_CHARACTERS,
     ERR_GATEWAY_ORIGIN_REFUSED,
@@ -219,7 +220,7 @@ def abto_request_hook(
             trusted_headers.pop("traceparent", None)
         elif "traceparent" in trusted_headers:
             _remove_header(request.headers, "tracestate")
-        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID):
+        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID):
             _remove_header(request.headers, name)
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):
@@ -464,7 +465,7 @@ def _build_fallback_http_client(
                 raise ValueError(ERR_GATEWAY_ORIGIN_REFUSED)
             expected_url = request.url
             request.headers.update({k: v for k, v in get_headers().items()
-                                    if k in (HEADER_DEVICE_ID, HEADER_FEATURE_ID)})
+                                    if k in (HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID)})
 
             def finalize(outgoing: Any) -> None:
                 _destination_guard(outgoing, expected_url)

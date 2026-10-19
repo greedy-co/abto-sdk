@@ -10,7 +10,7 @@ token, cost, latency, request_id, and variant assignment.
 
 from __future__ import annotations
 
-from .policy_generated import HEADER_DEVICE_ID, HEADER_FEATURE_ID
+from .policy_generated import HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID
 
 import contextvars
 import secrets
@@ -21,17 +21,19 @@ from typing import Any, Dict, Iterator, Optional
 ABTO_HEADER = {
     "device_id": HEADER_DEVICE_ID,
     "feature_id": HEADER_FEATURE_ID,
+    "node_id": HEADER_NODE_ID,
     "traceparent": "traceparent",
 }
 
 
 @dataclass(frozen=True)
 class AbtoContext:
-    """Device id, dot-separated feature id, and end-user action trace id."""
+    """Device id, feature id, end-user action trace id, and call site inside the feature."""
 
     device_id: Optional[str] = None
     feature_id: Optional[str] = None
     trace_id: Optional[str] = None
+    node_id: Optional[str] = None
 
 
 _current: contextvars.ContextVar[AbtoContext] = contextvars.ContextVar(
@@ -51,15 +53,20 @@ def with_context(
     device_id: Any = _UNSET,
     feature_id: Any = _UNSET,
     trace_id: Any = _UNSET,
+    node_id: Any = _UNSET,
 ) -> Iterator[AbtoContext]:
     patch = {
         k: v
         for k, v in dict(
-            device_id=device_id, feature_id=feature_id, trace_id=trace_id
+            device_id=device_id, feature_id=feature_id, trace_id=trace_id, node_id=node_id
         ).items()
         if v is not _UNSET
     }
-    merged = replace(_current.get(), **patch)
+    parent = _current.get()
+    # A node only has meaning inside its feature, so switching to another feature without a node drops the inherited one.
+    if "feature_id" in patch and patch["feature_id"] != parent.feature_id and "node_id" not in patch:
+        patch["node_id"] = None
+    merged = replace(parent, **patch)
     token = _current.set(merged)
     try:
         yield merged
@@ -83,6 +90,8 @@ def get_headers(ctx: Optional[AbtoContext] = None) -> Dict[str, str]:
         headers[ABTO_HEADER["device_id"]] = c.device_id
     if c.feature_id:
         headers[ABTO_HEADER["feature_id"]] = c.feature_id
+    if c.node_id:
+        headers[ABTO_HEADER["node_id"]] = c.node_id
     if c.trace_id:
         headers[ABTO_HEADER["traceparent"]] = create_traceparent(c.trace_id)
     return headers

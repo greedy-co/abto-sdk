@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from abto import wrap_httpx_transport, OpenAIDirectFallbackOptions, init_abto
+from abto.policy_generated import HEADER_DEVICE_ID, HEADER_NODE_ID, HEADER_PROVIDER_KEY_PREFIX
 
 GATEWAY = 'https://gateway.example/v1'
 DIRECT = 'https://provider.example/v1'
@@ -42,7 +43,7 @@ def test_customer_hook_cannot_redirect_credentials(module, asynchronous, route, 
     def handler(request):
         sent.append(request.url.host)
         assert request.headers['authorization'] == 'Bearer synthetic-calling'
-        assert request.headers['x-abto-key-openai'] == 'synthetic-provider'
+        assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == 'synthetic-provider'
         return h.Response(503, json={})
 
     async def run():
@@ -81,14 +82,14 @@ def test_borrowed_hooks_preserve_concurrent_clients_cookies_and_lifetime(module,
         request.headers['traceparent'] = 'customer-parent'
         request.headers['tracestate'] = 'customer=1'
         request.headers['authorization'] = 'Bearer customer-auth'
-        request.headers['x-abto-key-openai'] = 'customer-provider'
+        request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] = 'customer-provider'
     def handler(request):
         seen.append(request)
         if request.method == 'POST':
             assert int(request.headers['content-length']) == len(request.content)
         if request.url.host == 'gateway.example':
             assert request.headers['authorization'] == 'Bearer synthetic-calling'
-            assert request.headers['x-abto-key-openai'] == 'synthetic-provider'
+            assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == 'synthetic-provider'
             return h.Response(503, json={})
         if request.url.host == 'provider.example':
             assert request.headers['authorization'] == 'Bearer synthetic-provider'
@@ -384,7 +385,7 @@ def test_customer_send_and_hooks_keep_payload_context_and_hide_wire_keys(module,
         options = (abto.async_openai_options if asynchronous else abto.openai_options)(http_client=customer)
         client = options['http_client']
         try:
-            with abto.with_context(feature_id='reply', device_id='customer-device'):
+            with abto.with_context(feature_id='reply', device_id='customer-device', node_id='reply.draft'):
                 try:
                     if asynchronous:
                         response = await client.post(GATEWAY+'/chat/completions', json=body,
@@ -404,7 +405,8 @@ def test_customer_send_and_hooks_keep_payload_context_and_hide_wire_keys(module,
                 assert headers['tracestate'] == 'customer=1'
                 if url.startswith(GATEWAY):
                     assert headers['x-customer-send'] == 'preserved'
-                    assert headers['x-abto-device-id'] == 'customer-device'
+                    assert headers[HEADER_DEVICE_ID] == 'customer-device'
+                    assert headers[HEADER_NODE_ID] == 'reply.draft'
                     assert headers['authorization'] == 'Bearer synthetic-calling'
                 else:
                     assert headers['authorization'] == 'Bearer synthetic-provider'
@@ -534,6 +536,6 @@ def test_customer_send_can_copy_request_and_make_unrelated_calls(module, asynchr
     asyncio.run(run())
     assert [host for host, _, _ in seen] == ['customer.example','gateway.example']
     assert 'authorization' not in seen[0][1]
-    assert 'x-abto-key-openai' not in seen[0][1]
+    assert HEADER_PROVIDER_KEY_PREFIX + "openai" not in seen[0][1]
     assert seen[1][1]['authorization'] == 'Bearer synthetic-calling'
     assert 'abto.http_dispatch' not in seen[1][2]
