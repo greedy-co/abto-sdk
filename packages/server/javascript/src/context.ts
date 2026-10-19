@@ -1,4 +1,4 @@
-import { HEADER_DEVICE_ID, HEADER_FEATURE_ID } from './policy.generated.js';
+import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID } from './policy.generated.js';
 
 /**
  * ABTO request context propagation for Node.js.
@@ -13,8 +13,10 @@ import { HEADER_DEVICE_ID, HEADER_FEATURE_ID } from './policy.generated.js';
  * Gateway identifier contract:
  *   - device_id -> header `x-abto-device-id` (optional; without it the call still
  *                 succeeds but drops out of user-level analytics and sticky assignment)
- *   - feature_id -> header `x-abto-feature-id` (required by the gateway). Dot-separated
- *                  feature ID, e.g. "resume.make".
+ *   - feature_id -> header `x-abto-feature-id` (required by the gateway). Feature ID,
+ *                  e.g. "resume.make".
+ *   - node_id -> header `x-abto-node-id` (optional). Call site inside the feature;
+ *               without it the gateway uses the feature ID as the node key.
  *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
  *
  * request_id (PK, returned as `x-abto-request-id`), tenant_id (from API key), and
@@ -28,14 +30,17 @@ import { newUuidV7TraceId, randomHex } from './uuid.js';
 export const ABTO_HEADER = {
   deviceId: HEADER_DEVICE_ID,
   featureId: HEADER_FEATURE_ID,
+  nodeId: HEADER_NODE_ID,
   traceparent: "traceparent",
 } as const;
 
 export interface AbtoContext {
   /** Device id. Sent as `x-abto-device-id` (optional for the gateway). */
   deviceId?: string;
-  /** Dot-separated feature ID (e.g. "resume.make"). Sent as `x-abto-feature-id`. */
+  /** Feature ID (e.g. "resume.make"). Sent as `x-abto-feature-id`. */
   featureId?: string;
+  /** Call site inside the feature (e.g. "review.draft"). Sent as `x-abto-node-id`. */
+  nodeId?: string;
   /** Fallback trace id when the transport has no customer traceparent. Gateway-deferred. */
   traceId?: string;
 }
@@ -60,6 +65,10 @@ export function createTraceparent(traceId: string): string {
 export function runWithAbtoContext<T>(ctx: AbtoContext, fn: () => T): T {
   const parent = storage.getStore();
   const merged: AbtoContext = { ...parent, ...ctx };
+  // A node only has meaning inside its feature, so switching to another feature without a node drops the inherited one.
+  if (ctx.featureId !== undefined && ctx.featureId !== parent?.featureId && ctx.nodeId === undefined) {
+    delete merged.nodeId;
+  }
   return storage.run(merged, fn);
 }
 
@@ -75,6 +84,7 @@ export function getAbtoHeaders(
   const headers: Record<string, string> = {};
   if (c.deviceId) headers[ABTO_HEADER.deviceId] = c.deviceId;
   if (c.featureId) headers[ABTO_HEADER.featureId] = c.featureId;
+  if (c.nodeId) headers[ABTO_HEADER.nodeId] = c.nodeId;
   if (c.traceId && (options.includeTraceparent ?? true)) {
     headers[ABTO_HEADER.traceparent] = createTraceparent(c.traceId);
   }

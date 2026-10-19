@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { describe, expect, it } from 'vitest';
 import { initAbto } from './client.js';
+import { HEADER_DEVICE_ID, HEADER_ERROR_SOURCE, HEADER_FEATURE_ID, HEADER_PROVIDER_KEY_PREFIX, HEADER_REQUEST_ID } from './policy.generated.js';
 
 const gateway = 'https://gateway.abto.app/v1';
 const direct = 'https://api.openai.com/v1';
@@ -10,7 +11,7 @@ const completion = {
   usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
 };
 const reply = () => new Response(JSON.stringify(completion), {
-  headers: { 'content-type': 'application/json', 'x-abto-request-id': 'request-test' },
+  headers: { 'content-type': 'application/json', [HEADER_REQUEST_ID]: 'request-test' },
 });
 const config = {
   gatewayBaseURL: gateway, abtoApiKey: 'calling-test',
@@ -31,8 +32,8 @@ describe('OpenAI configuration for framework-owned clients', () => {
           const headers = new Request(input, init).headers;
           expect(headers.get('traceparent')).toBe(customer.traceparent);
           expect(headers.get('tracestate')).toBe(customer.tracestate);
-          expect(headers.get('x-abto-device-id')).toBe('device-traced');
-          expect(headers.get('x-abto-feature-id')).toBe('support.reply');
+          expect(headers.get(HEADER_DEVICE_ID)).toBe('device-traced');
+          expect(headers.get(HEADER_FEATURE_ID)).toBe('support.reply');
           expect(headers.get('authorization')).toBe('Bearer calling-test');
           return reply();
         },
@@ -43,7 +44,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
       await abto.withContext({ deviceId: 'device-traced', featureId: 'support.reply', traceId },
         () => options.fetch(original));
       expect(original.headers.get('traceparent')).toBe(customer.traceparent);
-      expect(original.headers.has('x-abto-device-id')).toBe(false);
+      expect(original.headers.has(HEADER_DEVICE_ID)).toBe(false);
     },
   );
 
@@ -135,7 +136,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
     });
     const send = () => options.fetch(`${options.baseURL}/chat/completions`, {
       method: 'POST', body: '{}',
-      headers: { 'x-abto-device-id': 'spoof', 'x-product': 'preserved' },
+      headers: { [HEADER_DEVICE_ID]: 'spoof', 'x-product': 'preserved' },
     });
     await Promise.all(['one', 'two'].map(deviceId => abto.withContext({ deviceId }, async () => {
       await Promise.resolve();
@@ -144,10 +145,10 @@ describe('OpenAI configuration for framework-owned clients', () => {
     })));
     key = 'rotated-key';
     await abto.withContext({ deviceId: 'three', featureId: 'support.reply' }, send);
-    expect(requests.map(r => r.headers.get('x-abto-device-id'))).toEqual(['one', 'two', 'three']);
-    expect(requests.map(r => r.headers.get('x-abto-key-openai'))).toEqual(['first-key', 'first-key', 'rotated-key']);
+    expect(requests.map(r => r.headers.get(HEADER_DEVICE_ID))).toEqual(['one', 'two', 'three']);
+    expect(requests.map(r => r.headers.get(`${HEADER_PROVIDER_KEY_PREFIX}openai`))).toEqual(['first-key', 'first-key', 'rotated-key']);
     for (const request of requests) {
-      expect(request.headers.get('x-abto-feature-id')).toBe('support.reply');
+      expect(request.headers.get(HEADER_FEATURE_ID)).toBe('support.reply');
       expect(request.headers.get('authorization')).toBe('Bearer calling-test');
       expect(request.headers.get('x-product')).toBe('preserved');
     }
@@ -163,7 +164,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
         throw new TypeError('fetch failed', { cause: Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }) });
       }
       expect(request.headers.get('authorization')).toBe('Bearer provider-test');
-      expect(request.headers.has('x-abto-device-id')).toBe(false);
+      expect(request.headers.has(HEADER_DEVICE_ID)).toBe(false);
       return reply();
     };
     const abto = initAbto({ ...config, fallback: { baseURL: direct } });
@@ -185,7 +186,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
       fetch: async () => {
         calls++;
         return calls === 1 ? new Response('{"error":{"message":"retry"}}', {
-          status: 500, headers: { 'content-type': 'application/json', 'retry-after-ms': '1', 'x-abto-error-source': 'provider' },
+          status: 500, headers: { 'content-type': 'application/json', 'retry-after-ms': '1', [HEADER_ERROR_SOURCE]: 'provider' },
         }) : reply();
       },
     });

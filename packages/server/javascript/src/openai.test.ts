@@ -11,6 +11,12 @@ import {
   ERR_API_KEY_INVALID_CHARACTERS,
   ERR_FALLBACK_OPENAI_KEY_REQUIRED,
   ERR_GATEWAY_BASE_URL_REQUIRED,
+  HEADER_DEVICE_ID,
+  HEADER_ERROR_SOURCE,
+  HEADER_FEATURE_ID,
+  HEADER_NODE_ID,
+  HEADER_PROVIDER_KEY_PREFIX,
+  HEADER_REQUEST_ID,
 } from './policy.generated.js';
 import { initAbto } from './client.js';
 import {
@@ -63,10 +69,10 @@ describe('ABTO OpenAI Gateway client', () => {
     });
 
     expect(capturedHeaders?.get('authorization')).toBe('Bearer abto-test');
-    expect(capturedHeaders?.get('x-abto-key-openai')).toBe('sk-openai');
-    expect(capturedHeaders?.get('x-abto-key-anthropic')).toBe('sk-anthropic');
-    expect(capturedHeaders?.get('x-abto-device-id')).toBe('device-1');
-    expect(capturedHeaders?.get('x-abto-feature-id')).toBe('chat.default');
+    expect(capturedHeaders?.get(`${HEADER_PROVIDER_KEY_PREFIX}openai`)).toBe('sk-openai');
+    expect(capturedHeaders?.get(`${HEADER_PROVIDER_KEY_PREFIX}anthropic`)).toBe('sk-anthropic');
+    expect(capturedHeaders?.get(HEADER_DEVICE_ID)).toBe('device-1');
+    expect(capturedHeaders?.get(HEADER_FEATURE_ID)).toBe('chat.default');
   });
 
   it('resolves Provider credentials again for every request', async () => {
@@ -80,7 +86,7 @@ describe('ABTO OpenAI Gateway client', () => {
       fallback: false,
       fetchImpl: async (input, init) => {
         capturedKeys.push(
-          receivedRequest(input, init).headers.get('x-abto-key-openai') ?? '',
+          receivedRequest(input, init).headers.get(`${HEADER_PROVIDER_KEY_PREFIX}openai`) ?? '',
         );
         return new Response('{}', { status: 200 });
       },
@@ -182,7 +188,7 @@ describe('ABTO OpenAI Gateway client', () => {
       gatewayBaseURL: 'https://gateway.abto.app/v1',
       abtoApiKey: 'abto-test',
       providerKeys: { openai: 'sk-trusted' },
-      getContext: () => ({ deviceId: 'trusted-device' }),
+      getContext: () => ({ deviceId: 'trusted-device', nodeId: 'trusted-node' }),
       fetchImpl: async (input, init) => {
         capturedHeaders = new Headers(receivedRequest(input, init).headers);
         return new Response('{}');
@@ -192,8 +198,9 @@ describe('ABTO OpenAI Gateway client', () => {
       headers: {
         'x-client-header': 'preserved',
         Authorization: 'Bearer attacker',
-        'x-abto-key-openai': 'sk-attacker',
-        'x-abto-device-id': 'attacker-device',
+        [`${HEADER_PROVIDER_KEY_PREFIX}openai`]: 'sk-attacker',
+        [HEADER_DEVICE_ID]: 'attacker-device',
+        [HEADER_NODE_ID]: 'attacker-node',
       },
     });
 
@@ -201,8 +208,9 @@ describe('ABTO OpenAI Gateway client', () => {
 
     expect(capturedHeaders?.get('x-client-header')).toBe('preserved');
     expect(capturedHeaders?.get('authorization')).toBe('Bearer abto-test');
-    expect(capturedHeaders?.get('x-abto-key-openai')).toBe('sk-trusted');
-    expect(capturedHeaders?.get('x-abto-device-id')).toBe('trusted-device');
+    expect(capturedHeaders?.get(`${HEADER_PROVIDER_KEY_PREFIX}openai`)).toBe('sk-trusted');
+    expect(capturedHeaders?.get(HEADER_DEVICE_ID)).toBe('trusted-device');
+    expect(capturedHeaders?.get(HEADER_NODE_ID)).toBe('trusted-node');
   });
 
   it('falls back directly on a connection failure and preserves the OpenAI request', async () => {
@@ -216,6 +224,7 @@ describe('ABTO OpenAI Gateway client', () => {
         anthropic: 'sk-anthropic',
       },
       fallback: { baseURL: ORIGIN_BASE_URL },
+      getContext: () => ({ featureId: 'chat.default', nodeId: 'chat.draft' }),
       fetchImpl: async (input, init) => {
         const request = receivedRequest(input, init);
         requests.push(request);
@@ -265,8 +274,10 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(requests[1]?.headers.has('x-api-key')).toBe(false);
     expect(requests[1]?.headers.get('openai-project')).toBe('project-safe');
     expect(requests[1]?.headers.get('idempotency-key')).toBe('request-safe');
-    expect(requests[1]?.headers.has('x-abto-key-anthropic')).toBe(false);
-    expect(requests[1]?.headers.has('x-abto-feature-id')).toBe(false);
+    expect(requests[1]?.headers.has(`${HEADER_PROVIDER_KEY_PREFIX}anthropic`)).toBe(false);
+    expect(requests[0]?.headers.get(HEADER_NODE_ID)).toBe('chat.draft');
+    expect(requests[1]?.headers.has(HEADER_FEATURE_ID)).toBe(false);
+    expect(requests[1]?.headers.has(HEADER_NODE_ID)).toBe(false);
   });
 
   it('preserves caller transport options on Gateway and direct requests', async () => {
@@ -365,27 +376,27 @@ describe('ABTO OpenAI Gateway client', () => {
     covers('fallback.switches_on_admission_503');
     const scenarios = [
       {
-        headers: { 'x-abto-request-id': 'req-admission' },
+        headers: { [HEADER_REQUEST_ID]: 'req-admission' },
         expectedCalls: 2,
       },
       {
         headers: {
-          'x-abto-request-id': 'req-admission',
-          'x-abto-error-source': ERROR_SOURCE_GATEWAY,
+          [HEADER_REQUEST_ID]: 'req-admission',
+          [HEADER_ERROR_SOURCE]: ERROR_SOURCE_GATEWAY,
         },
         expectedCalls: 2,
       },
       {
         headers: {
-          'x-abto-request-id': 'req-provider',
-          'x-abto-error-source': ERROR_SOURCE_PROVIDER,
+          [HEADER_REQUEST_ID]: 'req-provider',
+          [HEADER_ERROR_SOURCE]: ERROR_SOURCE_PROVIDER,
         },
         expectedCalls: 1,
       },
       {
         headers: {
-          'x-abto-request-id': 'req-transport',
-          'x-abto-error-source': ERROR_SOURCE_TRANSPORT,
+          [HEADER_REQUEST_ID]: 'req-transport',
+          [HEADER_ERROR_SOURCE]: ERROR_SOURCE_TRANSPORT,
         },
         expectedCalls: 1,
       },
@@ -963,7 +974,7 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(callerFetch).toHaveBeenCalledTimes(1);
     expect(requests[0]?.url).toBe('https://gateway.abto.app/v1/chat/completions');
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer abto-test');
-    expect(requests[0]?.headers.get('x-abto-key-openai')).toBe('sk-openai');
+    expect(requests[0]?.headers.get(`${HEADER_PROVIDER_KEY_PREFIX}openai`)).toBe('sk-openai');
   });
 
   it('rejects a non-function OpenAI fetch option before creating a client', async () => {

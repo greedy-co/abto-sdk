@@ -26,6 +26,7 @@ import {
   ERR_API_KEY_INVALID_CHARACTERS,
   HEADER_DEVICE_ID,
   HEADER_FEATURE_ID,
+  HEADER_NODE_ID,
   HEADER_REQUEST_ID,
   HEADER_ERROR_SOURCE,
 } from './policy.generated.js';
@@ -204,6 +205,7 @@ function trustedBaseHeaders(input: string | URL | Request, init?: RequestInit): 
       normalized === 'authorization'
       || normalized === HEADER_DEVICE_ID
       || normalized === HEADER_FEATURE_ID
+      || normalized === HEADER_NODE_ID
       || normalized.startsWith('x-abto-key-')
     ) {
       headers.delete(key);

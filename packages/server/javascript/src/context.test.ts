@@ -9,6 +9,7 @@ import {
   getAbtoHeaders,
   runWithAbtoContext,
 } from './context.js';
+import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID, HEADER_REQUEST_ID } from './policy.generated.js';
 
 describe('server context headers', () => {
   const originalEnvironment = {
@@ -47,19 +48,19 @@ describe('server context headers', () => {
     const abto = initAbto({ deviceId: 'service-device' });
 
     expect(abto.getContext()).toEqual({ deviceId: 'service-device' });
-    expect(abto.getHeaders()).toMatchObject({ 'x-abto-device-id': 'service-device' });
+    expect(abto.getHeaders()).toMatchObject({ [HEADER_DEVICE_ID]: 'service-device' });
     expect(
       abto.withContext({ featureId: 'chat.default' }, () => abto.getHeaders()),
     ).toMatchObject({
-      'x-abto-device-id': 'service-device',
-      'x-abto-feature-id': 'chat.default',
+      [HEADER_DEVICE_ID]: 'service-device',
+      [HEADER_FEATURE_ID]: 'chat.default',
     });
   });
 
   it('falls back to ABTO_DEVICE_ID when config omits a device id', () => {
     process.env.ABTO_DEVICE_ID = 'environment-device';
 
-    expect(initAbto().getHeaders()['x-abto-device-id']).toBe('environment-device');
+    expect(initAbto().getHeaders()[HEADER_DEVICE_ID]).toBe('environment-device');
   });
 
   it('lets the request context override the configured device id', () => {
@@ -67,7 +68,7 @@ describe('server context headers', () => {
 
     const headers = abto.withContext({ deviceId: 'request-device' }, () => abto.getHeaders());
 
-    expect(headers['x-abto-device-id']).toBe('request-device');
+    expect(headers[HEADER_DEVICE_ID]).toBe('request-device');
   });
 
   it('keeps resolved ABTO and Provider credentials out of public config', () => {
@@ -88,13 +89,15 @@ describe('server context headers', () => {
     const headers = getAbtoHeaders({
       deviceId: 'device-1',
       featureId: 'chat.default',
+      nodeId: 'chat.draft',
       traceId: '0123456789abcdef0123456789abcdef',
     });
 
-    expect(headers['x-abto-device-id']).toBe('device-1');
-    expect(headers['x-abto-feature-id']).toBe('chat.default');
+    expect(headers[HEADER_DEVICE_ID]).toBe('device-1');
+    expect(headers[HEADER_FEATURE_ID]).toBe('chat.default');
+    expect(headers[HEADER_NODE_ID]).toBe('chat.draft');
     expect(headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
-    expect(headers).not.toHaveProperty('x-abto-request-id');
+    expect(headers).not.toHaveProperty(HEADER_REQUEST_ID);
     expect(headers).not.toHaveProperty('x-abto-variant-id');
   });
 
@@ -105,8 +108,8 @@ describe('server context headers', () => {
     );
 
     expect(headers).toEqual({
-      'x-abto-device-id': 'device-1',
-      'x-abto-feature-id': 'chat.default',
+      [HEADER_DEVICE_ID]: 'device-1',
+      [HEADER_FEATURE_ID]: 'chat.default',
     });
   });
 
@@ -132,8 +135,8 @@ describe('server context headers', () => {
       featureId: 'chat.rewrite',
       traceId: '0123456789abcdef0123456789abcdef',
     });
-    expect(observed.headers['x-abto-device-id']).toBe('device-1');
-    expect(observed.headers['x-abto-feature-id']).toBe('chat.rewrite');
+    expect(observed.headers[HEADER_DEVICE_ID]).toBe('device-1');
+    expect(observed.headers[HEADER_FEATURE_ID]).toBe('chat.rewrite');
     expect(observed.headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
   });
 
@@ -164,9 +167,26 @@ describe('server context headers', () => {
     );
 
     expect(headers).toMatchObject({
-      'x-abto-device-id': 'request-device',
-      'x-abto-feature-id': 'chat.rewrite',
+      [HEADER_DEVICE_ID]: 'request-device',
+      [HEADER_FEATURE_ID]: 'chat.rewrite',
     });
+  });
+
+  it('drops the outer node when an inner context switches to another feature', () => {
+    const abto = initAbto();
+
+    const headers = abto.withContext({ featureId: 'chat.default', nodeId: 'chat.draft' }, () => ({
+      sameFeature: abto.withContext({ featureId: 'chat.default', deviceId: 'device-1' }, () => abto.getHeaders()),
+      nodeOnly: abto.withContext({ nodeId: 'chat.review' }, () => abto.getHeaders()),
+      otherFeature: abto.withContext({ featureId: 'chat.rewrite' }, () => abto.getHeaders()),
+      otherFeatureWithNode: abto.withContext({ featureId: 'chat.rewrite', nodeId: 'chat.polish' }, () => abto.getHeaders()),
+    }));
+
+    expect(headers.sameFeature[HEADER_NODE_ID]).toBe('chat.draft');
+    expect(headers.nodeOnly).toMatchObject({ [HEADER_FEATURE_ID]: 'chat.default', [HEADER_NODE_ID]: 'chat.review' });
+    expect(headers.otherFeature[HEADER_FEATURE_ID]).toBe('chat.rewrite');
+    expect(headers.otherFeature).not.toHaveProperty(HEADER_NODE_ID);
+    expect(headers.otherFeatureWithNode[HEADER_NODE_ID]).toBe('chat.polish');
   });
 
   it('builds W3C traceparent values without mutating the source trace id', () => {
@@ -184,8 +204,8 @@ describe('server context headers', () => {
     );
 
     expect(headers).toEqual({
-      'x-abto-device-id': 'device-1',
-      'x-abto-feature-id': 'chat.default',
+      [HEADER_DEVICE_ID]: 'device-1',
+      [HEADER_FEATURE_ID]: 'chat.default',
     });
   });
 
@@ -269,7 +289,7 @@ describe('server context headers', () => {
         status: 503,
         headers: {
           'content-type': 'application/json',
-          'x-abto-request-id': 'req-admission',
+          [HEADER_REQUEST_ID]: 'req-admission',
         },
       });
     });

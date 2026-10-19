@@ -10,6 +10,7 @@ export const PROVIDER_IDS = ['openai', 'anthropic', 'gemini', 'deepseek', 'kimi'
 export type ProviderKeyName = (typeof PROVIDER_IDS)[number];
 export const HEADER_DEVICE_ID = "x-abto-device-id" as const;
 export const HEADER_FEATURE_ID = "x-abto-feature-id" as const;
+export const HEADER_NODE_ID = "x-abto-node-id" as const;
 export const HEADER_PROVIDER_KEY_PREFIX = "x-abto-key-" as const;
 export const HEADER_REQUEST_ID = "x-abto-request-id" as const;
 export const HEADER_ATTEMPT = "x-abto-attempt" as const;

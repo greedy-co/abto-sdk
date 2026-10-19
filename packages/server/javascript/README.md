@@ -44,9 +44,6 @@ Find the `support.reply` call in Requests in your dashboard to check its respons
 Connect your existing LangChain chain to ABTO to record AI calls and change models or prompts from the dashboard.
 Add ABTO to your `ChatOpenAI` configuration, then name the feature when you invoke the model.
 
-> **Check your SDK version first.** The published `1.1.1` release does not include `openaiOptions()`.
-> This example requires a release that provides that method. To get started with the current public release, use the OpenAI example above.
-
 Keep your existing `@langchain/openai` installation and add this setting where you create the model.
 If you already have a `configuration` object, pass it to `abto.openaiOptions(configuration)`.
 
@@ -142,13 +139,14 @@ await runWithAbtoContext(
 
 The Gateway is the source of truth for provider requests and responses, tokens, cost, latency, `request_id`, and variant assignment. The Server SDK preserves the provider request body while routing it to the Gateway with trusted ABTO headers.
 `featureId` is the customer- and SDK-facing Feature identifier. The SDK sends it to the Gateway as `x-abto-feature-id`.
+`nodeId` is optional and names the call site inside the feature (for example `resume.draft`). The SDK sends it as `x-abto-node-id`; without it, the Gateway uses the feature ID as the node.
+An inner `withContext` that switches to another `featureId` without a `nodeId` does not inherit the outer `nodeId`.
 
 ## Preserve existing traces
 
 ABTO keeps the `traceparent` and `tracestate` headers supplied by your tracing tool, including during direct fallback.
 It adds feature and device information separately without replacing your trace ID.
 
-This requires an SDK release with trace preservation; the published `1.1.1` release does not include it.
 Keep your tracing tool's request header setup. ABTO does not configure tracing for you or connect traces through to the provider.
 
 ## OpenAI direct fallback during Gateway outages
