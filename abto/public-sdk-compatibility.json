@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "targets": {
-    "event-js": "53a9bf0927368a1da2195d9d6120d5b36d1de0c3be51cf21f240e8047b0b0ad0",
+    "event-js": "42cc0bcc0d5a727f7b3eeafeeb1f185ebfe733755c9823a99d8f84a242473173",
     "calling-js": "6e32ad0c8b6aa7807db35cba59955d4e3cd229188121d29901f70dab8fde3667",
     "calling-python": "2ad39824f9f9a95c635aeca103070a5ade74da636ac79871d31bf9b164179485",
     "calling-jvm": "9e5296a4351de0f6817852845e52415f025352661ce3c6156bea411e8cfb6318",
