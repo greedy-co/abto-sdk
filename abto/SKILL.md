@@ -42,12 +42,13 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - After the repository map is confirmed, inspect every confirmed runtime using the inventory in [Discovery and reporting](references/discovery-and-reporting.md).
 - Account for direct SDK calls, raw provider HTTP calls, shared wrappers, framework adapters, API routes, serverless functions, background workers, queues, cron jobs, batch jobs, and streaming paths.
 - Trace each provider call back to its user-facing capability and, when one exists, its client request trigger.
-- Present every candidate with an ID, capability, repository/runtime, exact call site, API surface, device path, proposed dot-separated `featureId`, compatibility, and intended action.
+- Present every candidate with an ID, capability, repository/runtime, exact call site, API surface, device path, proposed dot-separated `featureId` and, when needed, `nodeId`, compatibility, and intended action.
 - Mark only confirmed OpenAI Chat Completions calls as automatically wireable.
   Inventory OpenAI Responses, embeddings, images, audio, native Anthropic or Gemini calls, and ambiguous framework abstractions, but do not rewrite them into a different API or invent an adapter.
 - A verified LangChain `ChatOpenAI` Chat Completions path can use the public `openaiOptions()` (JavaScript) or `openai_options()` / `async_openai_options()` (Python) configuration API when the installed Calling SDK exposes it; follow the Server reference and keep the existing framework client.
 - Propose a `featureId` only when existing product or route language makes the capability unambiguous.
   Otherwise mark the candidate ambiguous and ask what capability and stable key the user wants.
+- When one capability makes several LLM calls, give them one `featureId` and propose a `nodeId` per call site so each can use its own agent config; omit `nodeId` for a single-call capability.
 - Discover each call's pre-ABTO endpoint and automatically prefill a fallback configuration proposal from that evidence; confirm it with the skill user in the inventory approval below before applying it.
   If the destination cannot be established, ask for it or an explicit choice to proceed without fallback. Never fill a missing URL from a Docs example; follow [Server](references/server.md#preserve-and-disclose-direct-fallback).
 - Ask one batch question that lets the user approve all eligible IDs or name inclusions and exclusions.
@@ -55,7 +56,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 
 ### 3. Install and wire the approved core
 
-- Treat approval of the inventory as authorization only for the selected SDK dependencies, minimal initialization, approved LLM call sites and `featureId` values, and explicitly presented fallback choices.
+- Treat approval of the inventory as authorization only for the selected SDK dependencies, minimal initialization, approved LLM call sites, `featureId` and `nodeId` values, and explicitly presented fallback choices.
 - Use the current official Docs for public availability and [SDK selection](references/sdk-selection.md) to choose the runtime.
   Never import a Server SDK into a client bundle or install multiple SDKs for the same runtime responsibility.
 - Prefer an existing configuration or provider-client module.

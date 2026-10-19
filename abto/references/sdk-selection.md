@@ -88,6 +88,7 @@ Record the documentation URLs, access date, and installed package coordinates an
 - Treat `device_id` as the join key between client behavior and Gateway calls.
 - Carry one stable client device identifier through the existing request into the corresponding server context.
 - Use a dot-separated `featureId`, such as `support.reply`, only after the user approves its exact capability and call site.
+- Set an approved `nodeId` (Python `node_id`) in the same context as its `featureId`, and only when the installed Server SDK exposes it.
 - Read the Gateway response header `x-abto-request-id` only when a selected event path needs it.
 - Attach that request identifier only with an SDK path that establishes the correlation.
 

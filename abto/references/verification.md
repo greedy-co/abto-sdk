@@ -8,7 +8,7 @@ Before checking builds, verify the interaction record:
 - The user confirmed the exact repository/runtime map before the first file edit.
 - Every model-call search hit is represented in the LLM inventory or documented as a non-runtime false positive.
 - Every inventory row ends as `wired`, `already wired`, `incompatible`, `ambiguous`, `user-excluded`, or `blocked-sdk-defect`.
-- Every newly wired call matches a user-approved candidate ID, exact code location, and dot-separated `featureId`.
+- Every newly wired call matches a user-approved candidate ID, exact code location, dot-separated `featureId`, and approved `nodeId` if any.
 - Every approved call records its resolved Gateway and direct-fallback paths; no direct call is reported as Gateway-observed.
 - Each new fallback setting has endpoint discovery evidence and user confirmation of the prefilled proposal, a user-supplied destination, or an explicit no-fallback decision. Missing or ambiguous destinations were asked about, not filled from an example; existing authorized fallback and timeout choices were preserved.
 - Direct fallback is reported as enabled only when an explicit fallback base URL is configured; with none set, the report states plainly that a Gateway outage fails those calls outright.

@@ -45,7 +45,7 @@ Provider keys for Anthropic and Gemini are Gateway egress candidates; they do no
 
 Use one row per executable call path:
 
-| ID | Capability | Repository/runtime | Exact call site | API surface | Client/device path | Provider/fallback path | Proposed `featureId` | Status and action |
+| ID | Capability | Repository/runtime | Exact call site | API surface | Client/device path | Provider/fallback path | Proposed `featureId` (`nodeId`) | Status and action |
 |---|---|---|---|---|---|---|---|---|
 
 Resolve the installed Calling SDK's fallback configuration and native OpenAI retry setting instead of inferring either from the normal Gateway path.
