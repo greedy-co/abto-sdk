@@ -50,7 +50,7 @@ class AbtoSpringAI2Test {
                     .gatewayBaseUrl(base + "/gateway/v1").fallback(AbtoFallback.builder().baseUrl(base + "/direct/v1").build()).build();
             try (var abto = AbtoSpringAI2.create(config)) {
                 var modelBuilder = OpenAiChatModel.builder().options(OpenAiChatOptions.builder().model("customer-model").temperature(0.2).build()).observationRegistry(registry);
-                abto.forContext(new AbtoContext("feature")).chatModelOptions().accept(modelBuilder);
+                abto.forContext(AbtoContext.of("feature")).chatModelOptions().accept(modelBuilder);
                 assertEquals("hello", modelBuilder.build().call("hello"));
             }
             assertTrue(observed.get() > 0);

@@ -27,7 +27,7 @@ public final class SpringAI2Example {
         @Bean AbtoSpringAI2 abto(AbtoConfig config) { return AbtoSpringAI2.create(config); }
         @Bean OpenAiChatModel chatModel(AbtoSpringAI2 abto) {
             var builder = OpenAiChatModel.builder().options(OpenAiChatOptions.builder().model("gpt-4o-mini").build());
-            abto.forContext(new AbtoContext("support.spring2")).chatModelOptions().accept(builder);
+            abto.forContext(AbtoContext.of("support.spring2")).chatModelOptions().accept(builder);
             return builder.build();
         }
     }

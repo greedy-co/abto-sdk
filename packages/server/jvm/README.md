@@ -16,14 +16,14 @@ Maven Central에서 사용 경로에 맞는 패키지 하나를 선택하세요.
 
 ```kotlin
 repositories { mavenCentral() }
-dependencies { implementation("app.abto:abto-calling:1.1.0") }
+dependencies { implementation("app.abto:abto-calling:1.2.0") }
 ```
 
 ```xml
 <dependency>
   <groupId>app.abto</groupId>
   <artifactId>abto-calling</artifactId>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
 </dependency>
 ```
 
@@ -40,7 +40,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
 var config = AbtoConfig.builder().build();
 try (var abto = AbtoOpenAI.create(config)) {
-    var client = abto.forContext(new AbtoContext("support.reply", "device-id")).openai();
+    var client = abto.forContext(AbtoContext.builder("support.reply").deviceId("device-id").build()).openai();
     var completion = client.chat().completions().create(
         ChatCompletionCreateParams.builder()
             .model("gpt-4o-mini").addUserMessage("Hello").build());
@@ -48,7 +48,7 @@ try (var abto = AbtoOpenAI.create(config)) {
 }
 ```
 
-애플리케이션 수명 동안 root `abto` 하나를 유지하고 요청마다 불변 `forContext`를 만드세요. 연결 풀과 circuit은 공유됩니다. `featureId`, `deviceId`는 요청 컨텍스트이고, Calling Key·provider key·Gateway 주소는 공통 설정입니다. `withContext(context, scope -> ...)`는 동기 콜백 편의 기능이며 비동기 경계에서는 `forContext`를 명시적으로 전달합니다.
+애플리케이션 수명 동안 root `abto` 하나를 유지하고 요청마다 불변 `forContext`를 만드세요. 연결 풀과 circuit은 공유됩니다. `featureId`, `nodeId`, `deviceId`는 요청 컨텍스트이고(`AbtoContext.builder(featureId).nodeId(..).deviceId(..).build()`, 기능 ID만 있으면 `AbtoContext.of(featureId)`), Calling Key·provider key·Gateway 주소는 공통 설정입니다. `withContext(context, scope -> ...)`는 동기 콜백 편의 기능이며 비동기 경계에서는 `forContext`를 명시적으로 전달합니다.
 
 ## Java: 기존 클라이언트 설정
 
@@ -60,7 +60,7 @@ var transport = java.net.http.HttpClient.newBuilder()
     .connectTimeout(java.time.Duration.ofSeconds(5))
     .build();
 try (var abto = AbtoOpenAI.create(config, transport)) {
-    var scope = abto.forContext(new AbtoContext("support.reply"));
+    var scope = abto.forContext(AbtoContext.of("support.reply"));
     var configured = existingClient.withOptions(scope.openaiOptions(transport));
     configured.chat().completions().create(params);
 }
@@ -76,7 +76,7 @@ try (var abto = AbtoOpenAI.create(config, transport)) {
 val config = AbtoConfig.builder().build()
 AbtoOpenAI.create(config, safeJdkTransport).use { abto ->
     val cancellation = AbtoCancellation()
-    val scope = abto.forContext(AbtoContext("support.reply", "device-id"))
+    val scope = abto.forContext(AbtoContext.builder("support.reply").deviceId("device-id").build())
         .withCancellation(cancellation)
     val params = ChatCompletionCreateParams.builder()
         .model("gpt-4o-mini").addUserMessage("Hello").build()
@@ -85,7 +85,7 @@ AbtoOpenAI.create(config, safeJdkTransport).use { abto ->
     ).await() // kotlinx.coroutines.future.await
     // 같은 정책을 기존 클라이언트에 적용
     val configured = existingClient.withOptions(
-        abto.forContext(AbtoContext("support.reply")).openaiOptions(safeJdkTransport)
+        abto.forContext(AbtoContext.of("support.reply")).openaiOptions(safeJdkTransport)
     )
 }
 ```
@@ -97,7 +97,7 @@ AbtoOpenAI.create(config, safeJdkTransport).use { abto ->
 ## Spring AI 1.1
 
 ```java
-var scoped = abtoSpringAI1.forContext(new AbtoContext("support.reply"));
+var scoped = abtoSpringAI1.forContext(AbtoContext.of("support.reply"));
 var api = OpenAiApi.builder();
 scoped.openAiApiOptions(existingRestClientBuilder).accept(api);
 scoped.chatModelOptions(api.build()).accept(existingChatModelBuilder);
@@ -111,7 +111,7 @@ var model = existingChatModelBuilder.build();
 ## Spring AI 2.0
 
 ```java
-var scoped = abtoSpringAI2.forContext(new AbtoContext("support.reply"));
+var scoped = abtoSpringAI2.forContext(AbtoContext.of("support.reply"));
 scoped.chatModelOptions().accept(existingChatModelBuilder);
 var model = existingChatModelBuilder.build();
 ```
@@ -125,7 +125,7 @@ var model = existingChatModelBuilder.build();
 ```java
 var abto = AbtoLangChain4j.create(config, java.net.http.HttpClient.newBuilder()
     .followRedirects(java.net.http.HttpClient.Redirect.NEVER));
-var scope = abto.forContext(new AbtoContext("graph.answer", "device-id"));
+var scope = abto.forContext(AbtoContext.builder("graph.answer").deviceId("device-id").build());
 scope.openAiOptions().accept(existingOpenAiChatModelBuilder);
 var model = existingOpenAiChatModelBuilder.build();
 ```
@@ -138,7 +138,7 @@ LangGraph4j는 노드에서 이 모델을 호출하고 요청별 `AbtoContext`�
 
 ```java
 var http = AbtoHttpClient.wrap(safeJdkTransport,
-    new AbtoGateway(config).forContext(new AbtoContext("support.http")));
+    new AbtoGateway(config).forContext(AbtoContext.of("support.http")));
 var request = java.net.http.HttpRequest.newBuilder(
         config.gatewayBaseUrl().resolve("chat/completions"))
     .header("Content-Type", "application/json")
@@ -170,7 +170,7 @@ var config = AbtoConfig.builder()
 
 공식 `ChatCompletionCreateParams`의 tools, tool 결과 메시지, `ResponseFormatJsonSchema`를 그대로 사용합니다. ABTO는 본문의 모델·프롬프트·옵션을 임의 변경하지 않습니다. raw response 경로의 상태·본문·헤더도 유지합니다.
 
-기존 Langfuse의 Micrometer/OpenTelemetry exporter·LangChain4j listeners를 유지하세요. ABTO는 전역 tracing 설정이나 exporter를 등록하지 않습니다. 기존 `traceparent`·`tracestate`는 보존하고, 필요한 경우 `new AbtoContext(feature, device, traceparent, tracestate)`로 명시합니다. exporter의 HTTP 헤더 수집에서 인증 헤더를 제외하세요.
+기존 Langfuse의 Micrometer/OpenTelemetry exporter·LangChain4j listeners를 유지하세요. ABTO는 전역 tracing 설정이나 exporter를 등록하지 않습니다. 기존 `traceparent`·`tracestate`는 보존하고, 필요한 경우 `AbtoContext.builder(feature).deviceId(device).traceparent(traceparent).tracestate(tracestate).build()`로 명시합니다. exporter의 HTTP 헤더 수집에서 인증 헤더를 제외하세요.
 
 고객 tracing에 기록되는 입력은 Gateway 정책 적용 전의 요청일 수 있습니다. 실제 실행 모델·프롬프트·비용은 Gateway 실행 기록을 기준으로 확인하세요. 로컬 OTLP 수집기까지의 trace 연결·callback·키 비노출은 테스트하며, 실제 Langfuse 계정 수신은 별도 운영 검증입니다. [Langfuse Spring AI 안내](https://langfuse.com/integrations/frameworks/spring-ai).
 

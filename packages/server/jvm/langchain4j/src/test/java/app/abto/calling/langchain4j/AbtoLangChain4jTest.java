@@ -35,7 +35,7 @@ class AbtoLangChain4jTest {
             };
             var builder = OpenAiChatModel.builder().modelName("customer-model").temperature(0.2).listeners(listener)
                     .customHeaders(Map.of("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01", "Cookie", "private-cookie"));
-            abto.forContext(new AbtoContext("feature", "device")).openAiOptions().accept(builder);
+            abto.forContext(AbtoContext.builder("feature").deviceId("device").build()).openAiOptions().accept(builder);
             assertEquals("hello", builder.build().chat("hi"));
             assertEquals(1, requests.get()); assertEquals(1, responses.get());
             assertEquals(List.of("/gateway/v1/chat/completions", "/direct/v1/chat/completions"), server.paths);
@@ -55,7 +55,7 @@ class AbtoLangChain4jTest {
                     .addNode("chat", node_async(state -> {
                         String feature = state.<String>value("feature").orElseThrow();
                         var builder = OpenAiChatModel.builder().modelName("graph-model");
-                        abto.forContext(new AbtoContext(feature)).openAiOptions().accept(builder);
+                        abto.forContext(AbtoContext.of(feature)).openAiOptions().accept(builder);
                         return Map.of("answer", builder.build().chat(state.<String>value("input").orElseThrow()));
                     }))
                     .addEdge(StateGraph.START, "chat").addEdge("chat", StateGraph.END).compile();

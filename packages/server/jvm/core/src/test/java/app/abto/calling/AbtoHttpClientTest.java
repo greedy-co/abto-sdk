@@ -31,7 +31,7 @@ class AbtoHttpClientTest {
             var config = AbtoConfig.builder().environment(k -> null).apiKey("calling").providerKey("openai", "provider")
                     .gatewayBaseUrl(base + "/gateway/v1").fallback(AbtoFallback.builder().baseUrl(base + "/direct/v1").build()).build();
             var borrowed = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(7)).build();
-            var client = AbtoHttpClient.wrap(borrowed, new AbtoGateway(config).forContext(new AbtoContext("feature")));
+            var client = AbtoHttpClient.wrap(borrowed, new AbtoGateway(config).forContext(AbtoContext.of("feature")));
             assertEquals(borrowed.connectTimeout(), client.connectTimeout());
             String json = "{\"messages\":[{\"role\":\"user\",\"content\":\"안녕\"}],\"model\":\"test\"}";
             var request = HttpRequest.newBuilder(URI.create(base + "/gateway/v1/chat/completions")).POST(HttpRequest.BodyPublishers.ofString(json)).build();

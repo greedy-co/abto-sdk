@@ -66,7 +66,7 @@ class AbtoOpenAITest {
             });
             var original = seed(stub, b -> b.timeout(Duration.ofSeconds(7)).maxRetries(4));
             try (AutoCloseable ignored = original::close; var abto = AbtoOpenAI.create(config(false), original, stub.jdk)) {
-                var scope = abto.forContext(new AbtoContext("feature", "device"));
+                var scope = abto.forContext(AbtoContext.builder("feature").deviceId("device").build());
                 var client = factory ? scope.openai() : original.withOptions(scope.openaiOptions(stub.jdk));
                 client.withOptions(b -> {
                     var options = b.build();
@@ -102,7 +102,7 @@ class AbtoOpenAITest {
             return ok();
         });
         try (var abto = AbtoOpenAI.create(config(false), stub.jdk)) {
-            var client = abto.forContext(new AbtoContext("tools")).openai();
+            var client = abto.forContext(AbtoContext.of("tools")).openai();
             var request = ChatCompletionCreateParams.builder().model("customer-model").addUserMessage("Weather?")
                     .addTool(com.openai.models.chat.completions.ChatCompletionFunctionTool.builder()
                             .function(com.openai.models.FunctionDefinition.builder().name("weather")
@@ -160,8 +160,8 @@ class AbtoOpenAITest {
         });
         var original = seed(stub, b -> b.putHeader("Cookie", "secret-cookie"));
         try (AutoCloseable ignored = original::close; var abto = AbtoOpenAI.create(config(true), original, stub.jdk)) {
-            abto.forContext(new AbtoContext("first")).openai().chat().completions().create(params());
-            original.withOptions(abto.forContext(new AbtoContext("second")).openaiOptions(stub.jdk)).async().chat().completions().create(params()).join();
+            abto.forContext(AbtoContext.of("first")).openai().chat().completions().create(params());
+            original.withOptions(abto.forContext(AbtoContext.of("second")).openaiOptions(stub.jdk)).async().chat().completions().create(params()).join();
             assertEquals(List.of("https://gateway.example/v1/chat/completions", "https://direct.example/v1/chat/completions", "https://direct.example/v1/chat/completions"), urls);
             assertEquals(1, bodies.stream().distinct().count());
         }
@@ -176,7 +176,7 @@ class AbtoOpenAITest {
         try (AutoCloseable ignored = original::close; var abto = AbtoOpenAI.create(config(false), original, stub.jdk)) {
             var futures = new ArrayList<CompletableFuture<?>>();
             for (int i = 0; i < 40; i++) {
-                var client = abto.forContext(new AbtoContext("feature-" + i)).openai();
+                var client = abto.forContext(AbtoContext.of("feature-" + i)).openai();
                 futures.add(client.async().chat().completions().create(params()));
                 client.close();
             }
@@ -214,7 +214,7 @@ class AbtoOpenAITest {
             }
         };
         try (var abto = AbtoOpenAI.create(config(true), transport)) {
-            var client = abto.forContext(new AbtoContext("cancel-me")).withCancellation(cancellation).openai();
+            var client = abto.forContext(AbtoContext.of("cancel-me")).withCancellation(cancellation).openai();
             var future = cancellation.bind(client.async().chat().completions().create(params()));
             assertTrue(arrived.await(5, java.util.concurrent.TimeUnit.SECONDS));
             assertTrue(future.cancel(true));

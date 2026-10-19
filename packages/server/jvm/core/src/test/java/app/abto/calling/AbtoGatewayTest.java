@@ -93,8 +93,8 @@ class AbtoGatewayTest {
             assertSame(direct, call(new AbtoGateway(enabled()), d -> d.uri().equals(URL) ? REJECTED : direct));
         });
         scenarios.put("security.rejects_cross_origin_request", () -> error(ERR_GATEWAY_ORIGIN_REFUSED, () -> new AbtoGateway(enabled()).execute(URI.create("https://attacker.example/v1/chat/completions"), "POST", Map.of(), d -> fail("must not dispatch"), RESPONSE)));
-        scenarios.put("security.replaces_spoofed_context_headers", () -> new AbtoGateway(enabled()).forContext(new AbtoContext("feature", "device")).execute(URL, "POST", Map.of(HEADER_FEATURE_ID, List.of("spoof"), HEADER_DEVICE_ID, List.of("spoof"), HEADER_PROVIDER_KEY_PREFIX + "unknown", List.of("spoof")), d -> {
-            assertEquals(List.of("feature"), d.headers().get(HEADER_FEATURE_ID)); assertEquals(List.of("device"), d.headers().get(HEADER_DEVICE_ID)); assertFalse(d.headers().containsValue(List.of("spoof"))); return OK;
+        scenarios.put("security.replaces_spoofed_context_headers", () -> new AbtoGateway(enabled()).forContext(AbtoContext.builder("feature").nodeId("node").deviceId("device").build()).execute(URL, "POST", Map.of(HEADER_FEATURE_ID, List.of("spoof"), HEADER_NODE_ID, List.of("spoof"), HEADER_DEVICE_ID, List.of("spoof"), HEADER_PROVIDER_KEY_PREFIX + "unknown", List.of("spoof")), d -> {
+            assertEquals(List.of("feature"), d.headers().get(HEADER_FEATURE_ID)); assertEquals(List.of("node"), d.headers().get(HEADER_NODE_ID)); assertEquals(List.of("device"), d.headers().get(HEADER_DEVICE_ID)); assertFalse(d.headers().containsValue(List.of("spoof"))); return OK;
         }, RESPONSE));
         scenarios.put("security.rejects_provider_key_injection", () -> error(ERR_PROVIDER_KEY_INVALID_CHARACTERS.replace("{provider}", "openai"), () -> call(new AbtoGateway(config().providerKey("openai", "x\r\nInjected: value").build()), d -> fail("must not dispatch"))));
         scenarios.put("context.propagates_and_isolates", () -> {
@@ -103,19 +103,19 @@ class AbtoGatewayTest {
             for (int i = 0; i < 100; i++) {
                 String feature = "feature-" + i;
                 futures.add(CompletableFuture.supplyAsync(() -> {
-                    try { return call(gateway.forContext(new AbtoContext(feature)), d -> { assertEquals(List.of(feature), d.headers().get(HEADER_FEATURE_ID)); return OK; }); }
+                    try { return call(gateway.forContext(AbtoContext.of(feature)), d -> { assertEquals(List.of(feature), d.headers().get(HEADER_FEATURE_ID)); return OK; }); }
                     catch (Exception e) { throw new RuntimeException(e); }
                 }));
             }
             CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
         });
-        scenarios.put("context.emits_only_configured_identifiers", () -> call(new AbtoGateway(enabled()).forContext(new AbtoContext("feature")), d -> {
-            assertFalse(d.headers().containsKey(HEADER_DEVICE_ID)); assertFalse(d.headers().containsKey(HEADER_REQUEST_ID)); assertFalse(d.headers().containsKey("traceparent")); return OK;
+        scenarios.put("context.emits_only_configured_identifiers", () -> call(new AbtoGateway(enabled()).forContext(AbtoContext.of("feature")), d -> {
+            assertFalse(d.headers().containsKey(HEADER_DEVICE_ID)); assertFalse(d.headers().containsKey(HEADER_NODE_ID)); assertFalse(d.headers().containsKey(HEADER_REQUEST_ID)); assertFalse(d.headers().containsKey("traceparent")); return OK;
         }));
         scenarios.put("circuit.shared_across_clients", () -> {
             var gateway = new AbtoGateway(enabled());
-            call(gateway.forContext(new AbtoContext("a")), d -> d.uri().equals(URL) ? REJECTED : OK);
-            call(gateway.forContext(new AbtoContext("b")), d -> { assertNotEquals(URL, d.uri()); return OK; });
+            call(gateway.forContext(AbtoContext.of("a")), d -> d.uri().equals(URL) ? REJECTED : OK);
+            call(gateway.forContext(AbtoContext.of("b")), d -> { assertNotEquals(URL, d.uri()); return OK; });
         });
         scenarios.put("circuit.closes_on_gateway_recovery", () -> {
             var clock = new AtomicLong(); var gateway = new AbtoGateway(enabled(), clock::get);
@@ -140,9 +140,16 @@ class AbtoGatewayTest {
         assertEquals(1, count.get());
     }
 
+    @Test void contextRejectsMissingFeatureAndBlankNode() {
+        assertThrows(IllegalArgumentException.class, () -> AbtoContext.of(null));
+        assertThrows(IllegalArgumentException.class, () -> AbtoContext.of(" "));
+        assertThrows(IllegalArgumentException.class, () -> AbtoContext.builder("feature").nodeId("").build());
+        assertThrows(IllegalArgumentException.class, () -> AbtoContext.builder("feature").nodeId("a\r\nInjected: b").build());
+    }
+
     @Test void directDispatchRemovesCredentialsAndPreservesTracing() throws Exception {
         var headers = Map.of("Cookie", List.of("session=secret"), "Proxy-Authorization", List.of("secret"), "Authorization", List.of("old-key"), "traceparent", List.of(TRACE), "tracestate", List.of("vendor=value"), "X-Custom-Secret", List.of("secret"));
-        new AbtoGateway(enabled()).forContext(new AbtoContext("f", "d", "replacement", "replacement")).execute(URL, "POST", headers, dispatch -> {
+        new AbtoGateway(enabled()).forContext(AbtoContext.builder("f").nodeId("n").deviceId("d").traceparent("replacement").tracestate("replacement").build()).execute(URL, "POST", headers, dispatch -> {
             if (dispatch.uri().equals(URL)) return REJECTED;
             assertEquals(Set.of("authorization", "traceparent", "tracestate"), dispatch.headers().keySet());
             assertEquals(List.of("Bearer provider-secret"), dispatch.headers().get("authorization"));

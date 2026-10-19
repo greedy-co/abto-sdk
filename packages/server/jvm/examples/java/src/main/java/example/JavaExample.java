@@ -19,19 +19,19 @@ public final class JavaExample {
             try {
             try (var abto = AbtoOpenAI.create(config, transport)) {
                 var params = ChatCompletionCreateParams.builder().model("gpt-4o-mini").addUserMessage("Say hello.").build();
-                var factory = abto.forContext(new AbtoContext("support.reply", "example-device")).openai();
+                var factory = abto.forContext(AbtoContext.builder("support.reply").deviceId("example-device").build()).openai();
                 factory.chat().completions().create(params);
 
                 // Apply ABTO to the customer's options, explicitly sharing its safe JDK transport.
                 var existing = OpenAIOkHttpClient.builder().apiKey("transport-placeholder").followRedirects(false).maxRetries(1).timeout(Duration.ofSeconds(20)).build();
                 try {
-                    var configured = existing.withOptions(abto.forContext(new AbtoContext("support.config")).openaiOptions(transport));
+                    var configured = existing.withOptions(abto.forContext(AbtoContext.of("support.config")).openaiOptions(transport));
                     configured.chat().completions().create(params);
                 } finally { existing.close(); }
             }
 
             // The core module also works without an OpenAI client.
-            var http = AbtoHttpClient.wrap(transport, new AbtoGateway(config).forContext(new AbtoContext("support.http")));
+            var http = AbtoHttpClient.wrap(transport, new AbtoGateway(config).forContext(AbtoContext.of("support.http")));
             var request = HttpRequest.newBuilder(config.gatewayBaseUrl().resolve("chat/completions"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString("{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello.\"}]}"))

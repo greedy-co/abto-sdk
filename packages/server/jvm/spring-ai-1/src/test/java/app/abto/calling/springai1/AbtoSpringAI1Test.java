@@ -43,7 +43,7 @@ class AbtoSpringAI1Test {
             var config = AbtoConfig.builder().environment(k -> null).apiKey("calling-key").providerKey("openai", "provider-key")
                     .gatewayBaseUrl(base + "/gateway/v1").fallback(AbtoFallback.builder().baseUrl(base + "/direct/v1").build()).build();
             try (var owner = AbtoSpringAI1.create(config)) {
-            var abto = owner.forContext(new AbtoContext("feature"));
+            var abto = owner.forContext(AbtoContext.of("feature"));
             var rest = RestClient.builder().requestInterceptor((request, body, execution) -> { intercepted.incrementAndGet(); return execution.execute(request, body); });
             var apiBuilder = OpenAiApi.builder();
             abto.openAiApiOptions(rest).accept(apiBuilder);

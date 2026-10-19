@@ -65,7 +65,7 @@ class TracingCompatibilityTest {
                     .apiKey("calling-sensitive-value").providerKey("openai", "provider-sensitive-value").build();
             try (var scope = parent.makeCurrent(); var abto = AbtoSpringAI2.create(config)) {
                 var builder = OpenAiChatModel.builder().observationRegistry(registry);
-                abto.forContext(new AbtoContext("traced", "device", traceparent, "vendor=value")).chatModelOptions().accept(builder);
+                abto.forContext(AbtoContext.builder("traced").deviceId("device").traceparent(traceparent).tracestate("vendor=value").build()).chatModelOptions().accept(builder);
                 assertEquals("hello", builder.build().call("hello"));
             } finally { parent.end(); }
             provider.forceFlush().join(5, java.util.concurrent.TimeUnit.SECONDS);

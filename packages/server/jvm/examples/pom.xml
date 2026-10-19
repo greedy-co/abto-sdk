@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>app.abto.examples</groupId><artifactId>calling-examples</artifactId><version>1.0.0</version><packaging>pom</packaging>
   <properties>
-    <abto.version>1.1.0</abto.version>
+    <abto.version>1.2.0</abto.version>
     <abto.repository>https://repo.maven.apache.org/maven2</abto.repository>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

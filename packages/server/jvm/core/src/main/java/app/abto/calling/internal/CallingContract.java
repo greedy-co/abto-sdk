@@ -11,6 +11,7 @@ public final class CallingContract {
     public static final String DIRECT_PATH_SUFFIX = "chat/completions";
     public static final String HEADER_DEVICE_ID = "x-abto-device-id";
     public static final String HEADER_FEATURE_ID = "x-abto-feature-id";
+    public static final String HEADER_NODE_ID = "x-abto-node-id";
     public static final String HEADER_PROVIDER_KEY_PREFIX = "x-abto-key-";
     public static final String HEADER_REQUEST_ID = "x-abto-request-id";
     public static final String HEADER_ATTEMPT = "x-abto-attempt";

@@ -9,7 +9,7 @@ import org.springframework.web.client.RestClient
 
 fun configureKotlinModel(abto: AbtoSpringAI1, builder: OpenAiChatModel.Builder,
                          rest: RestClient.Builder): OpenAiChatModel {
-    val scope = abto.forContext(AbtoContext("kotlin.spring.reply"))
+    val scope = abto.forContext(AbtoContext.of("kotlin.spring.reply"))
     val api = OpenAiApi.builder()
     scope.openAiApiOptions(rest).accept(api)
     scope.chatModelOptions(api.build()).accept(builder)

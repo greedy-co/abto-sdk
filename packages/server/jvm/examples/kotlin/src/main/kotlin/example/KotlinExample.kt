@@ -20,19 +20,19 @@ fun main(args: Array<String>) = runBlocking {
             AbtoOpenAI.create(example.config(), transport).use { abto ->
                 val params = ChatCompletionCreateParams.builder().model("gpt-4o-mini").addUserMessage("Say hello.").build()
                 val cancellation = AbtoCancellation()
-                val scope = abto.forContext(AbtoContext("support.kotlin")).withCancellation(cancellation)
+                val scope = abto.forContext(AbtoContext.of("support.kotlin")).withCancellation(cancellation)
                 // await() cancels the bound future; the handle also cancels its HTTP call.
                 cancellation.bind(scope.openai().async().chat().completions().create(params)).await()
 
                 val existing = OpenAIOkHttpClient.builder().apiKey("transport-placeholder").followRedirects(false).maxRetries(1).build()
                 try {
-                    val configured = existing.withOptions(abto.forContext(AbtoContext("support.kotlin.config")).openaiOptions(transport))
+                    val configured = existing.withOptions(abto.forContext(AbtoContext.of("support.kotlin.config")).openaiOptions(transport))
                     configured.chat().completions().create(params)
                 } finally {
                     existing.close()
                 }
                 val config = example.config()
-                val http = AbtoHttpClient.wrap(transport, AbtoGateway(config).forContext(AbtoContext("support.kotlin.http")))
+                val http = AbtoHttpClient.wrap(transport, AbtoGateway(config).forContext(AbtoContext.of("support.kotlin.http")))
                 val request = HttpRequest.newBuilder(config.gatewayBaseUrl().resolve("chat/completions"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString("""{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}"""))

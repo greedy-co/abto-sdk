@@ -6,6 +6,6 @@ import app.abto.calling.langchain4j.AbtoLangChain4j
 import dev.langchain4j.model.openai.OpenAiChatModel
 
 fun configureKotlinModel(abto: AbtoLangChain4j, builder: OpenAiChatModel.OpenAiChatModelBuilder): OpenAiChatModel {
-    abto.forContext(AbtoContext("kotlin.graph.reply")).openAiOptions().accept(builder)
+    abto.forContext(AbtoContext.of("kotlin.graph.reply")).openAiOptions().accept(builder)
     return builder.build()
 }
