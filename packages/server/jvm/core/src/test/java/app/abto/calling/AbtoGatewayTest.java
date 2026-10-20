@@ -93,8 +93,8 @@ class AbtoGatewayTest {
             assertSame(direct, call(new AbtoGateway(enabled()), d -> d.uri().equals(URL) ? REJECTED : direct));
         });
         scenarios.put("security.rejects_cross_origin_request", () -> error(ERR_GATEWAY_ORIGIN_REFUSED, () -> new AbtoGateway(enabled()).execute(URI.create("https://attacker.example/v1/chat/completions"), "POST", Map.of(), d -> fail("must not dispatch"), RESPONSE)));
-        scenarios.put("security.replaces_spoofed_context_headers", () -> new AbtoGateway(enabled()).forContext(AbtoContext.builder("feature").nodeId("node").deviceId("device").build()).execute(URL, "POST", Map.of(HEADER_FEATURE_ID, List.of("spoof"), HEADER_NODE_ID, List.of("spoof"), HEADER_DEVICE_ID, List.of("spoof"), HEADER_PROVIDER_KEY_PREFIX + "unknown", List.of("spoof")), d -> {
-            assertEquals(List.of("feature"), d.headers().get(HEADER_FEATURE_ID)); assertEquals(List.of("node"), d.headers().get(HEADER_NODE_ID)); assertEquals(List.of("device"), d.headers().get(HEADER_DEVICE_ID)); assertFalse(d.headers().containsValue(List.of("spoof"))); return OK;
+        scenarios.put("security.replaces_spoofed_context_headers", () -> new AbtoGateway(enabled()).forContext(AbtoContext.builder("feature").nodeId("node").deviceId("device").traceId("run").build()).execute(URL, "POST", Map.of(HEADER_FEATURE_ID, List.of("spoof"), HEADER_NODE_ID, List.of("spoof"), HEADER_DEVICE_ID, List.of("spoof"), HEADER_TRACE_ID, List.of("spoof"), HEADER_PROVIDER_KEY_PREFIX + "unknown", List.of("spoof")), d -> {
+            assertEquals(List.of("feature"), d.headers().get(HEADER_FEATURE_ID)); assertEquals(List.of("node"), d.headers().get(HEADER_NODE_ID)); assertEquals(List.of("device"), d.headers().get(HEADER_DEVICE_ID)); assertEquals(List.of("run"), d.headers().get(HEADER_TRACE_ID)); assertFalse(d.headers().containsValue(List.of("spoof"))); return OK;
         }, RESPONSE));
         scenarios.put("security.rejects_provider_key_injection", () -> error(ERR_PROVIDER_KEY_INVALID_CHARACTERS.replace("{provider}", "openai"), () -> call(new AbtoGateway(config().providerKey("openai", "x\r\nInjected: value").build()), d -> fail("must not dispatch"))));
         scenarios.put("context.propagates_and_isolates", () -> {
@@ -110,8 +110,24 @@ class AbtoGatewayTest {
             CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
         });
         scenarios.put("context.emits_only_configured_identifiers", () -> call(new AbtoGateway(enabled()).forContext(AbtoContext.of("feature")), d -> {
-            assertFalse(d.headers().containsKey(HEADER_DEVICE_ID)); assertFalse(d.headers().containsKey(HEADER_NODE_ID)); assertFalse(d.headers().containsKey(HEADER_REQUEST_ID)); assertFalse(d.headers().containsKey("traceparent")); return OK;
+            assertFalse(d.headers().containsKey(HEADER_DEVICE_ID)); assertFalse(d.headers().containsKey(HEADER_NODE_ID)); assertFalse(d.headers().containsKey(HEADER_REQUEST_ID)); assertTrue(d.headers().get(HEADER_TRACE_ID).get(0).matches("[0-9a-f]{32}")); assertFalse(d.headers().containsKey("traceparent")); return OK;
         }));
+        scenarios.put("context.opens_trace_when_absent", () -> {
+            AbtoContext first = AbtoContext.of("agent.plan");
+            assertTrue(first.traceId().matches("[0-9a-f]{32}"), first.traceId());
+            assertNotEquals(first.traceId(), AbtoContext.of("agent.plan").traceId());
+            assertEquals("run-from-upstream", AbtoContext.builder("agent.plan").traceId("run-from-upstream").build().traceId());
+            assertEquals(" ", AbtoContext.builder("agent.plan").traceId(" ").build().traceId());
+            assertThrows(IllegalArgumentException.class, () -> AbtoContext.builder("agent.plan").traceId("\n").build());
+        });
+        scenarios.put("context.node_change_keeps_trace", () -> {
+            AbtoContext planner = AbtoContext.builder("agent.plan").nodeId("agent.plan").deviceId("device").traceparent("tp").tracestate("ts").build();
+            AbtoContext writer = planner.withNodeId("agent.write");
+            assertEquals("agent.write", writer.nodeId()); assertEquals(planner.traceId(), writer.traceId());
+            assertEquals(AbtoContext.builder("agent.plan").nodeId("agent.write").deviceId("device").traceparent("tp").tracestate("ts").build(), writer);
+            assertEquals(AbtoContext.of("agent.plan"), AbtoContext.of("agent.plan"));
+            call(new AbtoGateway(enabled()).forContext(writer), d -> { assertEquals(List.of(planner.traceId()), d.headers().get(HEADER_TRACE_ID)); return OK; });
+        });
         scenarios.put("circuit.shared_across_clients", () -> {
             var gateway = new AbtoGateway(enabled());
             call(gateway.forContext(AbtoContext.of("a")), d -> d.uri().equals(URL) ? REJECTED : OK);
@@ -145,6 +161,21 @@ class AbtoGatewayTest {
         assertThrows(IllegalArgumentException.class, () -> AbtoContext.of(" "));
         assertThrows(IllegalArgumentException.class, () -> AbtoContext.builder("feature").nodeId("").build());
         assertThrows(IllegalArgumentException.class, () -> AbtoContext.builder("feature").nodeId("a\r\nInjected: b").build());
+    }
+
+    @Test void createTraceIdIsUuidV7Hex() {
+        String traceId = AbtoContext.createTraceId();
+        assertTrue(traceId.matches("[0-9a-f]{32}"), traceId);
+        assertEquals('7', traceId.charAt(12));
+        assertTrue("89ab".indexOf(traceId.charAt(16)) >= 0, traceId);
+        assertNotEquals(traceId, AbtoContext.createTraceId());
+    }
+
+    @Test void directDispatchDropsTheTraceIdHeader() throws Exception {
+        new AbtoGateway(enabled()).forContext(AbtoContext.builder("f").traceId("run").build()).execute(URL, "POST", Map.of(), dispatch -> {
+            if (dispatch.uri().equals(URL)) { assertEquals(List.of("run"), dispatch.headers().get(HEADER_TRACE_ID)); return REJECTED; }
+            assertFalse(dispatch.headers().containsKey(HEADER_TRACE_ID)); return OK;
+        }, RESPONSE);
     }
 
     @Test void directDispatchRemovesCredentialsAndPreservesTracing() throws Exception {

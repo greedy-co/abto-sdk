@@ -16,14 +16,14 @@ Maven Central에서 사용 경로에 맞는 패키지 하나를 선택하세요.
 
 ```kotlin
 repositories { mavenCentral() }
-dependencies { implementation("app.abto:abto-calling:1.2.0") }
+dependencies { implementation("app.abto:abto-calling:1.2.1") }
 ```
 
 ```xml
 <dependency>
   <groupId>app.abto</groupId>
   <artifactId>abto-calling</artifactId>
-  <version>1.2.0</version>
+  <version>1.2.1</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ try (var abto = AbtoOpenAI.create(config)) {
 }
 ```
 
-애플리케이션 수명 동안 root `abto` 하나를 유지하고 요청마다 불변 `forContext`를 만드세요. 연결 풀과 circuit은 공유됩니다. `featureId`, `nodeId`, `deviceId`는 요청 컨텍스트이고(`AbtoContext.builder(featureId).nodeId(..).deviceId(..).build()`, 기능 ID만 있으면 `AbtoContext.of(featureId)`), Calling Key·provider key·Gateway 주소는 공통 설정입니다. `withContext(context, scope -> ...)`는 동기 콜백 편의 기능이며 비동기 경계에서는 `forContext`를 명시적으로 전달합니다.
+애플리케이션 수명 동안 root `abto` 하나를 유지하고 요청마다 불변 `forContext`를 만드세요. 연결 풀과 circuit은 공유됩니다. `featureId`, `nodeId`, `deviceId`, `traceId`는 요청 컨텍스트이고(`AbtoContext.builder(featureId).nodeId(..).deviceId(..).traceId(..).build()`, 기능 ID만 있으면 `AbtoContext.of(featureId)`), Calling Key·provider key·Gateway 주소는 공통 설정입니다. `traceId`는 에이전트나 워크플로 실행 한 번이 만든 호출을 묶는 실행 ID로 `x-abto-trace-id`로 전송됩니다. `AbtoContext`를 만들 때 넣지 않으면 새 값이 생기므로 실행 하나 동안 같은 context를 재사용하고, 노드를 바꿀 때는 `withNodeId(..)`로 같은 실행을 이어 가며, 다른 서비스가 넘겨준 실행을 이어 갈 때만 `.traceId(..)`로 넣습니다. `withContext(context, scope -> ...)`는 동기 콜백 편의 기능이며 비동기 경계에서는 `forContext`를 명시적으로 전달합니다.
 
 ## Java: 기존 클라이언트 설정
 

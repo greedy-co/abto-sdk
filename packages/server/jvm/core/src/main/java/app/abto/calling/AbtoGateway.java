@@ -120,13 +120,14 @@ public final class AbtoGateway {
         var headers = new LinkedHashMap<String, List<String>>();
         source.forEach((name, values) -> {
             String key = name.toLowerCase(Locale.ROOT);
-            if (!key.equals("authorization") && !key.equals(HEADER_DEVICE_ID) && !key.equals(HEADER_FEATURE_ID) && !key.equals(HEADER_NODE_ID) && !key.startsWith(HEADER_PROVIDER_KEY_PREFIX)) headers.put(key, List.copyOf(values));
+            if (!TRUSTED_HEADER_NAMES.contains(key) && !key.startsWith(HEADER_PROVIDER_KEY_PREFIX)) headers.put(key, List.copyOf(values));
         });
         var keys = config.resolveProviderKeys();
         keys.forEach((provider, key) -> headers.put(HEADER_PROVIDER_KEY_PREFIX + provider, List.of(key)));
         headers.put("authorization", List.of("Bearer " + config.resolveApiKey()));
         if (context != null) {
             put(headers, HEADER_FEATURE_ID, context.featureId()); put(headers, HEADER_NODE_ID, context.nodeId()); put(headers, HEADER_DEVICE_ID, context.deviceId());
+            put(headers, HEADER_TRACE_ID, context.traceId());
             if (!headers.containsKey("traceparent") && context.traceparent() != null) {
                 headers.remove("tracestate");
                 put(headers, "traceparent", context.traceparent()); put(headers, "tracestate", context.tracestate());
