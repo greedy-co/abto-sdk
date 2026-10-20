@@ -16,10 +16,6 @@ func abtoUUIDv7(_ date: Date = Date()) -> String {
     return "\(hex.prefix(8))-\(hex.dropFirst(8).prefix(4))-\(hex.dropFirst(12).prefix(4))-\(hex.dropFirst(16).prefix(4))-\(hex.dropFirst(20))"
 }
 
-func abtoUUIDv7TraceId() -> String {
-    abtoUUIDv7().replacingOccurrences(of: "-", with: "")
-}
-
 func abtoTimestamp() -> String {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

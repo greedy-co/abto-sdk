@@ -1,6 +1,5 @@
 import Foundation
 
-// trace_id rides as a first-class wire field, so it is not copied into the bag.
 private let abtoEnvelopeContextKeys = [
     "feature_id": "$feature_id",
     "task_type": "$task_type",
@@ -64,7 +63,7 @@ package func abtoEventNameIssue(_ event: String) -> String? {
 
 /// Builds the property bag carried in `extra_json`.
 ///
-/// The bag holds only what no first-class wire field carries. device_id, session_id and trace_id
+/// The bag holds only what no first-class wire field carries. device_id and session_id
 /// ride at the top level, so a copy here would be a duplicate no aggregation reads, stored forever
 /// in every event's jsonb. Context with no column of its own stays, because the bag is its only
 /// carrier.
@@ -206,7 +205,6 @@ public final class AbtoClient {
             "occurred_at": abtoTimestamp(),
             "extra_json": extraJSON,
         ]
-        if let traceId = envelope["trace_id"] as? String { captured["trace_id"] = traceId }
         if let value { captured["value"] = value }
         if let scale { captured["scale"] = scale }
         if config.debug {
@@ -224,9 +222,8 @@ public final class AbtoClient {
     }
 }
 
-/// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
+/// Lifecycle of one LLM call, joining Gateway cost and latency by request_id.
 public final class AbtoLlmTrace {
-    public let traceId: String
     public let featureId: String
     public private(set) var requestId: String?
 
@@ -239,7 +236,6 @@ public final class AbtoLlmTrace {
         self.featureId = featureId
         self.taskType = taskType
         self.surface = surface
-        self.traceId = abtoUUIDv7TraceId()
     }
 
     /// Reads x-abto-request-id from Gateway response headers and attaches it to later events.
@@ -302,7 +298,6 @@ public final class AbtoLlmTrace {
     private func envelope(_ overrides: [String: Any] = [:]) -> [String: Any] {
         var envelope: [String: Any] = [
             "feature_id": featureId,
-            "trace_id": traceId,
         ]
         if let taskType { envelope["task_type"] = taskType }
         if let surface { envelope["surface"] = surface }

@@ -260,7 +260,6 @@ do {
     let client = try AbtoClient(projectKey: "ek_test", store: AbtoInMemoryStore())
     let trace = client.startLlmTrace(featureId: "smoke.demo")
     check(trace.featureId == "smoke.demo", "featureId retained on trace")
-    check(trace.traceId.range(of: "^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$", options: .regularExpression) != nil, "trace_id uses UUIDv7 bits")
     covers("transport.request_id_header_case_insensitive")
     check(trace.attachRequestId(fromHeaders: ["X-Abto-Request-Id": "req_1"]) == "req_1", "attachRequestId reads header case-insensitively")
     check(trace.requestId == "req_1", "requestId retained on trace")

@@ -51,7 +51,7 @@ Add the public Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "1.2.0"
+    from: "1.2.1"
 )
 ```
 
