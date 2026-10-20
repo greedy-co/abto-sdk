@@ -25,13 +25,13 @@
   <a href="#문서와-도움말">문서</a>
 </p>
 
-> AI 호출은 서버에서 일어나지만, 그 결과에 대한 사용자의 반응은 제품에서 일어납니다. ABTO SDK는 두 흐름을 `device_id`, `trace_id`, `request_id`로 연결합니다.
+> AI 호출은 서버에서 일어나지만, 그 결과에 대한 사용자의 반응은 제품에서 일어납니다. ABTO SDK는 두 흐름을 `device_id`와 `request_id`로 연결합니다.
 
 ```text
 사용자 행동 ── Event SDK ───────────────┐
                                         ├── ABTO ── 비용 · 지연 · 품질
 LLM 요청 ──── Calling SDK ── Gateway ──┘
-                 device_id · trace_id · request_id
+                 device_id · request_id
 ```
 
 ## 가장 빠른 시작
@@ -101,7 +101,7 @@ Swift Package Manager에서는 저장소를 패키지로 추가합니다.
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "1.2.0"
+    from: "1.2.1"
 )
 ```
 
@@ -109,13 +109,13 @@ Flutter Web은 현재 Dart SDK가 지원하지 않으므로 브라우저용 Java
 
 ### 서버용 SDK
 
-서버에서 LLM 요청을 ABTO Gateway로 보내고 `device_id`, `trace_id`, `request_id` 문맥을 이어 줍니다. Calling Key와 provider key는 서버의 비밀 저장소에만 보관하세요.
+서버에서 LLM 요청을 ABTO Gateway로 보내고 `device_id`와 실행 ID 문맥을 이어 줍니다. Calling Key와 provider key는 서버의 비밀 저장소에만 보관하세요.
 
 | 런타임 | 역할 | 설치 | 배포 |
 | --- | --- | --- | --- |
 | Node.js | Gateway 호출·요청 문맥 | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway 호출·요청 문맥 | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Java / Kotlin | Chat Completions와 프레임워크 연동 | `implementation("app.abto:abto-calling:1.2.0")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
+| Java / Kotlin | Chat Completions와 프레임워크 연동 | `implementation("app.abto:abto-calling:1.2.1")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
 패키지별 사용법은 [Node.js Calling SDK](./packages/server/javascript), [Python Calling SDK](./packages/server/python), [Java/Kotlin Calling SDK](./packages/server/jvm)에서 확인할 수 있습니다.
 
@@ -125,7 +125,7 @@ ABTO는 클라이언트 이벤트와 서버의 모델 호출을 같은 식별자
 
 1. 클라이언트의 안정적인 `device_id`를 서버 요청에도 전달합니다.
 2. 제품 기능을 `support.reply` 같은 `featureId`로 구분합니다.
-3. 한 번의 사용자 행동에서 발생한 모델 호출은 같은 `trace_id`로 묶습니다.
+3. 에이전트나 워크플로 실행 한 번이 부르는 모델 호출은 Server SDK context 하나로 감싸 같은 실행 ID로 묶습니다.
 4. Gateway 응답의 `x-abto-request-id`를 화면에 표시된 결과와 사용자 반응에 연결합니다.
 
 Gateway는 provider 실행, token 사용량, 비용, 지연, 재시도, variant 배정과 `request_id`의 정본입니다. Event SDK나 Calling SDK에서 이 값을 따로 계산하지 않습니다.

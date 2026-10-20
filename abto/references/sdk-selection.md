@@ -89,6 +89,7 @@ Record the documentation URLs, access date, and installed package coordinates an
 - Carry one stable client device identifier through the existing request into the corresponding server context.
 - Use a dot-separated `featureId`, such as `support.reply`, only after the user approves its exact capability and call site.
 - Set an approved `nodeId` (Python `node_id`) in the same context as its `featureId`, and only when the installed Server SDK exposes it.
+- Wrap one whole agent or workflow run in one outermost Server SDK context so its calls share the trace ID that scope opens. Do not open a separate context per provider call. Set `traceId` (Python `trace_id`, JVM `.traceId(...)`) only to continue a run that another service passed explicitly.
 - Read the Gateway response header `x-abto-request-id` only when a selected event path needs it.
 - Attach that request identifier only with an SDK path that establishes the correlation.
 

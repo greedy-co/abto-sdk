@@ -25,13 +25,13 @@
   <a href="#docs-and-support">Docs</a>
 </p>
 
-> AI calls happen on the server. The user behavior that tells you whether those calls worked happens in the product. ABTO SDK connects both sides with `device_id`, `trace_id`, and `request_id`.
+> AI calls happen on the server. The user behavior that tells you whether those calls worked happens in the product. ABTO SDK connects both sides with `device_id` and `request_id`.
 
 ```text
 User behavior ── Event SDK ───────────────┐
                                           ├── ABTO ── cost · latency · quality
 LLM calls ────── Calling SDK ── Gateway ─┘
-                   device_id · trace_id · request_id
+                   device_id · request_id
 ```
 
 ## Quick start
@@ -101,7 +101,7 @@ Add the repository as a Swift Package:
 ```swift
 .package(
     url: "https://github.com/greedy-co/abto-sdk.git",
-    from: "1.2.0"
+    from: "1.2.1"
 )
 ```
 
@@ -109,13 +109,13 @@ The current Dart SDK does not support Flutter Web. Use the Browser JavaScript SD
 
 ### Server SDKs
 
-Route server-side LLM requests through the ABTO Gateway and propagate `device_id`, `trace_id`, and `request_id` context. Keep Calling Keys and provider keys in server-side secret storage only.
+Route server-side LLM requests through the ABTO Gateway and propagate `device_id` and run ID context. Keep Calling Keys and provider keys in server-side secret storage only.
 
 | Runtime | Responsibility | Install | Distribution |
 | --- | --- | --- | --- |
 | Node.js | Gateway calls and request context | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway calls and request context | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Java / Kotlin | Chat Completions and framework integration | `implementation("app.abto:abto-calling:1.2.0")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
+| Java / Kotlin | Chat Completions and framework integration | `implementation("app.abto:abto-calling:1.2.1")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
 See the [Node.js Calling SDK](./packages/server/javascript) and [Python Calling SDK](./packages/server/python) for package-specific usage.
 
@@ -127,7 +127,7 @@ ABTO joins client events and server-side model calls through shared identifiers.
 
 1. Forward the client's stable `device_id` with the related server request.
 2. Name the product surface with a `featureId`, such as `support.reply`.
-3. Use one `trace_id` for the model calls triggered by one user action.
+3. Wrap the model calls of one agent or workflow run in one Server SDK context so they share a run ID.
 4. Attach the Gateway's `x-abto-request-id` response header to the rendered result and the user's outcome.
 
 The Gateway is the source of truth for provider execution, token usage, cost, latency, retries, variant assignment, and `request_id`. Event and Calling SDKs do not estimate those facts independently.
