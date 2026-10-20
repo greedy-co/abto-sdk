@@ -10,10 +10,11 @@ token, cost, latency, request_id, and variant assignment.
 
 from __future__ import annotations
 
-from .policy_generated import HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID
+from .policy_generated import HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID, HEADER_TRACE_ID
 
 import contextvars
 import secrets
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterator, Optional
@@ -22,13 +23,14 @@ ABTO_HEADER = {
     "device_id": HEADER_DEVICE_ID,
     "feature_id": HEADER_FEATURE_ID,
     "node_id": HEADER_NODE_ID,
+    "trace_id": HEADER_TRACE_ID,
     "traceparent": "traceparent",
 }
 
 
 @dataclass(frozen=True)
 class AbtoContext:
-    """Device id, feature id, end-user action trace id, and call site inside the feature."""
+    """Device id, feature id, agent or workflow run id, and call site inside the feature."""
 
     device_id: Optional[str] = None
     feature_id: Optional[str] = None
@@ -66,6 +68,8 @@ def with_context(
     # A node only has meaning inside its feature, so switching to another feature without a node drops the inherited one.
     if "feature_id" in patch and patch["feature_id"] != parent.feature_id and "node_id" not in patch:
         patch["node_id"] = None
+    # The outermost scope opens one run; inner scopes inherit it, even when they pass an empty trace id.
+    patch["trace_id"] = patch.get("trace_id") or parent.trace_id or create_trace_id()
     merged = replace(parent, **patch)
     token = _current.set(merged)
     try:
@@ -75,16 +79,22 @@ def with_context(
 
 
 def create_trace_id() -> str:
-    """32-hex-char trace id, per W3C trace-context."""
-    return secrets.token_hex(16)
+    """UUIDv7 as 32 hex chars, matching the trace ids every ABTO SDK generates."""
+    # uuid.uuid7 only exists from Python 3.14, so this SDK (3.9+) fills the RFC 9562 bit layout itself.
+    b = bytearray((time.time_ns() // 1_000_000).to_bytes(6, "big") + secrets.token_bytes(10))
+    b[6] = (b[6] & 0x0F) | 0x70
+    b[8] = (b[8] & 0x3F) | 0x80
+    return b.hex()
 
 
 def create_traceparent(trace_id: str) -> str:
+    """Deprecated: the SDK no longer sends a derived traceparent; pass the id as trace_id."""
     return f"00-{trace_id}-{secrets.token_hex(8)}-01"
 
 
 def get_headers(ctx: Optional[AbtoContext] = None) -> Dict[str, str]:
-    c = ctx if ctx is not None else _current.get()
+    scope = _current.get()
+    c = ctx if ctx is not None else scope
     headers: Dict[str, str] = {}
     if c.device_id:
         headers[ABTO_HEADER["device_id"]] = c.device_id
@@ -92,6 +102,7 @@ def get_headers(ctx: Optional[AbtoContext] = None) -> Dict[str, str]:
         headers[ABTO_HEADER["feature_id"]] = c.feature_id
     if c.node_id:
         headers[ABTO_HEADER["node_id"]] = c.node_id
-    if c.trace_id:
-        headers[ABTO_HEADER["traceparent"]] = create_traceparent(c.trace_id)
+    # Explicit value first, then the active scope's run; outside any scope this call is its own run.
+    # Outside a scope, OpenAI SDK retries rebuild the headers, so each attempt gets its own run. Wrap the run in with_context to keep one.
+    headers[ABTO_HEADER["trace_id"]] = c.trace_id or scope.trace_id or create_trace_id()
     return headers

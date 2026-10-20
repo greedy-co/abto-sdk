@@ -1,7 +1,10 @@
+import re
+
 from conftest import covers
 from abto import (
     ABTO_HEADER,
     AbtoContext,
+    create_trace_id,
     create_traceparent,
     get_context,
     get_headers,
@@ -17,9 +20,44 @@ def test_headers_only_include_set_identifiers():
     assert ABTO_HEADER["traceparent"] not in headers
 
 
-def test_trace_id_becomes_traceparent():
-    headers = get_headers(AbtoContext(trace_id="a" * 32))
-    assert headers[ABTO_HEADER["traceparent"]].startswith("00-" + "a" * 32 + "-")
+def test_trace_id_is_sent_as_its_own_header():
+    headers = get_headers(AbtoContext(trace_id="run-1"))
+    assert headers[ABTO_HEADER["trace_id"]] == "run-1"
+    assert ABTO_HEADER["traceparent"] not in headers
+
+
+def test_create_trace_id_is_uuidv7_hex():
+    trace_id = create_trace_id()
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_id)
+    assert trace_id[12] == "7"
+    assert trace_id[16] in "89ab"
+
+
+def test_outermost_scope_opens_one_trace_shared_by_nested_scopes():
+    covers("context.opens_trace_when_absent")
+    with with_context(feature_id="agent.plan") as outer:
+        with with_context(node_id="agent.write") as inner:
+            assert inner.trace_id == outer.trace_id
+        with with_context(trace_id=None) as emptied:
+            assert emptied.trace_id == outer.trace_id
+    with with_context(feature_id="agent.plan") as following:
+        pass
+    assert re.fullmatch(r"[0-9a-f]{32}", outer.trace_id)
+    assert following.trace_id != outer.trace_id
+    assert re.fullmatch(r"[0-9a-f]{32}", get_headers(AbtoContext(feature_id="agent.plan"))[ABTO_HEADER["trace_id"]])
+    assert get_headers()[ABTO_HEADER["trace_id"]] != get_headers()[ABTO_HEADER["trace_id"]]
+
+
+def test_explicit_context_keeps_the_scope_trace_on_node_switch():
+    covers("context.node_change_keeps_trace")
+    with with_context(feature_id="agent.plan") as scope:
+        explicit = get_headers(AbtoContext(feature_id="agent.plan", node_id="agent.write"))
+    assert explicit[ABTO_HEADER["trace_id"]] == scope.trace_id
+
+
+def test_with_context_keeps_a_continued_trace_id():
+    with with_context(trace_id="run-from-upstream") as ctx:
+        assert ctx.trace_id == "run-from-upstream"
 
 
 def test_with_context_sets_and_resets():

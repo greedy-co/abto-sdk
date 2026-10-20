@@ -18,6 +18,7 @@ from abto.policy_generated import (
     HEADER_NODE_ID,
     HEADER_PROVIDER_KEY_PREFIX,
     HEADER_REQUEST_ID,
+    HEADER_TRACE_ID,
 )
 from abto.client import (
     PUBLIC_GATEWAY_BASE_URL,
@@ -128,13 +129,16 @@ def test_hook_preserves_customer_trace_with_abto_identity(trace_id):
     assert request.headers[HEADER_FEATURE_ID] == "support.reply"
 
 
-def test_hook_derives_trace_only_when_customer_has_none():
+def test_hook_sends_context_trace_id_without_deriving_traceparent():
     abto = init_abto(api_key="abto-test", gateway_base_url=PUBLIC_GATEWAY_BASE_URL)
-    request = Request(f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions", {"Tracestate": "orphan=old-trace"})
-    with abto.with_context(trace_id="a" * 32):
+    request = Request(f"{PUBLIC_GATEWAY_BASE_URL}/chat/completions", {
+        "Tracestate": "customer=opaque", HEADER_TRACE_ID: "spoofed",
+    })
+    with abto.with_context(trace_id="run-1"):
         abto.httpx_event_hooks()["request"][0](request)
-    assert re.fullmatch(r"00-a{32}-[0-9a-f]{16}-01", request.headers["traceparent"])
-    assert "Tracestate" not in request.headers
+    assert request.headers[HEADER_TRACE_ID] == "run-1"
+    assert "traceparent" not in {name.lower() for name in request.headers}
+    assert request.headers["Tracestate"] == "customer=opaque"
 
 
 def test_hook_adds_gateway_authorization_without_request_context():

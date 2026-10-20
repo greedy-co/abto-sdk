@@ -28,6 +28,7 @@ from .policy_generated import (
     HEADER_DEVICE_ID,
     HEADER_FEATURE_ID,
     HEADER_NODE_ID,
+    TRUSTED_HEADER_NAMES,
     ERR_API_KEY_REQUIRED,
     ERR_API_KEY_INVALID_CHARACTERS,
     ERR_GATEWAY_ORIGIN_REFUSED,
@@ -215,12 +216,7 @@ def abto_request_hook(
                 ERR_GATEWAY_ORIGIN_REFUSED
             )
         trusted_headers = get_headers()
-        # Customer tracing owns its parent span and sampling flags; ABTO identity is additive.
-        if any(name.lower() == "traceparent" for name in request.headers):
-            trusted_headers.pop("traceparent", None)
-        elif "traceparent" in trusted_headers:
-            _remove_header(request.headers, "tracestate")
-        for name in ("authorization", HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID):
+        for name in TRUSTED_HEADER_NAMES:
             _remove_header(request.headers, name)
         for name in list(request.headers.keys()):
             if name.lower().startswith("x-abto-key-"):

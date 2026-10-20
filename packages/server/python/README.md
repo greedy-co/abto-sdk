@@ -243,6 +243,7 @@ See the [full Python guide](https://docs.abto.app/en/sdk/python/).
 
 ABTO keeps the `traceparent` and `tracestate` headers supplied by your tracing tool, including during direct fallback.
 It adds feature and device information separately without replacing your trace ID.
+`trace_id` is sent only as `x-abto-trace-id`, never turned into a `traceparent`.
 
 Keep your tracing tool's request header setup. ABTO does not configure tracing for you or connect traces through to the provider.
 
@@ -252,9 +253,9 @@ Keep your tracing tool's request header setup. ABTO does not configure tracing f
 - `abto.openai(**kwargs)`
 - `abto.openai_options(**kwargs)` / `abto.async_openai_options(**kwargs)`
 - `OpenAIDirectFallbackOptions`
-- `abto.with_context(device_id=?, feature_id=?, trace_id=?, node_id=?)`: `node_id` names the call site inside the feature and is sent as `x-abto-node-id`. An inner context that switches to another `feature_id` without a `node_id` does not inherit the outer `node_id`.
+- `abto.with_context(device_id=?, feature_id=?, trace_id=?, node_id=?)`: `node_id` names the call site inside the feature and is sent as `x-abto-node-id`. An inner context that switches to another `feature_id` without a `node_id` does not inherit the outer `node_id`. `trace_id` groups the calls one agent or workflow run makes and is sent as `x-abto-trace-id`. The outermost `with_context` creates one when it is absent and inner blocks inherit it, so wrap one whole run in one `with_context`. A call outside any `with_context` gets its own run ID, and a context passed directly without `trace_id` uses the enclosing scope's; set it yourself only to continue a run another service passed to you.
 - `abto.get_headers(ctx=None)` / `abto.create_trace_id()` / `abto.httpx_event_hooks()`
-- Lower-level helpers: `with_context`, `get_context`, `get_headers`, `create_trace_id`, `create_traceparent`, `abto_request_hook`, `ABTO_HEADER`, and `AbtoContext`
+- Lower-level helpers: `with_context`, `get_context`, `get_headers`, `create_trace_id`, `create_traceparent` (deprecated), `abto_request_hook`, `ABTO_HEADER`, and `AbtoContext`
 
 ## Development
 
