@@ -69,13 +69,13 @@ Use the SDK's default `UserDefaults` identity store or provide the application's
 
 ## Common event flow
 
-Use the SDK identity and trace headers without capturing an event during Core wiring.
+Use the SDK identity without capturing an event during Core wiring.
 Add the event-producing steps below only after the user selects their exact candidates:
 
 ```text
 identify user
 → start LLM trace
-→ send device_id and trace headers to the backend
+→ send the identity's device_id to the backend
 → optionally attach Gateway x-abto-request-id for a selected supported event
 → optionally capture the selected visible response or product outcome
 → flush selected events during a lifecycle-safe background opportunity

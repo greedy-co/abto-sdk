@@ -50,7 +50,7 @@ Also verify:
 - Client bundles contain only an Event Key.
 - Calling Keys and provider keys resolve only from server secret storage.
 - The exact client device identifier reaches the corresponding server context and approved Gateway call.
-- Client-supplied identity and trace values pass through existing request validation.
+- Client-supplied identity values pass through existing request validation.
 - No new server identity or per-request random device identifier replaces an available client device identifier.
 - No custom event or property name starts with `$`.
 - Event payloads do not include unapproved prompt, response, DOM text, form values, or secrets.
@@ -103,7 +103,7 @@ State:
 - Core files and behavior changed, local commands, and results.
 - Event candidates, selected or declined IDs, Event files changed, and privacy impact.
 - A Core-versus-Event change ledger.
-- A Mermaid diagram using the actual device, trace, Gateway, provider, and selected event paths.
+- A Mermaid diagram using the actual device, Server SDK run ID, Gateway, provider, and selected event paths.
 - The resolved direct-fallback and native OpenAI retry settings, plus any provider path without Gateway policy, ABTO telemetry, or `request_id`.
 - The observed ABTO receiving surface or the exact reason a live check was skipped.
 - The exact official ABTO Docs page and installed package coordinate and version used for any resolved knowledge gap.

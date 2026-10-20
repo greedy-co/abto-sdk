@@ -4,7 +4,7 @@
 
 | Runtime | Public status | Responsibility | Package | Credential |
 |---|---|---|---|---|
-| Browser JavaScript | Available | Identity, trace headers, opt-in system or custom events | `@abto-app/event` | Event Key |
+| Browser JavaScript | Available | Identity, device ID header, opt-in system or custom events | `@abto-app/event` | Event Key |
 | Node.js backend | Available | OpenAI Chat Completions Gateway calls and request context | `@abto-app/calling` | Calling Key plus provider keys |
 | Python backend | Available | OpenAI Chat Completions Gateway calls and request context | `abto[openai]` | Calling Key plus provider keys |
 | Java/Kotlin backend | Available | Non-streaming Chat Completions and framework integration | `app.abto:abto-calling` or one framework adapter | Calling Key plus provider keys |

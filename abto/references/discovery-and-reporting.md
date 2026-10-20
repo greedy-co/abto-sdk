@@ -93,7 +93,7 @@ State that the default selection is `none` and ask:
 
 Classify every changed file as one of:
 
-- `Core`: approved dependency, initialization, credential reference, device/trace transport, request validation, or Calling context;
+- `Core`: approved dependency, initialization, credential reference, device ID transport, request validation, or Calling context;
 - `Event <ID>`: code required only by one selected system or custom event.
 
 Label an authorized upstream correction as `Core · SDK defect <ID>` or `Event <ID> · SDK defect <ID>`.
@@ -125,8 +125,8 @@ In the final Mermaid diagram, label Core and Event nodes separately and show onl
 
 ```mermaid
 flowchart LR
-  Client[Client identity and trace] -->|device_id and trace| Backend[Approved backend context]
-  Backend --> Gateway[ABTO Gateway]
+  Client[Client identity] -->|device_id| Backend[Approved backend context]
+  Backend -->|x-abto-trace-id from the Server SDK context| Gateway[ABTO Gateway]
   Gateway --> Provider[Selected provider]
   Backend -. when configured and triggered .-> Direct[Calling SDK direct fallback]
   Direct -. no Gateway telemetry or request_id .-> DirectProvider[Direct OpenAI]

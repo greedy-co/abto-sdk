@@ -38,7 +38,7 @@ export const abto = initAbto({
 ```
 
 Initialization emits nothing on its own: it must not enqueue page, route, or DOM events.
-This core provides persistent client identity and trace headers without defining a custom event.
+This core provides persistent client identity and the device ID header without defining a custom event.
 Do not create an empty event registry merely to initialize the SDK.
 
 Verify the empty outbox after initialization.
@@ -50,9 +50,9 @@ Do not initialize during server rendering.
 Prevent duplicate initialization during hot reload or repeated component mounts.
 
 If ABTO is already initialized, preserve and report its existing automatic event collection behavior.
-Do not silently change live collection while adding Core identity and trace wiring.
+Do not silently change live collection while adding Core identity wiring.
 
-## Carry browser identity and trace to an approved model call
+## Carry browser identity to an approved model call
 
 Use the existing client request:
 

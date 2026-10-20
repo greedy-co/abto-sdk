@@ -89,7 +89,7 @@ abto.capture('checkout_completed', { value: 49000, scale: 'KRW', tier: 'pro' });
 
 ## 초기화와 autocapture
 
-앱 루트에서 한 번 초기화한다. 설정을 생략한 기본 초기화는 identity와 trace context만 준비하며 이벤트를 만들지 않는다. 고객사가 필요하다고 정한 Custom Event와 LLM trace event만 해당 제품 동작에서 직접 호출한다.
+앱 루트에서 한 번 초기화한다. 설정을 생략한 기본 초기화는 identity만 준비하며 이벤트를 만들지 않는다. 고객사가 필요하다고 정한 Custom Event와 LLM trace event만 해당 제품 동작에서 직접 호출한다.
 
 ```ts
 const abto = initAbto({

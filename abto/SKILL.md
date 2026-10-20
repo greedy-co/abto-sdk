@@ -1,6 +1,6 @@
 ---
 name: abto
-description: Map frontend and backend repository boundaries, inventory LLM API call sites for approval, install and wire the minimum ABTO Browser, App, or Server SDKs, preserve device_id and trace correlation, recommend opt-in system or custom events, and verify the resulting ABTO integration. Use for ABTO setup, updates, troubleshooting, Gateway calling, event collection, key placement, or end-to-end integration checks across browser JavaScript, Node.js, Python, Java/Kotlin servers, Flutter/Dart, Android/Kotlin, and iOS/macOS.
+description: Map frontend and backend repository boundaries, inventory LLM API call sites for approval, install and wire the minimum ABTO Browser, App, or Server SDKs, preserve device_id correlation and Server SDK run IDs, recommend opt-in system or custom events, and verify the resulting ABTO integration. Use for ABTO setup, updates, troubleshooting, Gateway calling, event collection, key placement, or end-to-end integration checks across browser JavaScript, Node.js, Python, Java/Kotlin servers, Flutter/Dart, Android/Kotlin, and iOS/macOS.
 ---
 
 # ABTO
@@ -66,7 +66,8 @@ If a change cannot be tied to an approved customer outcome, do not make it.
   Preserve and disclose any existing automatic event collection behavior instead of changing live collection behavior silently.
 - Use the Event SDK identity and trace helpers without emitting events.
   Starting a trace or reading trace headers does not authorize `submitPrompt`, `markResponseRendered`, `captureResponseInteraction`, or a custom `capture` call.
-- Pass the same client `device_id` and trace through the existing request path, validate client-supplied context with the application's existing validation, and apply it to the approved Calling context.
+- Pass the same client `device_id` through the existing request path, validate client-supplied context with the application's existing validation, and apply it to the approved Calling context.
+  The Server SDK context opens the run ID (`x-abto-trace-id`); never take a run ID from the client.
 - For server-only work, reuse a clearly established stable product identifier.
   If none exists, ask the user instead of minting a separate server identity or using a per-request random value.
 - Keep Event Keys in public client configuration and Calling/provider keys in server-only secret storage.
