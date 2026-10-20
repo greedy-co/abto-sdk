@@ -32,7 +32,6 @@ internal fun abtoEventNameIssue(event: String): String? = when {
     else -> null
 }
 
-// trace_id rides as a first-class wire field, so it is not copied into the bag.
 private val envelopeContextKeys = mapOf(
     "feature_id" to "\$feature_id",
     "task_type" to "\$task_type",
@@ -103,18 +102,16 @@ class AbtoClient(
         systemProperties: Map<String, Any?> = emptyMap(),
         properties: Map<String, Any?> = emptyMap(),
     ) {
-        val traceId = envelope["trace_id"] as? String
         val captured = buildMap<String, Any?> {
             put("event_id", uuidV7())
             put("device_id", context.anonymousId)
             put("session_id", context.sessionId)
-            traceId?.let { put("trace_id", it) }
             put("event_name", event)
             value?.let { put("value", it) }
             scale?.let { put("scale", it) }
             put("occurred_at", isoTimestamp())
-            // The bag holds only what no first-class wire field carries. device_id, session_id and
-            // trace_id ride at the top level, so a copy here would be a duplicate no aggregation
+            // The bag holds only what no first-class wire field carries. device_id and session_id
+            // ride at the top level, so a copy here would be a duplicate no aggregation
             // reads, stored forever in every event's jsonb. Context with no column of its own
             // stays, because the bag is its only carrier.
             put(
@@ -148,14 +145,13 @@ class AbtoClient(
     }
 }
 
-/** Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id. */
+/** Lifecycle of one LLM call, joining Gateway cost and latency by request_id. */
 class AbtoLlmTrace internal constructor(
     private val client: AbtoClient,
     val featureId: String,
     private val taskType: String?,
     private val surface: String?,
 ) {
-    val traceId: String = uuidV7TraceId()
     var requestId: String? = null
         private set
 
@@ -223,7 +219,6 @@ class AbtoLlmTrace internal constructor(
 
     private fun envelope(overrides: Map<String, Any?> = emptyMap()): Map<String, Any?> = buildMap {
         put("feature_id", featureId)
-        put("trace_id", traceId)
         taskType?.let { put("task_type", it) }
         surface?.let { put("surface", it) }
         requestId?.let { put("request_id", it) }

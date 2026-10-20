@@ -23,8 +23,6 @@ internal fun uuidV7(now: Long = System.currentTimeMillis()): String {
     return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}"
 }
 
-internal fun uuidV7TraceId(): String = uuidV7().replace("-", "")
-
 internal fun isoTimestamp(): String = Instant.now().toString()
 
 /**
