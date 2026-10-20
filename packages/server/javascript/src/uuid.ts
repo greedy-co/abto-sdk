@@ -20,7 +20,7 @@ export function newUuidV7(now = Date.now()): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** W3C trace IDs are 32 hex characters, not UUID strings. */
+/** Run IDs are sent as 32 hex characters, the same form every ABTO SDK generates. */
 export function newUuidV7TraceId(): string {
   return newUuidV7().replace(/-/g, '');
 }
