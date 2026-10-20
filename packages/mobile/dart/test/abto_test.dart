@@ -215,8 +215,6 @@ void main() {
       final client = AbtoClient(AbtoConfig(projectKey: 'ek_test'));
       final trace = client.startLlmTrace(featureId: 'smoke.demo');
       expect(trace.featureId, 'smoke.demo');
-      expect(trace.traceId,
-          matches(RegExp(r'^[0-9a-f]{12}7[0-9a-f]{3}[89ab][0-9a-f]{15}$')));
       expect(trace.attachRequestIdFromHeaders({'X-Abto-Request-Id': 'req_1'}),
           'req_1');
       expect(trace.requestId, 'req_1');

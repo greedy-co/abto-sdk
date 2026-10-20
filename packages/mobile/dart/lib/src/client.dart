@@ -3,7 +3,6 @@ import 'contract.generated.dart';
 import 'context.dart';
 import 'transport.dart';
 
-// trace_id rides as a first-class wire field, so it is not copied into the bag.
 const _envelopeContextKeys = <String, String>{
   'feature_id': r'$feature_id',
   'task_type': r'$task_type',
@@ -133,18 +132,16 @@ class AbtoClient {
     num? value,
     String? scale,
   }) {
-    final traceId = envelope['trace_id'];
     final captured = <String, Object?>{
       'event_id': uuidV7(),
       'device_id': _context.anonymousId,
       'session_id': _context.sessionId,
-      if (traceId is String) 'trace_id': traceId,
       'event_name': event,
       if (value != null) 'value': value,
       if (scale != null) 'scale': scale,
       'occurred_at': isoTimestamp(),
-      // The bag holds only what no first-class wire field carries. device_id, session_id and
-      // trace_id ride at the top level, so a copy here would be a duplicate no aggregation reads,
+      // The bag holds only what no first-class wire field carries. device_id and session_id
+      // ride at the top level, so a copy here would be a duplicate no aggregation reads,
       // stored forever in every event's jsonb. Context with no column of its own stays, because
       // the bag is its only carrier.
       'extra_json': <String, Object?>{
@@ -176,16 +173,14 @@ class AbtoClient {
   Future<void> flush() => _transport.flush();
 }
 
-/// Lifecycle of one LLM call, joining prior behavior by trace_id and Gateway cost and latency by request_id.
+/// Lifecycle of one LLM call, joining Gateway cost and latency by request_id.
 class AbtoLlmTrace {
-  AbtoLlmTrace._(this._client, this.featureId, this._taskType, this._surface)
-      : traceId = uuidV7TraceId();
+  AbtoLlmTrace._(this._client, this.featureId, this._taskType, this._surface);
 
   final AbtoClient _client;
   final String featureId;
   final String? _taskType;
   final String? _surface;
-  final String traceId;
   String? requestId;
 
   /// Reads x-abto-request-id from Gateway response headers and attaches it to later events.
@@ -256,7 +251,6 @@ class AbtoLlmTrace {
   Map<String, Object?> _envelope([Map<String, Object?> overrides = const {}]) =>
       {
         'feature_id': featureId,
-        'trace_id': traceId,
         if (_taskType != null) 'task_type': _taskType,
         if (_surface != null) 'surface': _surface,
         if (requestId != null) 'request_id': requestId,

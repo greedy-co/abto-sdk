@@ -18,8 +18,6 @@ String uuidV7([DateTime? date]) {
   return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
-String uuidV7TraceId() => uuidV7().replaceAll('-', '');
-
 String isoTimestamp() => DateTime.now().toUtc().toIso8601String();
 
 /// Persistence boundary for `anonymous_id`.
