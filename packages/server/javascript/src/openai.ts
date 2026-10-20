@@ -24,11 +24,9 @@ import {
   ERR_GATEWAY_REQUEST_URL_INVALID,
   ERR_GATEWAY_ORIGIN_REFUSED,
   ERR_API_KEY_INVALID_CHARACTERS,
-  HEADER_DEVICE_ID,
-  HEADER_FEATURE_ID,
-  HEADER_NODE_ID,
   HEADER_REQUEST_ID,
   HEADER_ERROR_SOURCE,
+  TRUSTED_HEADER_NAMES,
 } from './policy.generated.js';
 
 export interface OpenAIDirectFallbackOptions {
@@ -201,13 +199,7 @@ function trustedBaseHeaders(input: string | URL | Request, init?: RequestInit): 
   new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
   for (const key of Array.from(headers.keys())) {
     const normalized = key.toLowerCase();
-    if (
-      normalized === 'authorization'
-      || normalized === HEADER_DEVICE_ID
-      || normalized === HEADER_FEATURE_ID
-      || normalized === HEADER_NODE_ID
-      || normalized.startsWith('x-abto-key-')
-    ) {
+    if (TRUSTED_HEADER_NAMES.has(normalized) || normalized.startsWith('x-abto-key-')) {
       headers.delete(key);
     }
   }
@@ -442,12 +434,7 @@ export function createGatewayFetch({
     for (const [key, value] of Object.entries(providerHeaders)) {
       headers.set(key, value);
     }
-    // Customer tracing owns its parent span and sampling flags; ABTO identity is additive.
-    const contextHeaders = getAbtoHeaders(getContext(), {
-      includeTraceparent: !headers.has('traceparent'),
-    });
-    if (contextHeaders.traceparent) headers.delete('tracestate');
-    for (const [key, value] of Object.entries(contextHeaders)) {
+    for (const [key, value] of Object.entries(getAbtoHeaders(getContext()))) {
       headers.set(key, value);
     }
     headers.set('Authorization', `Bearer ${trimmedAbtoApiKey}`);

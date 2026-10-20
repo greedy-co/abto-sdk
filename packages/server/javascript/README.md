@@ -141,11 +141,13 @@ The Gateway is the source of truth for provider requests and responses, tokens, 
 `featureId` is the customer- and SDK-facing Feature identifier. The SDK sends it to the Gateway as `x-abto-feature-id`.
 `nodeId` is optional and names the call site inside the feature (for example `resume.draft`). The SDK sends it as `x-abto-node-id`; without it, the Gateway uses the feature ID as the node.
 An inner `withContext` that switches to another `featureId` without a `nodeId` does not inherit the outer `nodeId`.
+`traceId` groups the calls one agent or workflow run makes and is sent as `x-abto-trace-id`. The outermost `withContext` creates one when it is absent, and inner scopes inherit it, so wrap one whole run in one `withContext`. A call outside any `withContext` gets its own run ID, and a context passed directly without `traceId` uses the enclosing scope's. Set it yourself only to continue a run another service passed to you. The Gateway does not use `traceparent` as the run ID.
 
 ## Preserve existing traces
 
 ABTO keeps the `traceparent` and `tracestate` headers supplied by your tracing tool, including during direct fallback.
 It adds feature and device information separately without replacing your trace ID.
+`traceId` is sent only as `x-abto-trace-id`, never turned into a `traceparent`.
 
 Keep your tracing tool's request header setup. ABTO does not configure tracing for you or connect traces through to the provider.
 
@@ -233,7 +235,7 @@ See the [full Server JavaScript guide](https://docs.abto.app/en/sdk/javascript/s
 - `getAbtoContext`
 - `getAbtoHeaders`
 - `createTraceId`
-- `createTraceparent`
+- `createTraceparent` (deprecated; the SDK no longer sends a derived `traceparent`)
 
 ## Development
 

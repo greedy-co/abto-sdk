@@ -1,4 +1,4 @@
-import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID } from './policy.generated.js';
+import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID, HEADER_TRACE_ID } from './policy.generated.js';
 
 /**
  * ABTO request context propagation for Node.js.
@@ -17,7 +17,10 @@ import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID } from './policy.ge
  *                  e.g. "resume.make".
  *   - node_id -> header `x-abto-node-id` (optional). Call site inside the feature;
  *               without it the gateway uses the feature ID as the node key.
- *   - trace_id -> W3C `traceparent`. End-user action bundle; gateway-deferred (Round1).
+ *   - trace_id -> header `x-abto-trace-id`. One agent or workflow run; groups the calls
+ *                 that run made. Headers use the explicit value, then the active scope's;
+ *                 outside any scope each call opens its own run.
+ *                 The gateway never reads it from W3C `traceparent`.
  *
  * request_id (PK, returned as `x-abto-request-id`), tenant_id (from API key), and
  * variant_id (A/B assignment) are gateway-owned and are NOT sent by the SDK.
@@ -31,6 +34,7 @@ export const ABTO_HEADER = {
   deviceId: HEADER_DEVICE_ID,
   featureId: HEADER_FEATURE_ID,
   nodeId: HEADER_NODE_ID,
+  traceId: HEADER_TRACE_ID,
   traceparent: "traceparent",
 } as const;
 
@@ -41,23 +45,26 @@ export interface AbtoContext {
   featureId?: string;
   /** Call site inside the feature (e.g. "review.draft"). Sent as `x-abto-node-id`. */
   nodeId?: string;
-  /** Fallback trace id when the transport has no customer traceparent. Gateway-deferred. */
+  /** One agent or workflow run. Sent as `x-abto-trace-id`; when absent, headers use the active scope's run or open a new one. */
   traceId?: string;
 }
 
 export interface BuildHeaderOptions {
-  /** Emit a W3C traceparent derived from traceId. Defaults to true when traceId is set. */
+  /** @deprecated No effect. `traceId` is sent as `x-abto-trace-id`, never as a derived `traceparent`. */
   includeTraceparent?: boolean;
 }
 
 const storage = new AsyncLocalStorage<AbtoContext>();
 
-/** 32-hex-char trace id, per W3C trace-context. */
+/** New trace id: a UUIDv7 as 32 lowercase hex characters, the same form every ABTO SDK generates. */
 export function createTraceId(): string {
   return newUuidV7TraceId();
 }
 
-/** Build a W3C `traceparent` value for the given trace id. */
+/**
+ * Build a W3C `traceparent` value for the given trace id.
+ * @deprecated The SDK no longer sends a derived `traceparent`; pass the trace id as `traceId`.
+ */
 export function createTraceparent(traceId: string): string {
   return `00-${traceId}-${randomHex(8)}-01`;
 }
@@ -69,6 +76,8 @@ export function runWithAbtoContext<T>(ctx: AbtoContext, fn: () => T): T {
   if (ctx.featureId !== undefined && ctx.featureId !== parent?.featureId && ctx.nodeId === undefined) {
     delete merged.nodeId;
   }
+  // The outermost scope opens one run; inner scopes inherit it, even when they pass an empty trace id.
+  merged.traceId = ctx.traceId || parent?.traceId || createTraceId();
   return storage.run(merged, fn);
 }
 
@@ -78,15 +87,16 @@ export function getAbtoContext(): AbtoContext | undefined {
 
 export function getAbtoHeaders(
   ctx?: AbtoContext,
-  options: BuildHeaderOptions = {},
+  _options: BuildHeaderOptions = {},
 ): Record<string, string> {
-  const c = ctx ?? storage.getStore() ?? {};
+  const scope = storage.getStore();
+  const c = ctx ?? scope ?? {};
   const headers: Record<string, string> = {};
   if (c.deviceId) headers[ABTO_HEADER.deviceId] = c.deviceId;
   if (c.featureId) headers[ABTO_HEADER.featureId] = c.featureId;
   if (c.nodeId) headers[ABTO_HEADER.nodeId] = c.nodeId;
-  if (c.traceId && (options.includeTraceparent ?? true)) {
-    headers[ABTO_HEADER.traceparent] = createTraceparent(c.traceId);
-  }
+  // Explicit value first, then the active scope's run; outside any scope this call is its own run.
+  // Outside a scope, OpenAI SDK retries rebuild the headers, so each attempt gets its own run. Wrap the run in withContext to keep one.
+  headers[ABTO_HEADER.traceId] = c.traceId || scope?.traceId || createTraceId();
   return headers;
 }

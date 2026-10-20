@@ -9,7 +9,7 @@ import {
   getAbtoHeaders,
   runWithAbtoContext,
 } from './context.js';
-import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID, HEADER_REQUEST_ID } from './policy.generated.js';
+import { HEADER_DEVICE_ID, HEADER_FEATURE_ID, HEADER_NODE_ID, HEADER_REQUEST_ID, HEADER_TRACE_ID } from './policy.generated.js';
 
 describe('server context headers', () => {
   const originalEnvironment = {
@@ -96,21 +96,10 @@ describe('server context headers', () => {
     expect(headers[HEADER_DEVICE_ID]).toBe('device-1');
     expect(headers[HEADER_FEATURE_ID]).toBe('chat.default');
     expect(headers[HEADER_NODE_ID]).toBe('chat.draft');
-    expect(headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
+    expect(headers[HEADER_TRACE_ID]).toBe('0123456789abcdef0123456789abcdef');
+    expect(headers).not.toHaveProperty('traceparent');
     expect(headers).not.toHaveProperty(HEADER_REQUEST_ID);
     expect(headers).not.toHaveProperty('x-abto-variant-id');
-  });
-
-  it('can suppress traceparent for hosts that forward it separately', () => {
-    const headers = getAbtoHeaders(
-      { deviceId: 'device-1', featureId: 'chat.default', traceId: '0123456789abcdef0123456789abcdef' },
-      { includeTraceparent: false },
-    );
-
-    expect(headers).toEqual({
-      [HEADER_DEVICE_ID]: 'device-1',
-      [HEADER_FEATURE_ID]: 'chat.default',
-    });
   });
 
   it('keeps context across async boundaries and merges nested overrides', async () => {
@@ -137,7 +126,7 @@ describe('server context headers', () => {
     });
     expect(observed.headers[HEADER_DEVICE_ID]).toBe('device-1');
     expect(observed.headers[HEADER_FEATURE_ID]).toBe('chat.rewrite');
-    expect(observed.headers.traceparent).toMatch(/^00-0123456789abcdef0123456789abcdef-[0-9a-f]{16}-01$/);
+    expect(observed.headers[HEADER_TRACE_ID]).toBe('0123456789abcdef0123456789abcdef');
   });
 
   it('keeps sibling async contexts isolated', async () => {
@@ -206,7 +195,50 @@ describe('server context headers', () => {
     expect(headers).toEqual({
       [HEADER_DEVICE_ID]: 'device-1',
       [HEADER_FEATURE_ID]: 'chat.default',
+      [HEADER_TRACE_ID]: expect.stringMatching(/^[0-9a-f]{32}$/),
     });
+  });
+
+  it('opens one trace in the outermost scope and shares it with nested scopes', () => {
+    covers('context.opens_trace_when_absent');
+    const abto = initAbto();
+
+    const run = abto.withContext({ featureId: 'agent.plan' }, () => ({
+      outer: abto.getHeaders()[HEADER_TRACE_ID],
+      inner: abto.withContext({ nodeId: 'agent.write' }, () => abto.getHeaders()[HEADER_TRACE_ID]),
+    }));
+    const next = abto.withContext({ featureId: 'agent.plan' }, () => abto.getHeaders()[HEADER_TRACE_ID]);
+
+    expect(run.outer).toMatch(/^[0-9a-f]{32}$/);
+    expect(run.inner).toBe(run.outer);
+    expect(abto.withContext({ featureId: 'agent.plan' }, () =>
+      abto.withContext({ traceId: undefined }, () => abto.getHeaders()[HEADER_TRACE_ID])
+        === abto.getHeaders()[HEADER_TRACE_ID])).toBe(true);
+    expect(next).not.toBe(run.outer);
+    expect(getAbtoHeaders({ featureId: 'agent.plan' })[HEADER_TRACE_ID]).toMatch(/^[0-9a-f]{32}$/);
+    expect(getAbtoHeaders()[HEADER_TRACE_ID]).not.toBe(getAbtoHeaders()[HEADER_TRACE_ID]);
+  });
+
+  it('keeps the scope trace when a node switches through an explicit context', () => {
+    covers('context.node_change_keeps_trace');
+    const abto = initAbto();
+
+    const run = abto.withContext({ featureId: 'agent.plan' }, () => ({
+      scope: getAbtoHeaders()[HEADER_TRACE_ID],
+      explicit: getAbtoHeaders({ featureId: 'agent.plan', nodeId: 'agent.write' })[HEADER_TRACE_ID],
+      client: abto.getHeaders({ featureId: 'agent.plan', nodeId: 'agent.write' })[HEADER_TRACE_ID],
+    }));
+
+    expect(run.explicit).toBe(run.scope);
+    expect(run.client).toBe(run.scope);
+  });
+
+  it('keeps a trace id the caller continues', () => {
+    const abto = initAbto();
+
+    const headers = abto.withContext({ traceId: 'run-from-upstream' }, () => abto.getHeaders());
+
+    expect(headers[HEADER_TRACE_ID]).toBe('run-from-upstream');
   });
 
   it('reuses the default OpenAI client so its circuit survives across requests', async () => {

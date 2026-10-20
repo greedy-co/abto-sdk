@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { describe, expect, it } from 'vitest';
 import { initAbto } from './client.js';
-import { HEADER_DEVICE_ID, HEADER_ERROR_SOURCE, HEADER_FEATURE_ID, HEADER_PROVIDER_KEY_PREFIX, HEADER_REQUEST_ID } from './policy.generated.js';
+import { HEADER_DEVICE_ID, HEADER_ERROR_SOURCE, HEADER_FEATURE_ID, HEADER_PROVIDER_KEY_PREFIX, HEADER_REQUEST_ID, HEADER_TRACE_ID } from './policy.generated.js';
 
 const gateway = 'https://gateway.abto.app/v1';
 const direct = 'https://api.openai.com/v1';
@@ -48,7 +48,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
     },
   );
 
-  it('only derives traceparent from ABTO context when the customer has none', async () => {
+  it('sends the context trace id as x-abto-trace-id without deriving traceparent', async () => {
     const abto = initAbto(config);
     const headersSeen: Headers[] = [];
     const options = abto.openaiOptions({ fetch: async (input: string | URL | Request, init?: RequestInit) => {
@@ -56,13 +56,14 @@ describe('OpenAI configuration for framework-owned clients', () => {
       return reply();
     } });
     await options.fetch(`${gateway}/chat/completions`, { method: 'POST', body: '{}' });
-    await abto.withContext({ traceId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, () =>
+    await abto.withContext({ traceId: 'run-1' }, () =>
       options.fetch(`${gateway}/chat/completions`, {
-        method: 'POST', body: '{}', headers: { tracestate: 'orphan=old-trace' },
+        method: 'POST', body: '{}', headers: { tracestate: 'customer=opaque', [HEADER_TRACE_ID]: 'spoofed' },
       }));
-    expect(headersSeen[0].has('traceparent')).toBe(false);
-    expect(headersSeen[1].get('traceparent')).toMatch(/^00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-[0-9a-f]{16}-01$/);
-    expect(headersSeen[1].has('tracestate')).toBe(false);
+    expect(headersSeen[0].get(HEADER_TRACE_ID)).toMatch(/^[0-9a-f]{32}$/);
+    expect(headersSeen[1].get(HEADER_TRACE_ID)).toBe('run-1');
+    expect(headersSeen[1].has('traceparent')).toBe(false);
+    expect(headersSeen[1].get('tracestate')).toBe('customer=opaque');
   });
 
   it('preserves customer tracing through direct fallback and open-circuit calls', async () => {
@@ -141,7 +142,7 @@ describe('OpenAI configuration for framework-owned clients', () => {
     await Promise.all(['one', 'two'].map(deviceId => abto.withContext({ deviceId }, async () => {
       await Promise.resolve();
       await abto.withContext({ featureId: 'support.reply' }, send);
-      expect(abto.getContext()).toEqual({ deviceId });
+      expect(abto.getContext()).toMatchObject({ deviceId });
     })));
     key = 'rotated-key';
     await abto.withContext({ deviceId: 'three', featureId: 'support.reply' }, send);
