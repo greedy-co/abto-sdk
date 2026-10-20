@@ -78,7 +78,6 @@ export interface CapturedEvent {
   timestamp: string;
   device_id: string;
   session_id?: string | undefined;
-  trace_id?: string | undefined;
   value?: number | undefined;
   scale?: string | undefined;
   properties: CustomEventProperties;
@@ -124,7 +123,6 @@ export interface CommonProperties {
   window_id?: string;
   pageview_id?: string;
   feature_id?: string;
-  trace_id?: string;
   request_id?: string;
   response_id?: string;
   surface?: string;
@@ -135,11 +133,6 @@ export interface CommonProperties {
 
 export interface TraceHeaders {
   'x-abto-device-id': string;
-  /**
-   * Raw trace id for the browser-to-backend hop.
-   * Optional: the Gateway does not read it yet, so `getHeaders()` omits it.
-   */
-  'x-abto-trace-id'?: string;
 }
 
 // 위 key 가 생성 상수와 갈라지면 typecheck 에서 막는다 — 런타임까지 가지 않는다.
@@ -193,7 +186,6 @@ export type RequestIdSource =
   | { headers: RequestIdHeaders };
 
 export interface LlmTrace {
-  readonly traceId: string;
   readonly requestId?: string;
   getHeaders(): TraceHeaders;
   attachRequestId(source: RequestIdSource): string | undefined;

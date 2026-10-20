@@ -32,7 +32,7 @@ function postedBatch(fetchMock: ReturnType<typeof vi.fn>): any[] {
     event: event.event_name,
     timestamp: event.occurred_at,
     distinct_id: event.device_id,
-    // device_id, session_id and trace_id are first-class wire fields with no copy in the bag.
+    // device_id and session_id are first-class wire fields with no copy in the bag.
     session_id: event.session_id,
     trace_id: event.trace_id,
     properties: event.extra_json,
@@ -135,7 +135,7 @@ describe('observable AI events', () => {
     sdk.identify('user-1');
     const trace = sdk.startLlmTrace();
 
-    expect(trace.traceId).toMatch(/^[0-9a-f]{32}$/);
+    expect(trace).not.toHaveProperty('traceId');
     expect(trace.getHeaders()).toEqual({
       'x-abto-device-id': sdk.getIdentity().deviceId,
     });
@@ -175,7 +175,7 @@ describe('observable AI events', () => {
       'llm_response_interacted',
     ]);
     expect(batch[0].properties.$prompt_text).toBeUndefined();
-    expect(batch[0].trace_id).toBe(trace.traceId);
+    expect(batch.every((event) => event.trace_id === undefined)).toBe(true);
     expect(batch[0].properties.$trace_id).toBeUndefined();
     expect(batch[0].properties.$feature_id).toBeUndefined();
     expect(batch[0].properties.$surface).toBeUndefined();

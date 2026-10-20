@@ -143,7 +143,7 @@ const abto = initAbto({
         "value": 3000,
         "scale": "KRW",
         "$lib": "web",
-        "$lib_version": "1.2.0"
+        "$lib_version": "1.2.1"
       }
     }
   ]
@@ -192,7 +192,7 @@ diagnostics는 위 고정 SDK 이름과 counter만 포함하고 사용자 ID, ev
 
 SDK 내부 queue와 API에서는 `$` 이름을 유지하지만, Analytics의 고정 Event 계약은 `$` 접두
 `event_name`을 거절한다. Transport가 위 표의 canonical 이름으로만 변환해 전송한다.
-`device_id`·`session_id`·`trace_id`는 wire의 1급 필드로 실리고, 담을 필드가 없는
+`device_id`·`session_id`는 wire의 1급 필드로 실리고, 담을 필드가 없는
 `$lib`·`$user_id`·`$feature_id` 같은 SDK 소유 context만 `extra_json`에 남는다.
 Dashboard 이벤트 카탈로그와 Success Metric에서는 canonical wire 이름을 사용한다.
 
@@ -272,7 +272,6 @@ provider/model/token/cost/retry/fallback, 실제 첫 토큰 시점과 request �
 |---|---|
 | `device_id` | 프로젝트별 브라우저 설치, localStorage 유지 |
 | `session_id` | 탭 사이에서 공유하는 논리 세션, 30분 idle 또는 24시간 max age에 회전 |
-| `trace_id` | 한 사용자 행동에서 발생한 브라우저 이벤트를 묶는 값 |
 | `$user_id` | `identify()`로 연결한 제품 사용자 |
 | `$window_id` | 탭/window별 ID, sessionStorage 유지 |
 | `$pageview_id` | 페이지/SPA route 구간, pageview마다 회전 |

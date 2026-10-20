@@ -96,7 +96,6 @@ export interface BrowserAIPromptSubmittedEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -134,7 +133,6 @@ export interface BrowserAIPromptSubmittedEventExtraJSON {
     $surface?:                 string;
     $task_type?:               string;
     $tenant_id?:               string;
-    $trace_id?:                string;
     $user_id?:                 string;
     $window_id?:               string;
 }
@@ -151,7 +149,6 @@ export interface BrowserAIResponseInteractedEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -183,7 +180,6 @@ export interface BrowserAIResponseInteractedEventExtraJSON {
     $task_type?:              string;
     $tenant_id?:              string;
     $time_since_response_ms?: number;
-    $trace_id?:               string;
     $user_id?:                string;
     $visible_output_ratio?:   number;
     $window_id?:              string;
@@ -197,7 +193,6 @@ export interface BrowserAIResponseRenderedEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -229,7 +224,6 @@ export interface BrowserAIResponseRenderedEventExtraJSON {
     $task_type?:            string;
     $tenant_id?:            string;
     $time_to_render_ms?:    number;
-    $trace_id?:             string;
     $user_id?:              string;
     $visible_output_ratio?: number;
     $window_id?:            string;
@@ -243,7 +237,6 @@ export interface BrowserAutocaptureEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -282,7 +275,6 @@ export interface BrowserAutocaptureEventExtraJSON {
     $tag_name?:             string;
     $task_type?:            string;
     $tenant_id?:            string;
-    $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
 }
@@ -309,7 +301,6 @@ export interface BrowserContextProperties {
     $surface?:              string;
     $task_type?:            string;
     $tenant_id?:            string;
-    $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
 }
@@ -322,7 +313,6 @@ export interface BrowserDeadClickEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -351,7 +341,6 @@ export interface BrowserDeadClickEventExtraJSON {
     $surface?:              string;
     $task_type?:            string;
     $tenant_id?:            string;
-    $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
 }
@@ -369,7 +358,6 @@ export interface BrowserEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -398,7 +386,6 @@ export interface ExtraJSONObject {
     $surface?:                 Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     $task_type?:               Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     $tenant_id?:               Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
-    $trace_id?:                Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     $user_id?:                 Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     $window_id?:               Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
     $duration_ms?:             Array<boolean | number | null | string> | boolean | number | { [key: string]: boolean | number | null | string } | null | string;
@@ -478,7 +465,6 @@ export interface BrowserIngestEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     /**
      * Finite decimal with at most 38 integer digits and 12 fractional digits
      */
@@ -493,7 +479,6 @@ export interface BrowserPageleaveEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -532,7 +517,6 @@ export interface BrowserPageleaveEventExtraJSON {
     $surface?:                 string;
     $task_type?:               string;
     $tenant_id?:               string;
-    $trace_id?:                string;
     $user_id?:                 string;
     $window_id?:               string;
 }
@@ -545,7 +529,6 @@ export interface BrowserPageviewEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -576,7 +559,6 @@ export interface BrowserPageviewEventExtraJSON {
     $surface?:              string;
     $task_type?:            string;
     $tenant_id?:            string;
-    $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
 }
@@ -589,7 +571,6 @@ export interface BrowserRageclickEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 
@@ -619,7 +600,6 @@ export interface BrowserRageclickEventExtraJSON {
     $surface?:              string;
     $task_type?:            string;
     $tenant_id?:            string;
-    $trace_id?:             string;
     $user_id?:              string;
     $window_id?:            string;
 }
@@ -641,7 +621,6 @@ export interface CustomEvent {
     occurred_at: string;
     scale?:      string;
     session_id?: string;
-    trace_id?:   string;
     value?:      number;
 }
 

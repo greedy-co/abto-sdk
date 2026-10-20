@@ -45,7 +45,7 @@ import { ABTO_SCHEMA_VERSION as SCHEMA_VERSION } from './types.js';
 import { ABTO_AI_INTERACTION_TYPES, isAIInteractionType } from './system-events.generated.js';
 import { newUuidV7 } from './uuid.js';
 
-const SDK_VERSION = '1.2.0';
+const SDK_VERSION = '1.2.1';
 
 function requireProjectKey(value: string | undefined): void {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -133,7 +133,7 @@ function contextProperties(
   common: CommonProperties,
   config: ResolvedConfig,
 ): CustomEventProperties {
-  // device_id, session_id and trace_id ride as first-class wire fields, so no copy is kept here.
+  // device_id and session_id ride as first-class wire fields, so no copy is kept here.
   // What remains is the context that has no column of its own, for which the bag is the only carrier.
   return compact({
     $lib: 'web',
@@ -160,7 +160,6 @@ class BrowserLlmTrace implements LlmTrace {
 
   constructor(
     private readonly client: AbtoBrowserClient<any>,
-    readonly traceId: string,
     private readonly emitSystem: <N extends BrowserSystemEventName>(
       event: N,
       properties: BrowserSystemEventPropsMap[N],
@@ -174,9 +173,7 @@ class BrowserLlmTrace implements LlmTrace {
     return requestId;
   }
 
-  // The trace id is not carried: the Gateway does not read it yet, so relaying it
-  // to the backend cannot reach the call record. Browser events already join on the
-  // trace_id in their own envelope, so dropping this hop leaves analytics unchanged.
+  // The browser carries only its device id; the Server SDK opens the run id.
   getHeaders(): TraceHeaders {
     return {
       [ABTO_HEADER_DEVICE_ID]: this.client.getIdentity().deviceId,
@@ -203,7 +200,6 @@ class BrowserLlmTrace implements LlmTrace {
         $pii_detected: metadata.piiDetected ?? derived?.piiDetected,
         $sensitive_category: metadata.sensitiveCategory ?? derived?.sensitiveCategory ?? undefined,
       }) as unknown as BrowserSystemEventPropsMap['$ai_prompt_submitted'],
-      this.envelope(),
     );
   }
 
@@ -222,9 +218,7 @@ class BrowserLlmTrace implements LlmTrace {
           metadata.outputLengthChars ?? (mode === 'off' ? undefined : metadata.responseText?.length),
         $visible_output_ratio: metadata.visibleOutputRatio,
       }) as unknown as BrowserSystemEventPropsMap['$ai_response_rendered'],
-      this.envelope(
-        compact({ response_id: metadata.responseId, request_id: requestId }) as Partial<CommonProperties>,
-      ),
+      compact({ response_id: metadata.responseId, request_id: requestId }) as Partial<CommonProperties>,
     );
   }
 
@@ -248,17 +242,8 @@ class BrowserLlmTrace implements LlmTrace {
         $source: metadata.source,
         $destination: metadata.destination,
       }) as unknown as BrowserSystemEventPropsMap['$ai_response_interacted'],
-      this.envelope(
-        compact({ response_id: metadata.responseId, request_id: requestId }) as Partial<CommonProperties>,
-      ),
+      compact({ response_id: metadata.responseId, request_id: requestId }) as Partial<CommonProperties>,
     );
-  }
-
-  private envelope(overrides: Partial<CommonProperties> = {}): Partial<CommonProperties> {
-    return {
-      trace_id: this.traceId,
-      ...overrides,
-    };
   }
 }
 
@@ -304,7 +289,6 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
   startLlmTrace(): LlmTrace {
     return new BrowserLlmTrace(
       this,
-      newUuidV7().replace(/-/g, ''),
       (event, properties, envelope) => this.#captureSystem(event, properties, envelope),
     );
   }
@@ -384,7 +368,6 @@ class AbtoBrowserClient<R extends EventRegistry = EventRegistry> {
       timestamp: new Date().toISOString(),
       device_id: common.device_id ?? common.anonymous_id ?? newUuidV7(),
       session_id: common.session_id,
-      trace_id: common.trace_id,
       ...metric,
       properties: {
         ...properties,

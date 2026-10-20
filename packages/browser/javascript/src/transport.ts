@@ -28,7 +28,6 @@ function toBackendEvent(event: CapturedEvent): BrowserIngestEvent {
     event_id: event.uuid,
     device_id: event.device_id,
     ...(event.session_id === undefined ? {} : { session_id: event.session_id }),
-    ...(event.trace_id === undefined ? {} : { trace_id: event.trace_id }),
     event_name: toBrowserSystemEventWireName(event.event),
     ...(event.value === undefined ? {} : { value: event.value }),
     ...(event.scale === undefined ? {} : { scale: event.scale }),
