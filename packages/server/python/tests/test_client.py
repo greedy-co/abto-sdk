@@ -324,6 +324,43 @@ def test_direct_fallback_targets_the_configured_endpoint_not_openai():
     assert seen == [f"{origin}/chat/completions"]
 
 
+def test_direct_fallback_sends_a_responses_request_to_the_same_path_with_its_body_unchanged():
+    covers("fallback.covers_responses_path")
+    httpx = pytest.importorskip("httpx")
+    origin = "https://llm.internal.example.com/openai/v1"
+    body = b'{"model":"gpt-5-mini","input":"hi"}'
+    seen = []
+
+    def gateway_handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    def direct_handler(request):
+        seen.append((str(request.url), request.content))
+        return httpx.Response(200, json={})
+
+    client = _build_fallback_http_client(
+        httpx,
+        gateway_base_url=PUBLIC_GATEWAY_BASE_URL,
+        api_key="abto-test",
+        provider_keys={"openai": "sk-openai"},
+        fallback=_resolve_fallback(
+            OpenAIDirectFallbackOptions(base_url=origin),
+            has_openai_key_source=True,
+        ),
+        gateway_transport=httpx.MockTransport(gateway_handler),
+        direct_transport=httpx.MockTransport(direct_handler),
+    )
+    request = client.build_request("POST", f"{PUBLIC_GATEWAY_BASE_URL}/responses", content=body)
+
+    try:
+        response = client.send(request)
+    finally:
+        client.close()
+
+    assert response.status_code == 200
+    assert seen == [(f"{origin}/responses", body)]
+
+
 def test_open_circuit_never_bypasses_the_gateway_origin_boundary():
     httpx = pytest.importorskip("httpx")
     direct_calls = 0

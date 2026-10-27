@@ -38,7 +38,7 @@ from .policy_generated import (
     DEFAULT_FALLBACK_TIMEOUT_SECONDS,
     DIRECT_HEADER_NAMES as _DIRECT_HEADER_NAMES,
     DIRECT_HEADER_PREFIXES as _DIRECT_HEADER_PREFIXES,
-    DIRECT_PATH_SUFFIX as _DIRECT_PATH_SUFFIX,
+    DIRECT_PATH_SUFFIXES as _DIRECT_PATH_SUFFIXES,
     PROVIDER_IDS as _PROVIDERS,
     SAFE_GATEWAY_STATUSES as _SAFE_GATEWAY_STATUSES,
     ERROR_SOURCE_GATEWAY as _ERROR_SOURCE_GATEWAY,
@@ -248,7 +248,7 @@ def _direct_openai_url(
     if not request_url.path.startswith(base_path):
         return None
     suffix = request_url.path[len(base_path) :]
-    if suffix != _DIRECT_PATH_SUFFIX:
+    if suffix not in _DIRECT_PATH_SUFFIXES:
         return None
     direct = f"{fallback_base_url}/{suffix}"
     if request_url.query:
