@@ -43,9 +43,10 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 - Account for direct SDK calls, raw provider HTTP calls, shared wrappers, framework adapters, API routes, serverless functions, background workers, queues, cron jobs, batch jobs, and streaming paths.
 - Trace each provider call back to its user-facing capability and, when one exists, its client request trigger.
 - Present every candidate with an ID, capability, repository/runtime, exact call site, API surface, device path, proposed dot-separated `featureId` and, when needed, `nodeId`, compatibility, and intended action.
-- Mark only confirmed OpenAI Chat Completions calls as automatically wireable.
-  Inventory OpenAI Responses, embeddings, images, audio, native Anthropic or Gemini calls, and ambiguous framework abstractions, but do not rewrite them into a different API or invent an adapter.
-- A verified LangChain `ChatOpenAI` Chat Completions path can use the public `openaiOptions()` (JavaScript) or `openai_options()` / `async_openai_options()` (Python) configuration API when the installed Calling SDK exposes it; follow the Server reference and keep the existing framework client.
+- Mark only confirmed OpenAI Chat Completions and Responses calls as automatically wireable.
+  A Responses call that relies on stored state is incompatible; apply the conditions in [SDK selection](references/sdk-selection.md#calling-compatibility).
+  Inventory other OpenAI APIs such as embeddings, images, audio, native Anthropic or Gemini calls, and ambiguous framework abstractions, but do not rewrite them into a different API or invent an adapter.
+- A verified LangChain `ChatOpenAI` Chat Completions or Responses path can use the public `openaiOptions()` (JavaScript) or `openai_options()` / `async_openai_options()` (Python) configuration API when the installed Calling SDK exposes it; follow the Server reference and keep the existing framework client.
 - Propose a `featureId` only when existing product or route language makes the capability unambiguous.
   Otherwise mark the candidate ambiguous and ask what capability and stable key the user wants.
 - When one capability makes several LLM calls, give them one `featureId` and propose a `nodeId` per call site so each can use its own agent config; omit `nodeId` for a single-call capability.

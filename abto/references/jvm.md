@@ -11,7 +11,7 @@ Read the current [Java/Kotlin guide](https://docs.abto.app/sdk/jvm/) and verify 
 - LangGraph4j: call that LangChain4j model from the existing graph node; retain graph state and checkpoints.
 - Plain HTTP: wrap an explicitly safe JDK client with `AbtoHttpClient` and use a replayable body if fallback is enabled.
 
-Do not install multiple adapters for the same call. Read the current tested versions in Docs instead of assuming an entire framework version range is supported. Inventory streaming, Responses, embeddings, and other incompatible calls without migrating them. Keep embeddings for RAG on their existing client.
+Do not install multiple adapters for the same call. Read the current tested versions in Docs instead of assuming an entire framework version range is supported. Inventory streaming, Responses calls made through a framework adapter, embeddings, and other incompatible calls without migrating them. Keep embeddings for RAG on their existing client.
 
 ## Transport, context, and ownership
 

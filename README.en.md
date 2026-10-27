@@ -115,7 +115,7 @@ Route server-side LLM requests through the ABTO Gateway and propagate `device_id
 | --- | --- | --- | --- |
 | Node.js | Gateway calls and request context | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway calls and request context | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Java / Kotlin | Chat Completions and framework integration | `implementation("app.abto:abto-calling:1.2.1")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
+| Java / Kotlin | Gateway calls and framework integration | `implementation("app.abto:abto-calling:1.2.1")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
 See the [Node.js Calling SDK](./packages/server/javascript) and [Python Calling SDK](./packages/server/python) for package-specific usage.
 

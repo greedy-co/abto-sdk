@@ -40,7 +40,7 @@ Search every confirmed runtime through all of these evidence classes:
 Exclude vendor directories, generated output, build artifacts, dead examples, and test fixtures only after confirming that they are not deployed application paths.
 Do not count an environment variable or import alone as a model call; connect it to executable code or mark it unresolved.
 
-The ABTO Gateway currently accepts OpenAI Chat Completions input.
+The ABTO Gateway currently accepts OpenAI Chat Completions and Responses input.
 Provider keys for Anthropic and Gemini are Gateway egress candidates; they do not make native Anthropic or Gemini request shapes eligible for automatic wiring.
 
 Use one row per executable call path:
@@ -55,7 +55,7 @@ When direct fallback is enabled, report the trigger conditions, direct provider,
 
 Use only these pre-approval statuses:
 
-- `eligible`: confirmed OpenAI Chat Completions with an unambiguous integration boundary;
+- `eligible`: confirmed OpenAI Chat Completions, or Responses without stored state (see [SDK selection](sdk-selection.md#calling-compatibility)), with an unambiguous integration boundary;
 - `already wired`: an existing ABTO context reaches the call correctly;
 - `incompatible`: the current Gateway cannot preserve the request API or semantics;
 - `ambiguous`: a dynamic wrapper, missing caller, unclear capability, or unstable identity prevents a safe change.

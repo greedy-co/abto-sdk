@@ -13,10 +13,11 @@
 
 ## Supported calling boundary
 
-Automatically wire only confirmed OpenAI Chat Completions calls.
+Automatically wire only confirmed OpenAI Chat Completions and Responses calls.
+A Responses call that relies on stored state is incompatible; apply the conditions in [SDK selection](sdk-selection.md#calling-compatibility).
 The Gateway may route that request to OpenAI, Anthropic, Gemini, DeepSeek, or Kimi with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
 
-Inventory and report OpenAI Responses or other OpenAI APIs, native Anthropic or Gemini clients, and ambiguous framework or raw HTTP wrappers.
+Inventory and report other OpenAI APIs, native Anthropic or Gemini clients, and ambiguous framework or raw HTTP wrappers.
 Do not migrate them, generate an adapter, or change streaming and error semantics merely to increase the number of wired calls.
 
 Initialize one shared ABTO client through the application's existing server configuration or provider-client module.
@@ -31,7 +32,8 @@ Keep Calling Keys and provider keys on the server. Preserve the existing complet
 ## LangChain
 
 Read the LangChain and tracing sections of the current [Node.js JavaScript guide](https://docs.abto.app/sdk/javascript/server/) or [Python guide](https://docs.abto.app/sdk/python/), matching the application language.
-Confirm that the customer's actual ChatOpenAI call uses Chat Completions and accepts client configuration.
+Confirm that the customer's actual ChatOpenAI call uses Chat Completions or Responses and accepts client configuration.
+LangChain can move a call to Responses on its own for some models and call options, so check the call that actually runs; a call that passes `previous_response_id` is incompatible.
 Verify that the installed public Calling SDK exposes the documented configuration API before using it; if absent, check for a compatible published release rather than importing internal source or inventing an adapter.
 Keep the customer's model options, custom fetch, invoke calls, chains, parsers, callbacks, tracing initialization, and retry policy.
 Apply request context at invocation time rather than storing one user's device ID on a shared model.

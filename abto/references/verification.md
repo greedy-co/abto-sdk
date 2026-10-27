@@ -15,7 +15,7 @@ Before checking builds, verify the interaction record:
 - Every approved OpenAI call preserves its native retry setting or official SDK default; no ABTO-specific fallback attempt counter was introduced.
 - Every other native OpenAI client option is preserved unless it is a documented ABTO-owned routing, credential, or transport field; every composition, override, or rejection is disclosed.
 - A caller-provided Node.js `clientOptions.fetch` remains the underlying transport, and supplied Python sync/async HTTP clients retain their hooks and caller-owned lifetime. Reserved arguments on the Python `openai()` factory still fail explicitly.
-- A LangChain integration uses a verified Chat Completions path and the installed public connection-options API for its language, preserves framework retries and custom transport, and passes the customer's module-system build.
+- A LangChain integration uses a verified Chat Completions or Responses path and the installed public connection-options API for its language, preserves framework retries and custom transport, and passes the customer's module-system build.
 - No incompatible or ambiguous API was silently converted into OpenAI Chat Completions.
 - Every event-related edit maps to a user-selected event candidate ID and exact trigger.
 - Every ABTO-specific uncertainty is resolved through the official [ABTO Docs](https://docs.abto.app/) or remains explicitly unresolved without a guessed implementation.
@@ -86,7 +86,7 @@ Run this check only when the user selected an event:
 
 ### Calling plane
 
-1. Send one minimal, low-cost approved Chat Completions request through the ABTO Gateway.
+1. Send one minimal, low-cost approved Chat Completions or Responses request through the ABTO Gateway.
 2. Confirm a successful response and a non-empty `x-abto-request-id`.
 3. Confirm the request under the intended ABTO project.
 

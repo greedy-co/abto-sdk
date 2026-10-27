@@ -5,9 +5,9 @@
 | Runtime | Public status | Responsibility | Package | Credential |
 |---|---|---|---|---|
 | Browser JavaScript | Available | Identity, device ID header, opt-in system or custom events | `@abto-app/event` | Event Key |
-| Node.js backend | Available | OpenAI Chat Completions Gateway calls and request context | `@abto-app/calling` | Calling Key plus provider keys |
-| Python backend | Available | OpenAI Chat Completions Gateway calls and request context | `abto[openai]` | Calling Key plus provider keys |
-| Java/Kotlin backend | Available | Non-streaming Chat Completions and framework integration | `app.abto:abto-calling` or one framework adapter | Calling Key plus provider keys |
+| Node.js backend | Available | OpenAI Chat Completions and Responses Gateway calls and request context | `@abto-app/calling` | Calling Key plus provider keys |
+| Python backend | Available | OpenAI Chat Completions and Responses Gateway calls and request context | `abto[openai]` | Calling Key plus provider keys |
+| Java/Kotlin backend | Available | Non-streaming Chat Completions and Responses, and framework integration | `app.abto:abto-calling` or one framework adapter | Calling Key plus provider keys |
 | Flutter/Dart native app | Available | Identity and opt-in app outcomes | `abto` | Event Key |
 | Android/Kotlin app | Available | Identity and opt-in app outcomes | `app.abto:abto-app` | Event Key |
 | iOS/macOS app | Available | Identity and opt-in app outcomes | `AbtoApp` | Event Key |
@@ -15,7 +15,7 @@
 The table is a runtime selection aid. Confirm current availability and installation instructions on the official Docs before installing.
 
 Use an Event SDK when a confirmed client runtime must provide stable identity or a user-selected event.
-Use a Calling SDK for approved server-side OpenAI Chat Completions execution.
+Use a Calling SDK for approved server-side OpenAI Chat Completions or Responses execution.
 Do not install an Event SDK in an unrelated client merely because a backend exists.
 Do not use a Calling SDK for browser or mobile event collection.
 Do not use an Event Key to authenticate Gateway calls.
@@ -25,13 +25,15 @@ Treat Flutter Web as a web runtime and use the Browser JavaScript integration on
 
 ## Calling compatibility
 
-The Gateway inbound contract is OpenAI Chat Completions.
+The Gateway inbound contract is OpenAI Chat Completions and Responses.
 Provider keys for OpenAI, Anthropic, Gemini, DeepSeek, and Kimi allow the Gateway to select an egress provider; they do not make every provider's native client API an accepted inbound contract.
 
-Automatically wire only an executable call that preserves the existing OpenAI Chat Completions request and response semantics.
+Automatically wire only an executable call that preserves the existing OpenAI Chat Completions or Responses request and response semantics.
+The Gateway does not store responses, so a Responses call qualifies only when it creates a non-streaming response without stored state.
 Inventory but do not automatically migrate:
 
-- OpenAI Responses, embeddings, images, audio, assistants, or batch APIs;
+- Responses calls that send `previous_response_id`, `conversation`, a stored `prompt`, `store: true`, or `background: true`, and Responses retrieve, delete, cancel, or input-item calls;
+- OpenAI embeddings, images, audio, assistants, or batch APIs;
 - native Anthropic Messages or Gemini generate-content calls;
 - a framework or raw HTTP wrapper whose actual request contract cannot be confirmed.
 
@@ -69,7 +71,7 @@ Use the narrowest relevant page:
 | Question | Documentation route |
 |---|---|
 | SDK role, key placement, or public support | `/sdk/` |
-| Gateway request fields, errors, or compatibility | `/gateway/overview/`, `/gateway/chat-completions/` |
+| Gateway request fields, errors, or compatibility | `/gateway/overview/`, `/gateway/chat-completions/`, `/gateway/responses/` |
 | Browser API | [Browser JavaScript](https://docs.abto.app/sdk/javascript/browser/) |
 | Node.js, CommonJS/ESM, LangChain, tracing | [Node.js JavaScript](https://docs.abto.app/sdk/javascript/server/) |
 | Java/Kotlin, Spring AI, LangChain4j, LangGraph4j | [JVM](https://docs.abto.app/sdk/jvm/) |

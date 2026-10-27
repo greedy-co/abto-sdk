@@ -73,7 +73,6 @@ sync_options = abto.openai_options()
 async_options = abto.async_openai_options()
 model = ChatOpenAI(
     model="gpt-4.1-mini",
-    use_responses_api=False,
     **sync_options,
     http_async_client=async_options["http_client"],
 )
@@ -144,7 +143,7 @@ Keep Langfuse or LangSmith callbacks, tags, and metadata in your existing invoca
 Tracing tools record the input your app sends. If you change the model, prompt, or parameters in the Dashboard, check the ABTO request record for what actually ran.
 The Gateway may remove tracing headers before forwarding to the provider, so a single trace extending through the provider is not guaranteed.
 
-This integration is for OpenAI Chat Completions. Do not use this example to convert calls that use streaming or the Responses API.
+This integration supports OpenAI Chat Completions and Responses requests. Do not use this example to convert calls that use streaming.
 Keep TXT loaders and vector retrievers in your existing chain, and keep embeddings on their existing provider connection.
 To continue calls directly during Gateway outages, also configure direct fallback below.
 
@@ -173,7 +172,7 @@ The Gateway maps the Calling Key to `tenant_id`, creates `request_id` in the `x-
 
 ## OpenAI direct fallback during Gateway outages
 
-When an OpenAI provider key and an explicit fallback base URL are configured, direct fallback handles Gateway failures that can be classified safely. It sends the original Chat Completions body and model to OpenAI and does not reproduce the Gateway's provider or model policy.
+When an OpenAI provider key and an explicit fallback base URL are configured, direct fallback handles Gateway failures that can be classified safely. It sends the original Chat Completions or Responses body and model to OpenAI and does not reproduce the Gateway's provider or model policy.
 
 ```python
 from abto import OpenAIDirectFallbackOptions, init_abto
@@ -204,6 +203,8 @@ Default behavior matches the JavaScript Calling SDK:
 - `x-abto-error-source: provider|transport`, deterministic `4xx` or `429`: do not fall back for the current request.
 
 The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `traceparent`, `tracestate`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
+
+Responses requests keep the `store` value the application sent. When it is omitted, OpenAI stores the response by default; requests through the Gateway always reach OpenAI with `store: false` ([Gateway Responses](https://docs.abto.app/en/gateway/responses/)).
 
 The ABTO transport performs at most one Gateway decision and one direct send per official OpenAI SDK attempt. It returns direct responses and errors to the official SDK, which remains the only retry authority.
 

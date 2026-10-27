@@ -1,6 +1,6 @@
 # ABTO Calling SDK for Java and Kotlin
 
-Java 17+에서 ABTO Gateway의 비스트리밍 Chat Completions를 사용합니다. 공식 OpenAI Java 타입을 재사용하고, 요청별 식별·인증·선택적 fallback을 같은 전송 정책으로 처리합니다. 모델·프롬프트·A/B 정책은 Gateway가 담당합니다.
+Java 17+에서 ABTO Gateway의 비스트리밍 Chat Completions와 Responses를 사용합니다. 공식 OpenAI Java 타입을 재사용하고, 요청별 식별·인증·선택적 fallback을 같은 전송 정책으로 처리합니다. 모델·프롬프트·A/B 정책은 Gateway가 담당합니다.
 
 ## 설치
 
@@ -162,6 +162,8 @@ var config = AbtoConfig.builder()
     .build();
 ```
 
+직접 호출은 Chat Completions와 Responses 경로에서 원래 본문을 그대로 사용합니다. Responses 요청은 앱이 보낸 `store` 값 그대로 나가므로, 생략하면 OpenAI 기본값대로 응답이 저장됩니다. Gateway를 거친 요청은 OpenAI에 항상 `store: false`로 나갑니다([Gateway Responses](https://docs.abto.app/gateway/responses/)).
+
 키 공급자는 매 요청 전송 시 평가됩니다. config의 `toString()`과 framework 설정에는 실제 키를 넣지 않습니다. 허용 Gateway 목적지와 예약 헤더를 검사하며 직접 호출에서 ABTO 키·provider 후보 키·쿠키를 제거합니다.
 
 명확한 연결 실패·Gateway 수용 거절에서만 직접 호출합니다. provider 오류·불명확한 연결 단절·호출자 취소는 fallback하지 않습니다. timeout 재실행은 `.onTimeout(true)`라는 명시적 opt-in이며 중복 실행 가능성을 고려해야 합니다. SDK 자체 retry loop는 없고 공식 SDK·framework의 retry 정책이 그대로 적용됩니다. circuit은 30초 후 단일 복구 probe를 허용합니다.
@@ -176,7 +178,7 @@ var config = AbtoConfig.builder()
 
 ## 지원 및 검증
 
-첫 버전의 범위는 **비스트리밍 Chat Completions**입니다. Responses, 토큰 스트리밍, embeddings, 자체 agent 실행기는 포함하지 않습니다. RAG embeddings는 기존 별도 클라이언트를 유지하세요.
+지원 범위는 **비스트리밍 Chat Completions와 Responses**입니다. Responses는 공식 OpenAI Java client에서 쓸 수 있고, Spring AI와 LangChain4j 연동은 Chat Completions만 사용합니다. 토큰 스트리밍, embeddings, 자체 agent 실행기는 포함하지 않습니다. RAG embeddings는 기존 별도 클라이언트를 유지하세요.
 
 | 대상 | 고정 검증 조합 |
 | --- | --- |

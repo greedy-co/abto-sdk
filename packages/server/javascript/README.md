@@ -98,8 +98,8 @@ The model name shown by your tracing tool can also depend on its version.
 <details>
 <summary>Before you connect</summary>
 
-- This example supports OpenAI Chat Completions. Streaming and the Responses API are not supported.
-- The connection has been tested with `@langchain/openai` versions `0.2.7` and `1.5.13`. Check the call path and compatibility when using another version.
+- This example supports OpenAI Chat Completions and Responses requests. Streaming is not supported.
+- The connection has been tested with `@langchain/openai` versions `0.2.7` and `1.5.13`. Responses requests were tested with `1.5.13`, because `0.2.7` has no Responses path. Check the call path and compatibility when using another version.
 - With `@langchain/openai@0.2.7` and `langfuse-langchain@3.39.2`, create a Langfuse handler for each request. Sharing a handler across concurrent requests can combine their traces.
 - Keep API keys and ABTO configuration on your server. ABTO keeps its Calling Key out of model settings, but does not automatically hide other secrets you add.
 - Do not pass another router's URL or authentication headers unchanged. `openaiOptions()` changes the destination to ABTO; it does not chain multiple routers.
@@ -153,7 +153,7 @@ Keep your tracing tool's request header setup. ABTO does not configure tracing f
 
 ## OpenAI direct fallback during Gateway outages
 
-This emergency path returns the request to the endpoint the application called before ABTO, so you name that destination in `fallback.baseURL` and there is no default. It does not reproduce the Gateway's provider or model assignment: the original Chat Completions body and `model` go to `<baseURL>/chat/completions`, so that endpoint must support the model and accept `Authorization: Bearer`. Enabling fallback without `baseURL` throws; configuring nothing leaves fallback off.
+This emergency path returns the request to the endpoint the application called before ABTO, so you name that destination in `fallback.baseURL` and there is no default. It does not reproduce the Gateway's provider or model assignment: the original Chat Completions or Responses body and `model` go to `<baseURL>/chat/completions` or `<baseURL>/responses`, so that endpoint must support the model and accept `Authorization: Bearer`. Enabling fallback without `baseURL` throws; configuring nothing leaves fallback off.
 
 ```ts
 const abto = initAbto({
@@ -185,6 +185,8 @@ Default behavior:
 A safely classified failure, or an explicitly enabled timeout replay, opens the circuit for 30 seconds. New requests bypass the Gateway during that interval; afterward, one request probes Gateway recovery.
 
 The direct path sends only the OpenAI key and OpenAI-safe headers such as `accept`, `content-type`, `idempotency-key`, `traceparent`, `tracestate`, `openai-*`, and `x-stainless-*`. It removes ABTO headers, the Calling Key, cookies, proxy credentials, and custom Gateway headers. Direct calls bypass Gateway policy, ABTO telemetry, and `request_id`.
+
+Responses requests keep the `store` value the application sent. When it is omitted, OpenAI stores the response by default; requests through the Gateway always reach OpenAI with `store: false` ([Gateway Responses](https://docs.abto.app/en/gateway/responses/)).
 
 The ABTO transport performs at most one Gateway decision and one direct send per client attempt. It returns direct responses and errors to the caller; the OpenAI SDK or owning framework retains its existing retry policy.
 
