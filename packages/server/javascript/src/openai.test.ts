@@ -825,6 +825,34 @@ describe('ABTO OpenAI Gateway client', () => {
     ]);
   });
 
+  it('sends a Responses request to the same path under the caller-supplied endpoint with its body unchanged', async () => {
+    covers('fallback.covers_responses_path');
+    const sent: Array<{ url: string; body: string }> = [];
+    const gatewayFetch = createGatewayFetch({
+      gatewayBaseURL: 'https://gateway.abto.app/v1',
+      abtoApiKey: 'abto-test',
+      providerKeys: { openai: 'sk-openai' },
+      fallback: { baseURL: 'https://llm.internal.example.com/openai/v1' },
+      fetchImpl: async (input, init) => {
+        const request = receivedRequest(input, init);
+        sent.push({ url: request.url, body: await request.text() });
+        if (request.url.startsWith('https://gateway.abto.app')) {
+          return new Response('{}', { status: 503 });
+        }
+        return new Response('{}', { status: 200 });
+      },
+    });
+    const body = '{"model":"gpt-5-mini","input":"hi"}';
+
+    const response = await gatewayFetch('https://gateway.abto.app/v1/responses', { method: 'POST', body });
+
+    expect(response.status).toBe(200);
+    expect(sent).toEqual([
+      { url: 'https://gateway.abto.app/v1/responses', body },
+      { url: 'https://llm.internal.example.com/openai/v1/responses', body },
+    ]);
+  });
+
   it('refuses to enable direct fallback without a destination', () => {
     covers('fallback.destination_required');
     expect(() => createGatewayFetch({

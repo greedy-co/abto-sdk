@@ -11,7 +11,7 @@ import {
   DEFAULT_FALLBACK_TIMEOUT_MS,
   DIRECT_HEADER_NAMES,
   DIRECT_HEADER_PREFIXES,
-  DIRECT_PATH_SUFFIX,
+  DIRECT_PATH_SUFFIXES,
   SAFE_GATEWAY_STATUSES,
   ERROR_SOURCE_GATEWAY,
   ERR_FALLBACK_BASE_URL_REQUIRED,
@@ -271,7 +271,7 @@ function directOpenAIURL(
   const basePath = gatewayBaseURL.pathname.replace(/\/?$/, '/');
   if (!destination.pathname.startsWith(basePath)) return undefined;
   const suffix = destination.pathname.slice(basePath.length);
-  if (suffix !== DIRECT_PATH_SUFFIX) return undefined;
+  if (!DIRECT_PATH_SUFFIXES.has(suffix)) return undefined;
   const direct = new URL(suffix, fallbackBaseURL);
   direct.search = destination.search;
   return direct;

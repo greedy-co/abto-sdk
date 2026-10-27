@@ -48,6 +48,21 @@ export async function localServer() {
         res.end(JSON.stringify({ error: { message: 'Gateway unavailable' } }));
         return;
       }
+      if (req.url.endsWith('/responses')) {
+        const content = body.input.at(-1).content;
+        const input = typeof content === 'string' ? content : content.map(part => part.text).join('');
+        res.setHeader('x-abto-request-id', 'fixture-request');
+        res.end(JSON.stringify({
+          id: 'fixture-response', object: 'response', created_at: 1, status: 'completed',
+          model: direct ? body.model : 'gpt-4.1-mini',
+          output: [{
+            type: 'message', id: 'fixture-message', status: 'completed', role: 'assistant',
+            content: [{ type: 'output_text', text: `answer:${input}`, annotations: [] }],
+          }],
+          usage: { input_tokens: 10, output_tokens: 3, total_tokens: 13 },
+        }));
+        return;
+      }
       const input = body.messages.at(-1).content;
       if (input === 'provider-error') {
         res.statusCode = 429;

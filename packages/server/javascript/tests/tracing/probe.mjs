@@ -69,7 +69,7 @@ try {
     handleLLMEnd() { callbacks.push({ type: 'success', customer: customer.getStore()?.name }); },
     handleLLMError() { callbacks.push({ type: 'error' }); },
   };
-  function model(client) {
+  function model(client, responses = false) {
     const configuration = {
       baseURL: `${server.url}/direct/v1`,
       fetch: async (input, init) => {
@@ -83,7 +83,7 @@ try {
     if (client) configuration.apiKey = providerKey;
     const result = new ChatOpenAI({
       apiKey: providerKey, model: 'gpt-4o-mini', temperature: 0.7, maxRetries: 0,
-      ...(modern ? { useResponsesApi: false } : {}),
+      ...(modern ? { useResponsesApi: responses } : {}),
       configuration: client ? client.openaiOptions(configuration) : configuration,
     });
     assertNoCredentials(result.toJSON());
@@ -175,6 +175,20 @@ try {
     }
     // Record the legacy limitation without rewriting the customer's model configuration.
     reportedModels = creates.map(event => updates.find(update => update.body.id === event.body.id)?.body.model ?? event.body.model);
+  }
+  if (modern) {
+    // LangChain 1.x moves some models and options to the Responses API on its own, so that path must reach the Gateway and fall back too.
+    // The earlier fallback left the circuit open, so the fallback client now sends straight to the direct destination.
+    const sent = server.requests.length;
+    const viaGateway = await abto.withContext(
+      { deviceId: 'responses', featureId: 'support.reply' }, () => model(abto, true).invoke('responses-gateway'),
+    );
+    const viaFallback = await model(fallback, true).invoke('responses-fallback');
+    server.assertHealthy();
+    assert.equal(viaGateway.text, 'answer:responses-gateway');
+    assert.equal(viaFallback.text, 'answer:responses-fallback');
+    assert.deepEqual(server.requests.slice(sent).map(request => request.path), ['/gateway/v1/responses', '/direct/v1/responses']);
+    assert.equal(server.requests[sent].headers['x-abto-device-id'], 'responses');
   }
   const report = {
     status: 'passed', stack: modern ? 'modern' : 'legacy', node: process.version,

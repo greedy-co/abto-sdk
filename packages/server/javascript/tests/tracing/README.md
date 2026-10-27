@@ -28,6 +28,7 @@ Assertions cover:
 - Request-scoped legacy handlers with six separate generation traces; modern shared handler with active OTel roots and a separate processor.
 - Actual response model recorded by modern Langfuse; legacy requested-model reporting recorded as a limitation, not silently corrected.
 - All seven provider/Gateway-shaped HTTP requests accounted for, including the failed Gateway attempt before fallback.
+- Modern only: LangChain Responses API calls reach the Gateway and the direct fallback destination at the `responses` path. LangChain OpenAI 0.2.7 has no Responses API.
 
 Each probe shuts down its tracing SDK and HTTP server in `finally`.
 The runner times out stalled subprocesses and removes its temporary installation directory in `finally`.
