@@ -17,7 +17,7 @@ import java.util.concurrent.Executor;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 
-/** JDK HTTP adapter for non-streaming Chat Completions with replayable request bodies. */
+/** JDK HTTP adapter for non-streaming Chat Completions and Responses with replayable request bodies. */
 public final class AbtoHttpClient extends HttpClient {
     private final HttpClient delegate;
     private final AbtoGateway gateway;

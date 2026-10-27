@@ -115,7 +115,7 @@ Flutter Web은 현재 Dart SDK가 지원하지 않으므로 브라우저용 Java
 | --- | --- | --- | --- |
 | Node.js | Gateway 호출·요청 문맥 | `npm install @abto-app/calling openai` | [![npm version](https://img.shields.io/npm/v/@abto-app/calling?style=flat-square&label=npm)](https://www.npmjs.com/package/@abto-app/calling) |
 | Python | Gateway 호출·요청 문맥 | `python -m pip install "abto[openai]"` | [![PyPI version](https://img.shields.io/pypi/v/abto?style=flat-square&label=PyPI)](https://pypi.org/project/abto/) |
-| Java / Kotlin | Gateway 호출과 프레임워크 연동 | `implementation("app.abto:abto-calling:1.2.1")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
+| Java / Kotlin | Gateway 호출과 프레임워크 연동 | `implementation("app.abto:abto-calling:1.2.2")` | [![Maven Central](https://img.shields.io/maven-central/v/app.abto/abto-calling?style=flat-square&label=Maven%20Central)](https://central.sonatype.com/artifact/app.abto/abto-calling) |
 
 패키지별 사용법은 [Node.js Calling SDK](./packages/server/javascript), [Python Calling SDK](./packages/server/python), [Java/Kotlin Calling SDK](./packages/server/jvm)에서 확인할 수 있습니다.
 

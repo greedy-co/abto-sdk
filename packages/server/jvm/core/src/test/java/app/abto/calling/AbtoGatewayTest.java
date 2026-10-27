@@ -69,7 +69,7 @@ class AbtoGatewayTest {
         scenarios.put("fallback.switches_on_connect_failure", () -> {
             var calls = new ArrayList<URI>();
             assertSame(OK, call(new AbtoGateway(enabled()), d -> { calls.add(d.uri()); if (calls.size() == 1) throw new ConnectException(); return OK; }));
-            assertEquals(List.of(URL, fallback().baseUrl().resolve(DIRECT_PATH_SUFFIX)), calls);
+            assertEquals(List.of(URL, fallback().baseUrl().resolve(CHAT_COMPLETIONS_PATH)), calls);
         });
         scenarios.put("fallback.switches_on_admission_503", () -> {
             var calls = new AtomicInteger();
@@ -87,6 +87,11 @@ class AbtoGatewayTest {
             var calls = new ArrayList<URI>();
             call(new AbtoGateway(enabled()), d -> { calls.add(d.uri()); return calls.size() == 1 ? REJECTED : OK; });
             assertEquals(URI.create("https://direct.example/custom/v1/chat/completions"), calls.get(1));
+        });
+        scenarios.put("fallback.covers_responses_path", () -> {
+            var calls = new ArrayList<URI>();
+            new AbtoGateway(enabled()).execute(URI.create("https://gateway.example/v1/responses"), "POST", Map.of(), d -> { calls.add(d.uri()); return calls.size() == 1 ? REJECTED : OK; }, RESPONSE);
+            assertEquals(URI.create("https://direct.example/custom/v1/responses"), calls.get(1));
         });
         scenarios.put("fallback.direct_error_returned_as_is", () -> {
             var direct = new Reply(429, Map.of("retry-after", List.of("3")), "original-error");

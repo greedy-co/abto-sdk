@@ -134,14 +134,16 @@ public final class AbtoGateway {
             }
         }
         AbtoFallback fallback = config.fallback();
-        boolean eligible = fallback != null && method.equals("POST") && uri.getRawPath().equals(base.getRawPath() + DIRECT_PATH_SUFFIX);
+        String path = uri.getRawPath();
+        String suffix = path.startsWith(base.getRawPath()) ? path.substring(base.getRawPath().length()) : "";
+        boolean eligible = fallback != null && method.equals("POST") && DIRECT_PATH_SUFFIXES.contains(suffix);
         String directKey = keys.get("openai");
         Dispatch direct = null;
         if (eligible && directKey != null) {
             var directHeaders = new LinkedHashMap<String, List<String>>();
             headers.forEach((name, values) -> { if (DIRECT_HEADER_NAMES.contains(name) || DIRECT_HEADER_PREFIXES.stream().anyMatch(name::startsWith)) directHeaders.put(name, values); });
             directHeaders.put("authorization", List.of("Bearer " + directKey));
-            URI directUri = fallback.baseUrl().resolve(DIRECT_PATH_SUFFIX + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery()));
+            URI directUri = fallback.baseUrl().resolve(suffix + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery()));
             direct = new Dispatch(directUri, directHeaders, null);
         }
         Circuit.Admission admission = direct == null ? new Circuit.Admission(false, 0) : circuit.enter();

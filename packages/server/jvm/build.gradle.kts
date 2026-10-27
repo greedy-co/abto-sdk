@@ -35,7 +35,7 @@ subprojects {
             artifactId = artifact
             pom {
                 name.set(artifact)
-                description.set("ABTO Gateway Chat Completions integration for Java and Kotlin.")
+                description.set("ABTO Gateway integration for Java and Kotlin.")
                 url.set("https://github.com/greedy-co/abto-sdk")
                 licenses { license { name.set("The MIT License"); url.set("https://opensource.org/license/mit"); distribution.set("repo") } }
                 developers { developer { id.set("greedy-co"); name.set("Greedy"); email.set("contact@abto.app") } }

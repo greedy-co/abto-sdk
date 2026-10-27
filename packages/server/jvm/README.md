@@ -16,14 +16,14 @@ Maven Central에서 사용 경로에 맞는 패키지 하나를 선택하세요.
 
 ```kotlin
 repositories { mavenCentral() }
-dependencies { implementation("app.abto:abto-calling:1.2.1") }
+dependencies { implementation("app.abto:abto-calling:1.2.2") }
 ```
 
 ```xml
 <dependency>
   <groupId>app.abto</groupId>
   <artifactId>abto-calling</artifactId>
-  <version>1.2.1</version>
+  <version>1.2.2</version>
 </dependency>
 ```
 

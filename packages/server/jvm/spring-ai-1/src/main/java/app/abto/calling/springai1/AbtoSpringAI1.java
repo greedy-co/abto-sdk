@@ -12,7 +12,7 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
-import static app.abto.calling.internal.CallingContract.DIRECT_PATH_SUFFIX;
+import static app.abto.calling.internal.CallingContract.CHAT_COMPLETIONS_PATH;
 
 /** Spring AI 1.1 non-streaming integration. Reuses the customer's RestClient observers and JDK pool. */
 public final class AbtoSpringAI1 implements AutoCloseable {
@@ -34,7 +34,7 @@ public final class AbtoSpringAI1 implements AutoCloseable {
     public Consumer<OpenAiApi.Builder> openAiApiOptions(RestClient.Builder restClient) {
         return builder -> {
             URI base = gateway.config().gatewayBaseUrl();
-            builder.baseUrl(base.getScheme() + "://" + base.getRawAuthority()).completionsPath(base.getRawPath() + DIRECT_PATH_SUFFIX)
+            builder.baseUrl(base.getScheme() + "://" + base.getRawAuthority()).completionsPath(base.getRawPath() + CHAT_COMPLETIONS_PATH)
                     .apiKey(AbtoConfig.AUTH_PLACEHOLDER)
                     .restClientBuilder(restClient.clone().requestFactory(new JdkClientHttpRequestFactory(AbtoHttpClient.wrap(transport, gateway))));
         };

@@ -7,7 +7,7 @@ subprojects {
         mavenCentral()
     }
     val artifact = if (name == "java" || name == "kotlin") "abto-calling" else "abto-calling-$name"
-    dependencies { "implementation"("app.abto:$artifact:${providers.gradleProperty("abtoVersion").getOrElse("1.2.1")}") }
+    dependencies { "implementation"("app.abto:$artifact:${providers.gradleProperty("abtoVersion").getOrElse("1.2.2")}") }
     dependencies {
         constraints {
             for (module in listOf("openai-java", "openai-java-core", "openai-java-client-okhttp")) {

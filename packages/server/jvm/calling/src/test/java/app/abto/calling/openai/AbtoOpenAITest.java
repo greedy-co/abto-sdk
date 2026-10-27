@@ -14,6 +14,7 @@ import com.openai.core.http.HttpClient;
 import com.openai.core.http.HttpRequest;
 import com.openai.core.http.HttpResponse;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.responses.ResponseCreateParams;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -163,6 +164,24 @@ class AbtoOpenAITest {
             abto.forContext(AbtoContext.of("first")).openai().chat().completions().create(params());
             original.withOptions(abto.forContext(AbtoContext.of("second")).openaiOptions(stub.jdk)).async().chat().completions().create(params()).join();
             assertEquals(List.of("https://gateway.example/v1/chat/completions", "https://direct.example/v1/chat/completions", "https://direct.example/v1/chat/completions"), urls);
+            assertEquals(1, bodies.stream().distinct().count());
+        }
+    }
+
+    @Test void responsesRequestFallsBackToTheSamePathWithItsBodyUnchanged() throws Exception {
+        var urls = new CopyOnWriteArrayList<String>();
+        var bodies = new CopyOnWriteArrayList<String>();
+        var stub = new Stub(request -> {
+            urls.add(request.url());
+            var body = new ByteArrayOutputStream(); request.body().writeTo(body); bodies.add(body.toString(StandardCharsets.UTF_8));
+            return request.url().startsWith("https://gateway.example/") ? rejected()
+                    : new Reply(200, Map.of(), "{\"id\":\"resp-test\",\"object\":\"response\",\"created_at\":1,\"model\":\"original-model\",\"output\":[]}");
+        });
+        var original = seed(stub, b -> {});
+        try (AutoCloseable ignored = original::close; var abto = AbtoOpenAI.create(config(true), original, stub.jdk)) {
+            var params = ResponseCreateParams.builder().model("original-model").input("hello").build();
+            assertEquals("resp-test", abto.forContext(AbtoContext.of("feature")).openai().responses().create(params).id());
+            assertEquals(List.of("https://gateway.example/v1/responses", "https://direct.example/v1/responses"), urls);
             assertEquals(1, bodies.stream().distinct().count());
         }
     }
