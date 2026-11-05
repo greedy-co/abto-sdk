@@ -2,11 +2,19 @@
 
 ## Contents
 
+- [Reply language](#reply-language)
 - [Repository map](#repository-map)
 - [LLM call inventory](#llm-call-inventory)
 - [Event candidates](#event-candidates)
 - [Minimal change ledger](#minimal-change-ledger)
 - [Three-section output](#three-section-output)
+
+## Reply language
+
+Write every table, status, question, and pending marker in the language the user writes in.
+The English labels in this skill define meanings, not literal output: translate them, and keep one term per status from the first gate through the final report.
+Keep code identifiers, `featureId` and `nodeId` values, file paths, commands, package names, and SDK API names unchanged.
+Keep the three section headings in [Three-section output](#three-section-output) and the change-ledger labels `Core` and `Event <ID>` in English for every reply language.
 
 ## Repository map
 
@@ -60,7 +68,7 @@ Use only these pre-approval statuses:
 - `incompatible`: the current Gateway cannot preserve the request API or semantics;
 - `ambiguous`: a dynamic wrapper, missing caller, unclear capability, or unstable identity prevents a safe change.
 
-Ask one question after the complete table:
+Ask one question after the complete table, in the user's language:
 “Which eligible IDs should I wire with the proposed locations, featureIds, and fallback settings? You can confirm the shown proposals with `all`, list IDs, add corrections, or exclude IDs. For each unresolved fallback destination, provide its base URL/configuration reference or choose no fallback.”
 Approval of call IDs does not resolve a missing fallback decision. Ask only for the outstanding choice on those paths, and do not repeat confirmation of choices already authorized in the conversation.
 
@@ -86,7 +94,7 @@ Do not invent a conversion event from a button label alone; require evidence tha
 | ID | Type | Event/API | Exact trigger | Properties and sources | Measurement purpose | Privacy and request correlation |
 |---|---|---|---|---|---|---|
 
-State that the default selection is `none` and ask:
+State that the default selection is `none` and ask, in the user's language:
 “Which event IDs should I add? You can list multiple IDs or answer `none`.”
 
 ## Minimal change ledger
@@ -104,7 +112,7 @@ In particular, reject empty event registries, placeholder events, demo UI, sampl
 
 ## Three-section output
 
-Use the following headings at every gate and in the final report:
+Use these three sections at every gate and in the final report, with the headings verbatim in English:
 
 ```markdown
 ## 1. Core · LLM API wiring
@@ -120,7 +128,7 @@ Candidate table, selected and declined IDs, Event changes, privacy impact, and v
 Core-versus-Event change ledger and the actual Mermaid flow.
 ```
 
-At a confirmation gate, mark unfinished sections as `Pending user confirmation`.
+At a confirmation gate, mark unfinished sections as `Pending user confirmation` in the user's language.
 In the final Mermaid diagram, label Core and Event nodes separately and show only paths that exist after the change:
 
 ```mermaid

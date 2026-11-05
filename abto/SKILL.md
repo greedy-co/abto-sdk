@@ -107,7 +107,7 @@ If a change cannot be tied to an approved customer outcome, do not make it.
 
 - Follow [Verification](references/verification.md) for each changed runtime and for the final change ledger.
 - Run one bounded live event or model call only when credentials, target environment, and any paid call are explicitly authorized.
-- At every confirmation checkpoint and in the final response, use exactly these three sections:
+- At every confirmation checkpoint and in the final response, use exactly these three sections with the English headings below, writing their content in the user's language as described in [Reply language](references/discovery-and-reporting.md#reply-language):
   - `## 1. Core · LLM API wiring`
   - `## 2. Event candidates · selection result`
   - `## 3. Final integration flow`
