@@ -144,6 +144,12 @@ class AbtoGatewayTest {
             clock.addAndGet(Duration.ofMillis(CIRCUIT_OPEN_MS).toNanos());
             for (int i = 0; i < 2; i++) call(gateway, d -> { assertEquals(URL, d.uri()); return OK; });
         });
+        // vertex 의 키는 1시간짜리 access token 이라 환경변수에 고정해 두면 한 시간 뒤부터 조용히 401 이 난다 — Supplier 로만 받는다.
+        scenarios.put("provider_key.env_reads_only_static_providers", () -> {
+            var env = Map.of(API_KEY_ENV, "calling-secret", GATEWAY_BASE_URL_ENV, "https://gateway.example/v1", "OPENAI_API_KEY", "sk-env", "VERTEX_API_KEY", "ya29.env-token");
+            var gateway = new AbtoGateway(AbtoConfig.builder().environment(env::get).build());
+            call(gateway, d -> { assertEquals(List.of("sk-env"), d.headers().get(HEADER_PROVIDER_KEY_PREFIX + "openai")); assertFalse(d.headers().containsKey(HEADER_PROVIDER_KEY_PREFIX + "vertex")); return OK; });
+        });
         scenarios.put("provider_key.resolved_per_request", () -> {
             var value = new AtomicInteger(); var gateway = new AbtoGateway(config().providerKey("openai", () -> "key-" + value.incrementAndGet()).build());
             for (int i = 1; i <= 2; i++) { String expected = "key-" + i; call(gateway, d -> { assertEquals(List.of(expected), d.headers().get(HEADER_PROVIDER_KEY_PREFIX + "openai")); return OK; }); }

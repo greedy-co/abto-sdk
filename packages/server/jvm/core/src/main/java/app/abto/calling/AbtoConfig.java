@@ -26,7 +26,8 @@ public final class AbtoConfig {
         if (builder.apiKey == null && (environmentKey == null || environmentKey.isBlank())) throw new IllegalArgumentException(ERR_API_KEY_REQUIRED);
         var keys = new LinkedHashMap<>(builder.providerKeys);
         if (!builder.explicitProviders) {
-            for (String provider : PROVIDER_IDS) {
+            // Only static keys are read from the environment; expiring credentials (vertex access tokens) must be supplied as a Supplier.
+            for (String provider : ENV_KEY_PROVIDER_IDS) {
                 String value = builder.environment.apply(provider.toUpperCase(Locale.ROOT) + "_API_KEY");
                 if (value != null && !value.isBlank()) keys.put(provider, () -> value);
             }
