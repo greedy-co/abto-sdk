@@ -39,6 +39,7 @@ from .policy_generated import (
     DIRECT_HEADER_NAMES as _DIRECT_HEADER_NAMES,
     DIRECT_HEADER_PREFIXES as _DIRECT_HEADER_PREFIXES,
     DIRECT_PATH_SUFFIXES as _DIRECT_PATH_SUFFIXES,
+    ENV_KEY_PROVIDER_IDS as _ENV_KEY_PROVIDERS,
     PROVIDER_IDS as _PROVIDERS,
     SAFE_GATEWAY_STATUSES as _SAFE_GATEWAY_STATUSES,
     ERROR_SOURCE_GATEWAY as _ERROR_SOURCE_GATEWAY,
@@ -66,11 +67,12 @@ def _provider_headers_scope(request: Any, headers: Optional[Dict[str, str]]) -> 
 
 
 def _provider_keys_from_env() -> Dict[str, Optional[str]]:
-    """Default provider keys, read from ``<PROVIDER>_API_KEY`` for every provider the Gateway accepts.
+    """Default provider keys, read from ``<PROVIDER>_API_KEY`` for every provider whose credential is a static key.
 
     Derived from the generated id list so a new provider needs no edit here.
+    Providers whose credential expires (vertex access tokens) are excluded: pass a callable for those.
     """
-    return {provider: os.getenv(f"{provider.upper()}_API_KEY") for provider in _PROVIDERS}
+    return {provider: os.getenv(f"{provider.upper()}_API_KEY") for provider in _ENV_KEY_PROVIDERS}
 
 
 @dataclass(frozen=True)

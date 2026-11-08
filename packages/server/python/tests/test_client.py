@@ -488,6 +488,20 @@ def test_missing_runtime_openai_key_does_not_buffer_the_request():
     assert stream_reads == 0
 
 
+def test_env_reads_only_static_provider_keys(monkeypatch):
+    covers("provider_key.env_reads_only_static_providers")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
+    # vertex 의 키는 1시간짜리 access token 이라 환경변수에 고정해 두면 한 시간 뒤부터 조용히 401 이 난다 — callable 로만 받는다.
+    monkeypatch.setenv("VERTEX_API_KEY", "ya29.env-token")
+    abto = init_abto(api_key="abto-test", gateway_base_url=PUBLIC_GATEWAY_BASE_URL)
+    request = Request("https://gateway.abto.app/v1/chat/completions")
+
+    abto.httpx_event_hooks()["request"][0](request)
+
+    assert request.headers[HEADER_PROVIDER_KEY_PREFIX + "openai"] == "sk-env"
+    assert HEADER_PROVIDER_KEY_PREFIX + "vertex" not in request.headers
+
+
 def test_callable_provider_key_is_resolved_once_per_request():
     covers("provider_key.resolved_per_request")
     httpx = pytest.importorskip("httpx")
