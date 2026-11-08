@@ -19,6 +19,7 @@ import {
   HEADER_REQUEST_ID,
 } from './policy.generated.js';
 import { initAbto } from './client.js';
+import { providerKeysFromEnv, resolveProviderHeaders } from './credentials.js';
 import {
   buildOpenAIClientOptions,
   createAbtoOpenAI,
@@ -73,6 +74,20 @@ describe('ABTO OpenAI Gateway client', () => {
     expect(capturedHeaders?.get(`${HEADER_PROVIDER_KEY_PREFIX}anthropic`)).toBe('sk-anthropic');
     expect(capturedHeaders?.get(HEADER_DEVICE_ID)).toBe('device-1');
     expect(capturedHeaders?.get(HEADER_FEATURE_ID)).toBe('chat.default');
+  });
+
+  it('reads only static Provider keys from the environment', async () => {
+    covers('provider_key.env_reads_only_static_providers');
+    const env: Record<string, string> = {
+      OPENAI_API_KEY: 'sk-env',
+      // vertex 의 키는 1시간짜리 access token 이라 환경변수에 고정해 두면 한 시간 뒤부터 조용히 401 이 난다 — 함수로만 받는다.
+      VERTEX_API_KEY: 'ya29.env-token',
+    };
+
+    const headers = await resolveProviderHeaders(providerKeysFromEnv((name) => env[name]));
+
+    expect(headers[`X-Abto-Key-openai`]).toBe('sk-env');
+    expect(Object.keys(headers)).not.toContain('X-Abto-Key-vertex');
   });
 
   it('resolves Provider credentials again for every request', async () => {
