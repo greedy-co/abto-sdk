@@ -15,7 +15,8 @@
 
 Automatically wire only confirmed OpenAI Chat Completions and Responses calls.
 A Responses call that relies on stored state is incompatible; apply the conditions in [SDK selection](sdk-selection.md#calling-compatibility).
-The Gateway may route that request to OpenAI, Anthropic, Gemini, DeepSeek, or Kimi with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
+The Gateway may route that request to OpenAI, Anthropic, Gemini, DeepSeek, Kimi, or Gemini on Vertex AI (provider `vertex`) with the corresponding provider key, but it does not accept those providers' native inbound request APIs.
+The `vertex` provider key is a short-lived Google access token, so pass it as a function that returns the current token rather than a static value or an environment variable.
 
 Inventory and report other OpenAI APIs, native Anthropic or Gemini clients, and ambiguous framework or raw HTTP wrappers.
 Do not migrate them, generate an adapter, or change streaming and error semantics merely to increase the number of wired calls.

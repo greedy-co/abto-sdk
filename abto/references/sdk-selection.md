@@ -26,7 +26,7 @@ Treat Flutter Web as a web runtime and use the Browser JavaScript integration on
 ## Calling compatibility
 
 The Gateway inbound contract is OpenAI Chat Completions and Responses.
-Provider keys for OpenAI, Anthropic, Gemini, DeepSeek, and Kimi allow the Gateway to select an egress provider; they do not make every provider's native client API an accepted inbound contract.
+Provider keys for OpenAI, Anthropic, Gemini, DeepSeek, Kimi, and Gemini on Vertex AI (`vertex`, a function returning a Google access token) allow the Gateway to select an egress provider; they do not make every provider's native client API an accepted inbound contract.
 
 Automatically wire only an executable call that preserves the existing OpenAI Chat Completions or Responses request and response semantics.
 The Gateway does not store responses, so a Responses call qualifies only when it creates a non-streaming response without stored state.
